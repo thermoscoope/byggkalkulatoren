@@ -620,13 +620,11 @@ def label_for(key: str) -> str:
 # ============================
 
 def show_pro_screen():
-    profile = get_ui_profile()  # bruker din skole/produksjon-profil
-    is_school = (profile.name == "Skole")
+    is_school = is_school_mode()
 
     st.subheader("Hva er Pro?")
     st.caption("Pro gir deg funksjoner som sparer tid, gir bedre kontroll og gjør dokumentasjon enklere.")
 
-    # Hero / hovedbudskap
     c1, c2 = st.columns([2, 1])
     with c1:
         if is_school:
@@ -660,9 +658,7 @@ def show_pro_screen():
 
     st.divider()
 
-    # Sammenligning: Gratis vs Pro (uten tabell for å holde det ryddig)
     st.markdown("### Gratis vs Pro")
-
     left, right = st.columns(2)
     with left:
         st.markdown("#### Gratis")
@@ -685,7 +681,6 @@ def show_pro_screen():
 
     st.divider()
 
-    # Funksjoner per fane (tilpasset)
     st.markdown("### Pro-funksjoner i denne modusen")
     if is_school:
         st.write("**Måling/enheter**: Eksempeloppgaver, typiske feil, skjult fasit.")
@@ -700,7 +695,6 @@ def show_pro_screen():
 
     st.divider()
 
-    # Pris og CTA (du kan endre tekst/pris senere)
     st.markdown("### Pris (forslag)")
     if is_school:
         st.write("• Lærer: 399 kr/år (forslag)")
@@ -709,7 +703,8 @@ def show_pro_screen():
         st.write("• Enkeltbruker: 149 kr/mnd eller 1 490 kr/år (forslag)")
         st.write("• Firma (1–10): fra 4 990 kr/år (forslag)")
 
-    st.info("Dette er forslag. Du kan enkelt endre prisene i teksten når du har bestemt modell.")
+    st.info("Dette er forslag. Du kan endre prisene i teksten når du har bestemt modell.")
+
 
     # CTA-knapper (ikke betaling – bare UI)
     cta1, cta2, cta3 = st.columns(3)
