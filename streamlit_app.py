@@ -33,8 +33,8 @@ if LOGO_PATH.exists():
         st.title("Bygg-kalkulatoren")
         st.caption("din hjelper på farta!")
 else:
-    st.title("Bygg-kalkulatoren")
-    st.caption("din hjelper på farta!")
+    st.title("")
+    st.caption("")
     st.warning("Finner ikke logo.png i prosjektmappen.")
 
 
