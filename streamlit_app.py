@@ -1,7 +1,7 @@
 import math
 import time
-from dataclasses import dataclass, asdict
-from typing import Dict, Any, List, Tuple, Optional
+from dataclasses import dataclass
+from typing import Dict, Any, List, Tuple
 
 import pandas as pd
 import streamlit as st
@@ -26,8 +26,23 @@ def safe_float(x: Any, default: float = 0.0) -> float:
         return default
 
 def round_sensible(x: float, decimals: int = 3) -> float:
-    # Praktisk avrunding (ikke fasit; du kan justere pr kalkulator)
     return round(x, decimals)
+
+
+# NYTT: generisk konvertering for mål på tegning (mm/cm/m -> mm)
+def to_mm(value: float, unit: str) -> float:
+    """Konverterer verdi fra valgt enhet til mm."""
+    if unit == "mm":
+        return value
+    if unit == "cm":
+        return value * 10.0
+    if unit == "m":
+        return value * 1000.0
+    return value  # fallback
+
+def mm_to_all(mm: float) -> Dict[str, float]:
+    """Returnerer mm, cm og m fra mm."""
+    return {"mm": mm, "cm": mm / 10.0, "m": mm / 1000.0}
 
 
 # -----------------------------
@@ -60,10 +75,9 @@ def calc_area_rectangle(length_m: float, width_m: float) -> CalcResult:
     steps = []
     warn_if(length_m <= 0 or width_m <= 0, "Lengde/bredde må være > 0.", warnings)
     area = length_m * width_m
-    steps.append(f"Areal = lengde × bredde")
+    steps.append("Areal = lengde × bredde")
     steps.append(f"Areal = {length_m} m × {width_m} m = {area} m²")
 
-    # Rimelighetssjekk
     warn_if(area > 2000, "Uvanlig stort areal. Sjekk enheter (m vs mm).", warnings)
     warn_if(area < 0.1, "Uvanlig lite areal. Sjekk målene.", warnings)
 
@@ -188,7 +202,7 @@ def calc_column_cylinder(diameter_mm: float, height_m: float) -> CalcResult:
     volume = math.pi * (r_m ** 2) * height_m
 
     steps.append("Volum sylinder = π × r² × h")
-    steps.append(f"r = diameter/2 = {diameter_mm}/2 mm = {m_to_mm(r_m)/2:.1f} mm -> {r_m} m")
+    steps.append(f"r = diameter/2 = {diameter_mm}/2 mm -> {r_m} m")
     steps.append(f"Volum = π × {r_m}² × {height_m} = {volume} m³")
 
     return CalcResult(
@@ -202,18 +216,9 @@ def calc_column_cylinder(diameter_mm: float, height_m: float) -> CalcResult:
 
 
 def calc_fall(length_m: float, mode: str, value: float) -> CalcResult:
-    """
-    mode:
-      - 'prosent' value = % fall
-      - '1:x' value = x (f.eks. 50 for 1:50)
-      - 'mm_per_m' value = mm per meter
-    output: høydeforskjell i mm og m
-    """
     warnings = []
     steps = []
     warn_if(length_m <= 0, "Lengde må være > 0.", warnings)
-
-    mm_per_m = None
 
     if mode == "prosent":
         warn_if(value < 0 or value > 20, "Prosentfall virker uvanlig (0–20%).", warnings)
@@ -252,23 +257,32 @@ def calc_fall(length_m: float, mode: str, value: float) -> CalcResult:
     )
 
 
-def calc_scale(drawing_mm: float, scale: int) -> CalcResult:
+# OPPDATERT: målestokk med valgt enhet på tegning
+def calc_scale(drawing_value: float, drawing_unit: str, scale: int) -> CalcResult:
     warnings = []
     steps = []
-    warn_if(drawing_mm <= 0, "Mål på tegning må være > 0.", warnings)
+
+    warn_if(drawing_value <= 0, "Mål på tegning må være > 0.", warnings)
     warn_if(scale <= 0, "Målestokk må være > 0.", warnings)
     warn_if(scale not in [10, 20, 25, 50, 75, 100, 200], "Uvanlig målestokk. Sjekk at du har riktig.", warnings)
 
+    drawing_mm = to_mm(drawing_value, drawing_unit)
     real_mm = drawing_mm * scale
-    real_m = mm_to_m(real_mm)
+    real_all = mm_to_all(real_mm)
 
     steps.append("Virkelig mål = mål på tegning × målestokk")
-    steps.append(f"= {drawing_mm} mm × {scale} = {real_mm} mm = {real_m} m")
+    steps.append(f"Mål på tegning = {drawing_value} {drawing_unit} = {drawing_mm} mm")
+    steps.append(f"Virkelig mål = {drawing_mm} mm × {scale} = {real_mm} mm")
+    steps.append(f"= {real_all['cm']} cm = {real_all['m']} m")
 
     return CalcResult(
         name="Målestokk (tegning → virkelighet)",
-        inputs={"tegning_mm": drawing_mm, "malestokk": scale},
-        outputs={"virkelig_mm": round_sensible(real_mm, 1), "virkelig_m": round_sensible(real_m, 3)},
+        inputs={"tegning_verdi": drawing_value, "tegning_enhet": drawing_unit, "malestokk": scale},
+        outputs={
+            "virkelig_mm": round_sensible(real_all["mm"], 1),
+            "virkelig_cm": round_sensible(real_all["cm"], 2),
+            "virkelig_m": round_sensible(real_all["m"], 3),
+        },
         steps=steps,
         warnings=warnings,
         timestamp=make_timestamp(),
@@ -362,16 +376,16 @@ def calc_time_estimate(quantity: float, productivity_per_hour: float) -> CalcRes
 
 
 def calc_deviation(projected: float, measured: float, tolerance_mm: float, unit: str) -> CalcResult:
-    """
-    unit: 'mm' eller 'm'
-    """
     warnings = []
     steps = []
 
     if unit == "m":
         projected_mm = m_to_mm(projected)
         measured_mm = m_to_mm(measured)
-        steps.append(f"Konverterer til mm: prosjektert {projected} m = {projected_mm} mm, målt {measured} m = {measured_mm} mm")
+        steps.append(
+            f"Konverterer til mm: prosjektert {projected} m = {projected_mm} mm, "
+            f"målt {measured} m = {measured_mm} mm"
+        )
     else:
         projected_mm = projected
         measured_mm = measured
@@ -429,7 +443,6 @@ def show_result(res: CalcResult):
         else:
             st.success("Ingen varsler.")
 
-        # Lagre i historikk
         if st.button("Lagre i historikk", type="primary"):
             st.session_state.history.append({
                 "tid": res.timestamp,
@@ -541,10 +554,17 @@ with tabs[2]:
 # ---- Målestokk ----
 with tabs[3]:
     st.subheader("Målestokk (tegning → virkelighet)")
-    draw = st.number_input("Mål på tegning (mm)", min_value=0.0, value=50.0, step=1.0, key="scale_draw")
-    scale = st.selectbox("Målestokk", options=[10, 20, 25, 50, 75, 100, 200], index=3, key="scale_sel")
+
+    c1, c2, c3 = st.columns([2, 1, 1])
+    with c1:
+        draw_val = st.number_input("Mål på tegning", min_value=0.0, value=50.0, step=1.0, key="scale_draw_val")
+    with c2:
+        draw_unit = st.selectbox("Enhet", options=["mm", "cm", "m"], index=0, key="scale_draw_unit")
+    with c3:
+        scale = st.selectbox("Målestokk", options=[10, 20, 25, 50, 75, 100, 200], index=3, key="scale_sel")
+
     if st.button("Beregn virkelig mål", key="btn_scale"):
-        res = calc_scale(draw, int(scale))
+        res = calc_scale(float(draw_val), str(draw_unit), int(scale))
         show_result(res)
 
 
@@ -598,8 +618,10 @@ with tabs[6]:
 with tabs[7]:
     st.subheader("Avvik / toleranse")
     unit = st.selectbox("Enhet for inndata", options=["mm", "m"], index=0, key="dev_unit")
-    projected = st.number_input("Prosjektert", value=1000.0 if unit == "mm" else 1.0, step=1.0 if unit == "mm" else 0.01, key="dev_proj")
-    measured = st.number_input("Målt", value=1002.0 if unit == "mm" else 1.002, step=1.0 if unit == "mm" else 0.01, key="dev_meas")
+    projected = st.number_input("Prosjektert", value=1000.0 if unit == "mm" else 1.0,
+                                step=1.0 if unit == "mm" else 0.01, key="dev_proj")
+    measured = st.number_input("Målt", value=1002.0 if unit == "mm" else 1.002,
+                               step=1.0 if unit == "mm" else 0.01, key="dev_meas")
     tol = st.number_input("Toleranse (mm)", min_value=0.0, value=2.0, step=0.5, key="dev_tol")
     if st.button("Beregn avvik", key="btn_dev"):
         res = calc_deviation(float(projected), float(measured), float(tol), unit)
@@ -612,7 +634,6 @@ with tabs[8]:
     if not st.session_state.history:
         st.info("Ingen beregninger lagret ennå.")
     else:
-        # Flat visning
         rows = []
         for item in st.session_state.history:
             rows.append({
@@ -626,7 +647,8 @@ with tabs[8]:
         st.dataframe(df, use_container_width=True)
 
         csv = df.to_csv(index=False).encode("utf-8")
-        st.download_button("Last ned historikk (CSV)", data=csv, file_name="bygg_kalkulator_historikk.csv", mime="text/csv")
+        st.download_button("Last ned historikk (CSV)", data=csv,
+                           file_name="bygg_kalkulator_historikk.csv", mime="text/csv")
 
         if st.button("Tøm historikk"):
             st.session_state.history = []
