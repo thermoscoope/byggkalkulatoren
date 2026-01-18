@@ -694,19 +694,37 @@ tabs = st.tabs(
 # ---- Måling/enheter ----
 with tabs[0]:
     st.subheader("Enhetsomregner")
-    c1, c2, c3 = st.columns(3)
+    st.caption("Skriv inn et tall, velg enhet, og få omregning til mm, cm og m i tabell.")
+
+    c1, c2 = st.columns([2, 1])
 
     with c1:
-        mm_val = st.number_input("mm", min_value=0.0, value=1000.0, step=1.0)
-        st.write(f"= {round_sensible(mm_to_m(mm_val), 4)} m")
+        value = st.number_input("Verdi", min_value=0.0, value=1000.0, step=1.0, key="unit_value")
 
     with c2:
-        cm_val = st.number_input("cm", min_value=0.0, value=100.0, step=1.0)
-        st.write(f"= {round_sensible(cm_to_m(cm_val), 4)} m")
+        unit_in = st.selectbox("Enhet", options=["mm", "cm", "m"], index=0, key="unit_in")
 
-    with c3:
-        m_val = st.number_input("m", min_value=0.0, value=1.0, step=0.1)
-        st.write(f"= {round_sensible(m_to_mm(m_val), 1)} mm")
+    # Konverter inndata til mm -> derfra til alle enheter
+    mm_value = to_mm(float(value), str(unit_in))
+    conv = mm_to_all(mm_value)
+
+    # Bygg tabell (mm, cm, m)
+    df_units = pd.DataFrame(
+        [
+            {"Enhet": "mm", "Verdi": round_sensible(conv["mm"], 1)},
+            {"Enhet": "cm", "Verdi": round_sensible(conv["cm"], 2)},
+            {"Enhet": "m",  "Verdi": round_sensible(conv["m"], 3)},
+        ]
+    )
+
+    st.dataframe(df_units, use_container_width=True, hide_index=True)
+
+    # Valgfritt: små "metric"-bokser i tillegg (kan fjernes)
+    m1, m2, m3 = st.columns(3)
+    m1.metric("mm", f'{round_sensible(conv["mm"], 1)}')
+    m2.metric("cm", f'{round_sensible(conv["cm"], 2)}')
+    m3.metric("m",  f'{round_sensible(conv["m"], 3)}')
+
 
 # ---- Areal ----
 with tabs[1]:
