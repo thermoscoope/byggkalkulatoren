@@ -514,8 +514,49 @@ def show_result(res: CalcResult):
     col1, col2 = st.columns([1, 1])
     with col1:
         st.subheader("Resultat")
+
+        # Visningsnavn (label) for output-nøkler
+        output_labels = {
+            # Målestokk
+            "virkelig_mm": "Virkelig mål (mm)",
+            "virkelig_cm": "Virkelig mål (cm)",
+            "virkelig_m": "Virkelig mål (m)",
+
+            # Tømmermannskledning
+            "underliggere_antall": "Antall underliggere",
+            "overliggere_antall": "Antall overliggere",
+            "dekket_bredde_mm": "Dekket bredde (mm)",
+            "overdekning_mm": "Overdekning (mm)",
+            "min_overligger_bredde_mm": "Min. overliggerbredde (mm)",
+            "overligger_ok_for_omlegg": "Overligger OK for omlegg",
+        }
+
         for k, v in res.outputs.items():
-            st.write(f"**{k}**: {v}")
+            label = output_labels.get(k, k.replace("_", " ").capitalize())
+            st.write(f"**{label}**: {v}")
+
+        if res.warnings:
+            st.warning("\n".join(res.warnings))
+        else:
+            st.success("Ingen varsler.")
+
+        if st.button("Lagre i historikk", type="primary"):
+            st.session_state.history.append({
+                "tid": res.timestamp,
+                "kalkulator": res.name,
+                "inputs": res.inputs,
+                "outputs": res.outputs,
+                "warnings": res.warnings,
+            })
+            st.toast("Lagret.")
+
+    with col2:
+        st.subheader("Utregning (valgfritt)")
+        show_steps = st.toggle("Vis mellomregning", value=True)
+        if show_steps:
+            for s in res.steps:
+                st.write(f"- {s}")
+
 
         if res.warnings:
             st.warning("\n".join(res.warnings))
