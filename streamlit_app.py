@@ -728,7 +728,7 @@ if "show_pro" not in st.session_state:
 
 with st.sidebar:
     st.divider()
-    if st.button("Hva er Pro?"):
+    if st.button("Oppgrader til Pro"):
         st.session_state.show_pro = True
 
 # Vis Pro-skjerm øverst i appen når brukeren klikker
