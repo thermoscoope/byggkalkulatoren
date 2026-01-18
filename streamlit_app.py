@@ -901,11 +901,11 @@ with tabs[4]:
 
 # ---- Fall/vinkel/diagonal ----
 with tabs[5]:
-    with tabs[6]:
+   with tabs[6]:
     if is_school_mode():
         st.caption(
-            "Pytagoras brukes kun i rettvinklede trekanter: c = √(a² + b²)."
-        )
+            "Pytagoras brukes kun i rettvinklede trekanter: c = √(a² + b²)
+    st.subheader("Diagonal (Pytagoras)")
 
     st.subheader("Diagonal (Pytagoras)")
 
