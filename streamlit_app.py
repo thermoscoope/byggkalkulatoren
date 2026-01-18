@@ -616,13 +616,13 @@ def label_for(key: str) -> str:
     return OUTPUT_LABELS.get(key, key.replace("_", " ").strip().capitalize())
 
 # ============================
-# "Hva er Pro?" skjerm (Streamlit)
+# "Bli en profesjonell yrkesutøver!" skjerm (Streamlit)
 # ============================
 
 def show_pro_screen():
     is_school = is_school_mode()
 
-    st.subheader("Hva er Pro?")
+    st.subheader("Vil du bli en profesjonell yrkesutøver?")
     st.caption("Pro gir deg funksjoner som sparer tid, gir bedre kontroll og gjør dokumentasjon enklere.")
 
     c1, c2 = st.columns([2, 1])
