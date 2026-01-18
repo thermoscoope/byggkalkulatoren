@@ -2,43 +2,48 @@ import math
 import time
 from dataclasses import dataclass
 from typing import Dict, Any, List, Tuple
+from pathlib import Path
 
 import pandas as pd
 import streamlit as st
-# -----------------------------
-# Streamlit UI + LOGO
-# -----------------------------
-from pathlib import Path
 from PIL import Image
 
+
+# ============================================================
+# Konfig + Logo (må ligge før all annen Streamlit-output)
+# ============================================================
 LOGO_PATH = Path(__file__).parent / "logo.png"
 
-# Bruk logo som favicon (valgfritt, men profesjonelt)
 page_icon = None
 if LOGO_PATH.exists():
-    page_icon = Image.open(LOGO_PATH)
+    try:
+        page_icon = Image.open(LOGO_PATH)
+    except Exception:
+        page_icon = None
 
 st.set_page_config(
     page_title="Bygg-kalkulatoren",
     page_icon=page_icon,
-    layout="wide"
+    layout="wide",
 )
 
-# Header med logo + tittel
+# Profesjonell header med logo
 if LOGO_PATH.exists():
     header_left, header_right = st.columns([1, 3])
     with header_left:
         st.image(str(LOGO_PATH), use_container_width=True)
-
+    with header_right:
+        st.title("Bygg-kalkulatoren")
+        st.caption("din hjelper på farta!")
 else:
-    st.title("")
-    st.caption("")
-    st.warning("Finner ikke logo.png i prosjektmappen.")
+    st.title("Bygg-kalkulatoren")
+    st.caption("din hjelper på farta!")
+    st.warning("Finner ikke logo.png i prosjektmappen. Legg logoen i samme mappe som app-filen.")
 
 
-# -----------------------------
-# Hjelpefunksjoner (enheter)
-# -----------------------------
+# ============================================================
+# Hjelpefunksjoner (enheter + formatering)
+# ============================================================
 def mm_to_m(mm: float) -> float:
     return mm / 1000.0
 
@@ -55,8 +60,8 @@ def round_sensible(x: float, decimals: int = 3) -> float:
     return round(x, decimals)
 
 
-# NYTT: konvertering fra valgt enhet -> mm (for målestokk)
 def to_mm(value: float, unit: str) -> float:
+    """Konverterer valgt enhet (mm/cm/m) til mm."""
     if unit == "mm":
         return value
     if unit == "cm":
@@ -67,13 +72,13 @@ def to_mm(value: float, unit: str) -> float:
 
 
 def mm_to_all(mm: float) -> Dict[str, float]:
+    """Returnerer mm, cm og m fra mm."""
     return {"mm": mm, "cm": mm / 10.0, "m": mm / 1000.0}
 
 
 def format_value(key: str, value: Any) -> str:
-    """Enkel, konsekvent formattering av tall/tekst."""
+    """Konsekvent formattering av outputverdier."""
     if isinstance(value, (int, float)):
-        # Enhetsnøkler – gi praktisk antall desimaler
         if key.endswith("_m3"):
             return f"{value:.3f}"
         if key.endswith("_m2"):
@@ -86,14 +91,13 @@ def format_value(key: str, value: Any) -> str:
             return f"{value:.3f}"
         if "prosent" in key or key.endswith("_pct"):
             return f"{value:.1f}"
-        # generelt
         return f"{value:.3f}".rstrip("0").rstrip(".")
     return str(value)
 
 
-# -----------------------------
+# ============================================================
 # Resultatformat
-# -----------------------------
+# ============================================================
 @dataclass
 class CalcResult:
     name: str
@@ -113,9 +117,9 @@ def warn_if(condition: bool, msg: str, warnings: List[str]):
         warnings.append(msg)
 
 
-# -----------------------------
+# ============================================================
 # Kalkulatorer
-# -----------------------------
+# ============================================================
 def calc_area_rectangle(length_m: float, width_m: float) -> CalcResult:
     warnings, steps = [], []
     warn_if(length_m <= 0 or width_m <= 0, "Lengde/bredde må være > 0.", warnings)
@@ -123,6 +127,7 @@ def calc_area_rectangle(length_m: float, width_m: float) -> CalcResult:
 
     steps.append("Areal = lengde × bredde")
     steps.append(f"Areal = {length_m} m × {width_m} m = {area} m²")
+
     warn_if(area > 2000, "Uvanlig stort areal. Sjekk enheter (m vs mm).", warnings)
     warn_if(area < 0.1, "Uvanlig lite areal. Sjekk målene.", warnings)
 
@@ -238,7 +243,7 @@ def calc_column_cylinder(diameter_mm: float, height_m: float) -> CalcResult:
     warn_if(diameter_mm < 80 or diameter_mm > 1500, "Diameter (mm) virker uvanlig (80–1500 mm).", warnings)
 
     r_m = mm_to_m(diameter_mm) / 2.0
-    volume = math.pi * (r_m ** 2) * height_m
+    volume = math.pi * (r_m**2) * height_m
 
     steps.append("Volum sylinder = π × r² × h")
     steps.append(f"r = {diameter_mm} mm / 2 = {r_m} m")
@@ -294,30 +299,70 @@ def calc_fall(length_m: float, mode: str, value: float) -> CalcResult:
     )
 
 
-# OPPDATERT: målestokk med valgt enhet på tegning
-def calc_scale(drawing_value: float, drawing_unit: str, scale: int) -> CalcResult:
+def calc_scale_bidir(value: float, unit: str, scale_n: int, direction: str) -> CalcResult:
+    """
+    direction:
+      - "Tegning → virkelighet"
+      - "Virkelighet → tegning"
+
+    scale_n tolkes som målestokk 1:scale_n (1–100)
+    """
     warnings, steps = [], []
-    warn_if(drawing_value <= 0, "Mål på tegning må være > 0.", warnings)
-    warn_if(scale <= 0, "Målestokk må være > 0.", warnings)
-    warn_if(scale not in [10, 20, 25, 50, 75, 100, 200], "Uvanlig målestokk. Sjekk at du har riktig.", warnings)
 
-    drawing_mm = to_mm(drawing_value, drawing_unit)
-    real_mm = drawing_mm * scale
-    real_all = mm_to_all(real_mm)
+    warn_if(value <= 0, "Målet må være > 0.", warnings)
+    warn_if(scale_n < 1 or scale_n > 100, "Målestokk (n) må være mellom 1 og 100.", warnings)
 
-    steps.append("Virkelig mål = mål på tegning × målestokk")
-    steps.append(f"Mål på tegning = {drawing_value} {drawing_unit} = {drawing_mm} mm")
-    steps.append(f"Virkelig mål = {drawing_mm} mm × {scale} = {real_mm} mm")
-    steps.append(f"= {real_all['cm']} cm = {real_all['m']} m")
+    input_mm = to_mm(value, unit)
 
+    if direction == "Tegning → virkelighet":
+        out_mm = input_mm * scale_n
+        out_all = mm_to_all(out_mm)
+
+        steps.append("Retning: Tegning → virkelighet")
+        steps.append(f"Målestokk: 1:{scale_n}")
+        steps.append(f"Inndata: {value} {unit} = {input_mm} mm")
+        steps.append(f"Virkelig mål = tegning × målestokk = {input_mm} × {scale_n} = {out_mm} mm")
+
+        return CalcResult(
+            name="Målestokk (tegning → virkelighet)",
+            inputs={"verdi": value, "enhet": unit, "malestokk_1_til_n": scale_n},
+            outputs={
+                "virkelig_mm": round_sensible(out_all["mm"], 1),
+                "virkelig_cm": round_sensible(out_all["cm"], 2),
+                "virkelig_m": round_sensible(out_all["m"], 3),
+            },
+            steps=steps,
+            warnings=warnings,
+            timestamp=make_timestamp(),
+        )
+
+    if direction == "Virkelighet → tegning":
+        out_mm = input_mm / scale_n if scale_n != 0 else 0.0
+        out_all = mm_to_all(out_mm)
+
+        steps.append("Retning: Virkelighet → tegning")
+        steps.append(f"Målestokk: 1:{scale_n}")
+        steps.append(f"Inndata: {value} {unit} = {input_mm} mm")
+        steps.append(f"Tegningsmål = virkelighet ÷ målestokk = {input_mm} ÷ {scale_n} = {out_mm} mm")
+
+        return CalcResult(
+            name="Målestokk (virkelighet → tegning)",
+            inputs={"verdi": value, "enhet": unit, "malestokk_1_til_n": scale_n},
+            outputs={
+                "tegning_mm": round_sensible(out_all["mm"], 1),
+                "tegning_cm": round_sensible(out_all["cm"], 2),
+                "tegning_m": round_sensible(out_all["m"], 3),
+            },
+            steps=steps,
+            warnings=warnings,
+            timestamp=make_timestamp(),
+        )
+
+    warnings.append("Ugyldig retning valgt.")
     return CalcResult(
-        name="Målestokk (tegning → virkelighet)",
-        inputs={"tegning_verdi": drawing_value, "tegning_enhet": drawing_unit, "malestokk": scale},
-        outputs={
-            "virkelig_mm": round_sensible(real_all["mm"], 1),
-            "virkelig_cm": round_sensible(real_all["cm"], 2),
-            "virkelig_m": round_sensible(real_all["m"], 3),
-        },
+        name="Målestokk",
+        inputs={"verdi": value, "enhet": unit, "malestokk_1_til_n": scale_n, "retning": direction},
+        outputs={},
         steps=steps,
         warnings=warnings,
         timestamp=make_timestamp(),
@@ -328,8 +373,7 @@ def calc_pythagoras(a_m: float, b_m: float) -> CalcResult:
     warnings, steps = [], []
     warn_if(a_m <= 0 or b_m <= 0, "Begge sider må være > 0.", warnings)
 
-    c = math.sqrt(a_m ** 2 + b_m ** 2)
-
+    c = math.sqrt(a_m**2 + b_m**2)
     steps.append("Diagonal c = √(a² + b²)")
     steps.append(f"= √({a_m}² + {b_m}²) = {c} m")
 
@@ -345,7 +389,6 @@ def calc_pythagoras(a_m: float, b_m: float) -> CalcResult:
 
 def calc_price(base_price: float, rabatt_prosent: float, paslag_prosent: float, mva_prosent: float) -> CalcResult:
     warnings, steps = [], []
-
     warn_if(base_price < 0, "Pris kan ikke være negativ.", warnings)
     warn_if(rabatt_prosent < 0 or rabatt_prosent > 90, "Rabatt virker uvanlig (0–90%).", warnings)
     warn_if(paslag_prosent < 0 or paslag_prosent > 200, "Påslag virker uvanlig (0–200%).", warnings)
@@ -434,17 +477,16 @@ def calc_deviation(projected: float, measured: float, tolerance_mm: float, unit:
     )
 
 
-# NYTT: Tømmermannskledning (kun bredde fra–til, omlegg og frie bordbredder)
 def calc_tommermannskledning_width(
     measure_cm: float,
     overlap_cm: float,
     under_width_mm: float,
-    over_width_mm: float
+    over_width_mm: float,
 ) -> CalcResult:
     """
     Avgrensning iht. dine krav:
     - Kun: mål fra–til (cm), omlegg (cm), underliggerbredde (mm), overliggerbredde (mm).
-    - Underliggere antas kant-i-kant (ingen spalte).
+    - Underliggere antas kant-i-kant.
     - Overliggere dekker skjøter: antall = underliggere - 1.
     - Omlegg tolkes som overlapp inn på hver side -> min overliggerbredde = 2 * omlegg.
     """
@@ -476,13 +518,17 @@ def calc_tommermannskledning_width(
     steps.append("Konvertering: cm → mm")
     steps.append(f"Mål fra–til: {measure_cm} cm = {measure_mm} mm")
     steps.append(f"Omlegg: {overlap_cm} cm = {overlap_mm} mm")
+
     steps.append("Antall underliggere: ceil(bredde / underbredde)")
     steps.append(f"= ceil({measure_mm} / {under_width_mm}) = {under_count}")
+
     steps.append("Dekket bredde = antall underliggere × underbredde")
     steps.append(f"= {under_count} × {under_width_mm} = {covered_mm} mm")
     steps.append(f"Overdekning = {covered_mm} - {measure_mm} = {overdekning_mm} mm")
+
     steps.append("Antall overliggere (skjøter) = underliggere - 1")
     steps.append(f"= {under_count} - 1 = {over_count}")
+
     steps.append("Kontroll: Min overliggerbredde = 2 × omlegg")
     steps.append(f"= 2 × {overlap_mm} = {min_over_width_mm:.0f} mm")
     steps.append(f"Valgt overliggerbredde: {over_width_mm} mm → {'OK' if ok_over_width else 'IKKE OK'}")
@@ -509,15 +555,17 @@ def calc_tommermannskledning_width(
     )
 
 
-# -----------------------------
-# Profesjonell visning av resultat
-# -----------------------------
+# ============================================================
+# Profesjonell visning (uten understreker)
+# ============================================================
 OUTPUT_LABELS = {
     # Målestokk
     "virkelig_mm": "Virkelig mål (mm)",
     "virkelig_cm": "Virkelig mål (cm)",
     "virkelig_m": "Virkelig mål (m)",
-
+    "tegning_mm": "Tegningsmål (mm)",
+    "tegning_cm": "Tegningsmål (cm)",
+    "tegning_m": "Tegningsmål (m)",
     # Kledning
     "underliggere_antall": "Antall underliggere",
     "overliggere_antall": "Antall overliggere",
@@ -525,8 +573,7 @@ OUTPUT_LABELS = {
     "overdekning_mm": "Overdekning (mm)",
     "min_overligger_bredde_mm": "Min. overliggerbredde (mm)",
     "overligger_ok_for_omlegg": "Overligger OK for omlegg",
-
-    # Generelt (noen vanlige)
+    # Generelt
     "areal_m2": "Areal (m²)",
     "bestillingsareal_m2": "Bestillingsareal (m²)",
     "totalareal_m2": "Totalareal (m²)",
@@ -547,10 +594,7 @@ OUTPUT_LABELS = {
 
 
 def label_for(key: str) -> str:
-    if key in OUTPUT_LABELS:
-        return OUTPUT_LABELS[key]
-    # fallback: fjern understreker, stor forbokstav
-    return key.replace("_", " ").strip().capitalize()
+    return OUTPUT_LABELS.get(key, key.replace("_", " ").strip().capitalize())
 
 
 def show_result(res: CalcResult):
@@ -559,14 +603,23 @@ def show_result(res: CalcResult):
     with col1:
         st.subheader("Resultat")
 
-        # Profesjonell visning for Målestokk og Kledning
+        # Målestokk: profesjonell metric-visning for begge retninger
         if res.name.startswith("Målestokk"):
             o = res.outputs
-            c1, c2, c3 = st.columns(3)
-            c1.metric("Virkelig mål (mm)", format_value("virkelig_mm", o.get("virkelig_mm", 0)))
-            c2.metric("Virkelig mål (cm)", format_value("virkelig_cm", o.get("virkelig_cm", 0)))
-            c3.metric("Virkelig mål (m)", format_value("virkelig_m", o.get("virkelig_m", 0)))
 
+            if "virkelig_mm" in o:
+                c1, c2, c3 = st.columns(3)
+                c1.metric("Virkelig mål (mm)", format_value("virkelig_mm", o.get("virkelig_mm", 0)))
+                c2.metric("Virkelig mål (cm)", format_value("virkelig_cm", o.get("virkelig_cm", 0)))
+                c3.metric("Virkelig mål (m)", format_value("virkelig_m", o.get("virkelig_m", 0)))
+
+            if "tegning_mm" in o:
+                c1, c2, c3 = st.columns(3)
+                c1.metric("Tegningsmål (mm)", format_value("tegning_mm", o.get("tegning_mm", 0)))
+                c2.metric("Tegningsmål (cm)", format_value("tegning_cm", o.get("tegning_cm", 0)))
+                c3.metric("Tegningsmål (m)", format_value("tegning_m", o.get("tegning_m", 0)))
+
+        # Kledning: profesjonell metric-visning
         elif res.name.startswith("Tømmermannskledning"):
             o = res.outputs
             r1c1, r1c2, r1c3 = st.columns(3)
@@ -577,10 +630,13 @@ def show_result(res: CalcResult):
             r2c1, r2c2, r2c3 = st.columns(3)
             r2c1.metric("Dekket bredde (mm)", format_value("dekket_bredde_mm", o.get("dekket_bredde_mm", 0)))
             r2c2.metric("Overdekning (mm)", format_value("overdekning_mm", o.get("overdekning_mm", 0)))
-            r2c3.metric("Min overliggerbredde (mm)", format_value("min_overligger_bredde_mm", o.get("min_overligger_bredde_mm", 0)))
+            r2c3.metric(
+                "Min overliggerbredde (mm)",
+                format_value("min_overligger_bredde_mm", o.get("min_overligger_bredde_mm", 0)),
+            )
 
+        # Standard: labels uten understreker
         else:
-            # Standard, men uten understreker + litt penere formattering
             for k, v in res.outputs.items():
                 st.write(f"**{label_for(k)}**: {format_value(k, v)}")
 
@@ -592,46 +648,48 @@ def show_result(res: CalcResult):
 
         # Historikk
         if st.button("Lagre i historikk", type="primary"):
-            st.session_state.history.append({
-                "tid": res.timestamp,
-                "kalkulator": res.name,
-                "inputs": res.inputs,
-                "outputs": res.outputs,
-                "warnings": res.warnings,
-            })
+            st.session_state.history.append(
+                {
+                    "tid": res.timestamp,
+                    "kalkulator": res.name,
+                    "inputs": res.inputs,
+                    "outputs": res.outputs,
+                    "warnings": res.warnings,
+                }
+            )
             st.toast("Lagret.")
 
     with col2:
         st.subheader("Utregning (valgfritt)")
-        show_steps = st.toggle("Vis mellomregning", value=True)
-        if show_steps:
+        with st.expander("Vis mellomregning", expanded=True):
             for s in res.steps:
                 st.write(f"- {s}")
 
 
-# -----------------------------
-# Streamlit UI
-# -----------------------------
-st.set_page_config(page_title="Bygg-kalkulator", layout="wide")
-
-st.title("Bygg-kalkulatoren for praktiske beregninger")
-st.caption("Kalkulatorer for vanlige oppgaver i byggebransjen. Med enheter, kontroll og valgfri mellomregning.")
-
+# ============================================================
+# App-state
+# ============================================================
 if "history" not in st.session_state:
     st.session_state.history: List[Dict[str, Any]] = []
 
-tabs = st.tabs([
-    "Måling/enheter",
-    "Areal",
-    "Volum/betong",
-    "Målestokk",
-    "Kledning",
-    "Fall/vinkel/diagonal",
-    "Økonomi",
-    "Tid",
-    "Avvik/KS",
-    "Historikk",
-])
+
+# ============================================================
+# Tabs
+# ============================================================
+tabs = st.tabs(
+    [
+        "Måling/enheter",
+        "Areal",
+        "Volum/betong",
+        "Målestokk",
+        "Kledning",
+        "Fall/vinkel/diagonal",
+        "Økonomi",
+        "Tid",
+        "Avvik/KS",
+        "Historikk",
+    ]
+)
 
 # ---- Måling/enheter ----
 with tabs[0]:
@@ -650,23 +708,20 @@ with tabs[0]:
         m_val = st.number_input("m", min_value=0.0, value=1.0, step=0.1)
         st.write(f"= {round_sensible(m_to_mm(m_val), 1)} mm")
 
-
 # ---- Areal ----
 with tabs[1]:
     st.subheader("Areal (rektangel)")
     l = st.number_input("Lengde (m)", min_value=0.0, value=5.0, step=0.1, key="areal_l")
     w = st.number_input("Bredde (m)", min_value=0.0, value=4.0, step=0.1, key="areal_w")
     if st.button("Beregn areal", key="btn_areal"):
-        res = calc_area_rectangle(l, w)
-        show_result(res)
+        show_result(calc_area_rectangle(l, w))
 
     st.divider()
     st.subheader("Areal + svinn")
     area = st.number_input("Areal (m²)", min_value=0.0, value=20.0, step=0.1, key="svinn_area")
     waste = st.number_input("Svinn (%)", min_value=0.0, value=10.0, step=1.0, key="svinn_pct")
     if st.button("Beregn bestillingsareal", key="btn_svinn"):
-        res = calc_area_with_waste(area, waste)
-        show_result(res)
+        show_result(calc_area_with_waste(area, waste))
 
     st.divider()
     st.subheader("Areal (sammensatt av rektangler)")
@@ -676,14 +731,25 @@ with tabs[1]:
     for i in range(int(n)):
         c1, c2 = st.columns(2)
         with c1:
-            li = st.number_input(f"Del {i+1} lengde (m)", min_value=0.0, value=2.0, step=0.1, key=f"comp_l_{i}")
+            li = st.number_input(
+                f"Del {i+1} lengde (m)",
+                min_value=0.0,
+                value=2.0,
+                step=0.1,
+                key=f"comp_l_{i}",
+            )
         with c2:
-            wi = st.number_input(f"Del {i+1} bredde (m)", min_value=0.0, value=1.5, step=0.1, key=f"comp_w_{i}")
+            wi = st.number_input(
+                f"Del {i+1} bredde (m)",
+                min_value=0.0,
+                value=1.5,
+                step=0.1,
+                key=f"comp_w_{i}",
+            )
         rects.append((li, wi))
-    if st.button("Beregn sammensatt areal", key="btn_comp"):
-        res = calc_area_composite(rects)
-        show_result(res)
 
+    if st.button("Beregn sammensatt areal", key="btn_comp"):
+        show_result(calc_area_composite(rects))
 
 # ---- Volum/betong ----
 with tabs[2]:
@@ -692,8 +758,7 @@ with tabs[2]:
     w = st.number_input("Bredde (m)", min_value=0.0, value=4.0, step=0.1, key="slab_w")
     t = st.number_input("Tykkelse (mm)", min_value=0.0, value=100.0, step=5.0, key="slab_t")
     if st.button("Beregn volum (plate)", key="btn_slab"):
-        res = calc_concrete_slab(l, w, t)
-        show_result(res)
+        show_result(calc_concrete_slab(l, w, t))
 
     st.divider()
     st.subheader("Stripefundament")
@@ -701,33 +766,41 @@ with tabs[2]:
     w = st.number_input("Bredde (m)", min_value=0.0, value=0.4, step=0.05, key="strip_w")
     h = st.number_input("Høyde (mm)", min_value=0.0, value=400.0, step=10.0, key="strip_h")
     if st.button("Beregn volum (stripefundament)", key="btn_strip"):
-        res = calc_strip_foundation(l, w, h)
-        show_result(res)
+        show_result(calc_strip_foundation(l, w, h))
 
     st.divider()
     st.subheader("Søyle (sylinder)")
     d = st.number_input("Diameter (mm)", min_value=0.0, value=300.0, step=10.0, key="col_d")
     hm = st.number_input("Høyde (m)", min_value=0.0, value=3.0, step=0.1, key="col_h")
     if st.button("Beregn volum (søyle)", key="btn_col"):
-        res = calc_column_cylinder(d, hm)
-        show_result(res)
+        show_result(calc_column_cylinder(d, hm))
 
-
-# ---- Målestokk ----
+# ---- Målestokk (begge veier + 1–100) ----
 with tabs[3]:
-    st.subheader("Målestokk (tegning → virkelighet)")
+    st.subheader("Målestokk")
+
+    direction = st.radio(
+        "Velg retning",
+        options=["Tegning → virkelighet", "Virkelighet → tegning"],
+        horizontal=True,
+        key="scale_direction",
+    )
+
     c1, c2, c3 = st.columns([2, 1, 1])
     with c1:
-        draw_val = st.number_input("Mål på tegning", min_value=0.0, value=50.0, step=1.0, key="scale_draw_val")
+        if direction == "Tegning → virkelighet":
+            val = st.number_input("Mål på tegning", min_value=0.0, value=50.0, step=1.0, key="scale_val")
+        else:
+            val = st.number_input("Virkelig mål", min_value=0.0, value=600.0, step=1.0, key="scale_val")
+
     with c2:
-        draw_unit = st.selectbox("Enhet", options=["mm", "cm", "m"], index=0, key="scale_draw_unit")
+        unit = st.selectbox("Enhet", options=["mm", "cm", "m"], index=0, key="scale_unit")
+
     with c3:
-        scale = st.selectbox("Målestokk", options=[10, 20, 25, 50, 75, 100, 200], index=3, key="scale_sel")
+        scale_n = st.number_input("Målestokk (1:n)", min_value=1, max_value=100, value=50, step=1, key="scale_n")
 
-    if st.button("Beregn virkelig mål", key="btn_scale"):
-        res = calc_scale(float(draw_val), str(draw_unit), int(scale))
-        show_result(res)
-
+    if st.button("Beregn målestokk", key="btn_scale_bidir"):
+        show_result(calc_scale_bidir(float(val), str(unit), int(scale_n), str(direction)))
 
 # ---- Kledning ----
 with tabs[4]:
@@ -745,20 +818,14 @@ with tabs[4]:
         over_w = st.number_input("Overligger bredde (mm)", min_value=1.0, value=58.0, step=1.0, key="tk_over_w")
 
     if st.button("Beregn kledning", key="btn_tk"):
-        res = calc_tommermannskledning_width(
-            measure_cm=float(measure_cm),
-            overlap_cm=float(overlap_cm),
-            under_width_mm=float(under_w),
-            over_width_mm=float(over_w),
-        )
-        show_result(res)
-
+        show_result(calc_tommermannskledning_width(float(measure_cm), float(overlap_cm), float(under_w), float(over_w)))
 
 # ---- Fall/vinkel/diagonal ----
 with tabs[5]:
     st.subheader("Fallberegning")
     length = st.number_input("Lengde (m)", min_value=0.0, value=2.0, step=0.1, key="fall_len")
     mode = st.selectbox("Angi fall som", options=["prosent", "1:x", "mm_per_m"], index=0, key="fall_mode")
+
     if mode == "prosent":
         val = st.number_input("Fall (%)", min_value=0.0, value=2.0, step=0.1, key="fall_val_pct")
     elif mode == "1:x":
@@ -767,17 +834,14 @@ with tabs[5]:
         val = st.number_input("mm per meter", min_value=0.0, value=20.0, step=1.0, key="fall_val_mm")
 
     if st.button("Beregn fall", key="btn_fall"):
-        res = calc_fall(length, mode, float(val))
-        show_result(res)
+        show_result(calc_fall(length, mode, float(val)))
 
     st.divider()
     st.subheader("Pytagoras (diagonal)")
     a = st.number_input("Side a (m)", min_value=0.0, value=3.0, step=0.1, key="pyt_a")
     b = st.number_input("Side b (m)", min_value=0.0, value=4.0, step=0.1, key="pyt_b")
     if st.button("Beregn diagonal", key="btn_pyt"):
-        res = calc_pythagoras(a, b)
-        show_result(res)
-
+        show_result(calc_pythagoras(a, b))
 
 # ---- Økonomi ----
 with tabs[6]:
@@ -787,9 +851,7 @@ with tabs[6]:
     paslag = st.number_input("Påslag (%)", min_value=0.0, value=0.0, step=1.0, key="price_paslag")
     mva = st.number_input("MVA (%)", min_value=0.0, value=25.0, step=1.0, key="price_mva")
     if st.button("Beregn pris", key="btn_price"):
-        res = calc_price(base, rabatt, paslag, mva)
-        show_result(res)
-
+        show_result(calc_price(base, rabatt, paslag, mva))
 
 # ---- Tid ----
 with tabs[7]:
@@ -797,9 +859,7 @@ with tabs[7]:
     qty = st.number_input("Mengde (f.eks. m²)", min_value=0.0, value=50.0, step=1.0, key="time_qty")
     prod = st.number_input("Produksjon per time (f.eks. m²/time)", min_value=0.0, value=10.0, step=0.5, key="time_prod")
     if st.button("Beregn tid", key="btn_time"):
-        res = calc_time_estimate(qty, prod)
-        show_result(res)
-
+        show_result(calc_time_estimate(qty, prod))
 
 # ---- Avvik/KS ----
 with tabs[8]:
@@ -809,39 +869,38 @@ with tabs[8]:
         "Prosjektert",
         value=1000.0 if unit == "mm" else 1.0,
         step=1.0 if unit == "mm" else 0.01,
-        key="dev_proj"
+        key="dev_proj",
     )
     measured = st.number_input(
         "Målt",
         value=1002.0 if unit == "mm" else 1.002,
         step=1.0 if unit == "mm" else 0.01,
-        key="dev_meas"
+        key="dev_meas",
     )
     tol = st.number_input("Toleranse (mm)", min_value=0.0, value=2.0, step=0.5, key="dev_tol")
 
     if st.button("Beregn avvik", key="btn_dev"):
-        res = calc_deviation(float(projected), float(measured), float(tol), unit)
-        show_result(res)
-
+        show_result(calc_deviation(float(projected), float(measured), float(tol), unit))
 
 # ---- Historikk ----
 with tabs[9]:
     st.subheader("Historikk")
+
     if not st.session_state.history:
         st.info("Ingen beregninger lagret ennå.")
     else:
         rows = []
         for item in st.session_state.history:
-            # Gjør historikk mer lesbar ved å “oversette” output keys
             outputs_pretty = {label_for(k): v for k, v in item["outputs"].items()}
-            rows.append({
-                "tid": item["tid"],
-                "kalkulator": item["kalkulator"],
-                "inputs": str(item["inputs"]),
-                "outputs": str(outputs_pretty),
-                "varsler": "; ".join(item["warnings"]) if item["warnings"] else "",
-            })
-
+            rows.append(
+                {
+                    "tid": item["tid"],
+                    "kalkulator": item["kalkulator"],
+                    "inputs": str(item["inputs"]),
+                    "outputs": str(outputs_pretty),
+                    "varsler": "; ".join(item["warnings"]) if item["warnings"] else "",
+                }
+            )
         df = pd.DataFrame(rows)
         st.dataframe(df, use_container_width=True)
 
@@ -850,7 +909,7 @@ with tabs[9]:
             "Last ned historikk (CSV)",
             data=csv,
             file_name="bygg_kalkulator_historikk.csv",
-            mime="text/csv"
+            mime="text/csv",
         )
 
         if st.button("Tøm historikk"):
