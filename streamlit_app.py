@@ -907,7 +907,6 @@ with tabs[5]:
     if st.button("Beregn fall", key="btn_fall"):
         show_result(calc_fall(length, mode, float(val)))
     # ---- Diagonal (Pytagoras) ----
-with tabs[6]:
     if is_school_mode():
         st.caption("Pytagoras brukes i rettvinklede trekanter: c = √(a² + b²).")
 
