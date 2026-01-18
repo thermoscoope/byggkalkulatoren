@@ -717,18 +717,20 @@ if "history" not in st.session_state:
 # ============================================================
 tabs = st.tabs(
     [
-        "Enhetsomregner",
-        "Areal",
-        "Volum/betong",
-        "Målestokk",
-        "Kledning",
-        "Fall/vinkel/diagonal",
-        "Økonomi",
-        "Tid",
-        "Avvik/KS",
-        "Historikk",
+        "📏 Måling/enheter",
+        "⬛ Areal",
+        "🧱 Volum/betong",
+        "📐 Målestokk",
+        "🪵 Kledning",
+        "📉 Fall/vinkel",
+        "📐 Diagonal (Pytagoras)",
+        "💰 Økonomi",
+        "⏱️ Tid",
+        "⚠️ Avvik/KS",
+        "📊 Historikk",
     ]
 )
+
 
 # ---- Enhetsomregner ----
 with tabs[0]:
