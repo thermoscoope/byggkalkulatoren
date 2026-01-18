@@ -767,9 +767,10 @@ with tabs[0]:
 
 # ---- Areal ----
 with tabs[1]:
-    with tabs[1]:
     if is_school_mode():
-        st.caption("Tenk: areal = lengde × bredde. Sjekk alltid at begge mål er i meter.")
+        st.caption(
+            "Tenk: areal = lengde × bredde. Sjekk alltid at begge mål er i meter."
+        )
 
     st.subheader("Areal (rektangel)")
 
