@@ -768,9 +768,7 @@ with tabs[0]:
 # ---- Areal ----
 with tabs[1]:
     if is_school_mode():
-        st.caption(
-            "Tenk: areal = lengde × bredde. Sjekk alltid at begge mål er i meter."
-        )
+        st.caption("Tenk: areal = lengde × bredde. Sjekk alltid at begge mål er i meter.")
 
     st.subheader("Areal (rektangel)")
 
@@ -817,11 +815,8 @@ with tabs[1]:
 
 # ---- Volum/betong ----
 with tabs[2]:
-    with tabs[2]:
     if is_school_mode():
-        st.caption(
-            "Volum beregnes i m³. Tykkelser oppgis ofte i mm og må konverteres til meter."
-        )
+        st.caption("Volum beregnes i m³. Tykkelser oppgis ofte i mm og må konverteres til meter.")
 
     st.subheader("Betongplate")
 
@@ -849,11 +844,8 @@ with tabs[2]:
 
 # ---- Målestokk (begge veier + 1–100) ----
 with tabs[3]:
-    with tabs[3]:
     if is_school_mode():
-        st.caption(
-            "Husk: 1:50 betyr at 1 enhet på tegning tilsvarer 50 enheter i virkeligheten."
-        )
+        st.caption("Husk: 1:50 betyr at 1 enhet på tegning tilsvarer 50 enheter i virkeligheten.")
 
     st.subheader("Målestokk")
 
@@ -903,9 +895,7 @@ with tabs[4]:
 # ---- Fall/vinkel/diagonal ----
 with tabs[6]:
     if is_school_mode():
-        st.caption(
-            "Pytagoras brukes kun i rettvinklede trekanter: c = √(a² + b²)."
-        )
+        st.caption("Pytagoras brukes kun i rettvinklede trekanter: c = √(a² + b²).")
 
     st.subheader("Diagonal (Pytagoras)")
 
