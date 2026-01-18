@@ -617,10 +617,16 @@ def label_for(key: str) -> str:
 
 
 def show_result(res: CalcResult):
+    school = is_school_mode()
+
     col1, col2 = st.columns([1.1, 1])
 
     with col1:
         st.subheader("Resultat")
+
+        # I skolemodus: kort læringshint øverst
+        if school:
+            st.info("Tips: Sjekk alltid enhet (mm/cm/m) og om svaret virker realistisk.")
 
         # Målestokk: profesjonell metric-visning for begge retninger
         if res.name.startswith("Målestokk"):
@@ -659,11 +665,22 @@ def show_result(res: CalcResult):
             for k, v in res.outputs.items():
                 st.write(f"**{label_for(k)}**: {format_value(k, v)}")
 
-        # Varsler
+        # Varsler: skole vs produksjon
         if res.warnings:
-            st.warning("\n".join(res.warnings))
+            if school:
+                st.warning("Sjekk dette:\n- " + "\n- ".join(res.warnings))
+                st.caption("I skolemodus er varsler laget for å støtte kontroll og enhetsforståelse.")
+            else:
+                st.error("Kontroller før bruk i produksjon:\n- " + "\n- ".join(res.warnings))
         else:
             st.success("Ingen varsler.")
+
+        # Skolemodus: refleksjonsspørsmål (valgfritt, men nyttig)
+        if school:
+            with st.expander("Refleksjon (for læring)", expanded=False):
+                st.write("1) Hvilke enheter brukte du, og hvorfor?")
+                st.write("2) Virker svaret realistisk? Hvordan kan du grovsjekke?")
+                st.write("3) Hva er en typisk feil her (mm vs m, prosent vs 1:x osv.)?")
 
         # Historikk
         if st.button("Lagre i historikk", type="primary"):
@@ -671,6 +688,7 @@ def show_result(res: CalcResult):
                 {
                     "tid": res.timestamp,
                     "kalkulator": res.name,
+                    "modus": "Skole" if school else "Produksjon",
                     "inputs": res.inputs,
                     "outputs": res.outputs,
                     "warnings": res.warnings,
@@ -680,7 +698,9 @@ def show_result(res: CalcResult):
 
     with col2:
         st.subheader("Utregning (valgfritt)")
-        with st.expander("Vis mellomregning", expanded=True):
+
+        # Nøkkel: mellomregning åpen i skolemodus, lukket i produksjon
+        with st.expander("Vis mellomregning", expanded=school):
             for s in res.steps:
                 st.write(f"- {s}")
 
