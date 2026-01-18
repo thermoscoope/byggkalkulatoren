@@ -771,8 +771,6 @@ with tabs[1]:
         st.caption("Tenk: areal = lengde × bredde. Sjekk alltid at begge mål er i meter.")
 
     st.subheader("Areal (rektangel)")
-
-    st.subheader("Areal (rektangel)")
     l = st.number_input("Lengde (m)", min_value=0.0, value=5.0, step=0.1, key="areal_l")
     w = st.number_input("Bredde (m)", min_value=0.0, value=4.0, step=0.1, key="areal_w")
     if st.button("Beregn areal", key="btn_areal"):
@@ -819,8 +817,6 @@ with tabs[2]:
         st.caption("Volum beregnes i m³. Tykkelser oppgis ofte i mm og må konverteres til meter.")
 
     st.subheader("Betongplate")
-
-    st.subheader("Betongplate")
     l = st.number_input("Lengde (m)", min_value=0.0, value=6.0, step=0.1, key="slab_l")
     w = st.number_input("Bredde (m)", min_value=0.0, value=4.0, step=0.1, key="slab_w")
     t = st.number_input("Tykkelse (mm)", min_value=0.0, value=100.0, step=5.0, key="slab_t")
@@ -846,8 +842,6 @@ with tabs[2]:
 with tabs[3]:
     if is_school_mode():
         st.caption("Husk: 1:50 betyr at 1 enhet på tegning tilsvarer 50 enheter i virkeligheten.")
-
-    st.subheader("Målestokk")
 
     st.subheader("Målestokk")
 
@@ -896,8 +890,6 @@ with tabs[4]:
 with tabs[6]:
     if is_school_mode():
         st.caption("Pytagoras brukes kun i rettvinklede trekanter: c = √(a² + b²).")
-
-    st.subheader("Diagonal (Pytagoras)")
 
     st.subheader("Fallberegning")
     length = st.number_input("Lengde (m)", min_value=0.0, value=2.0, step=0.1, key="fall_len")
