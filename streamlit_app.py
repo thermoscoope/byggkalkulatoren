@@ -27,6 +27,25 @@ st.set_page_config(
     layout="wide",
 )
 
+# ============================================================
+# Modus: Skole / Produksjon
+# ============================================================
+if "app_mode" not in st.session_state:
+    st.session_state.app_mode = "Skole"
+
+with st.sidebar:
+    st.header("Innstillinger")
+    st.session_state.app_mode = st.radio(
+        "Modus",
+        options=["Skole", "Produksjon"],
+        index=0 if st.session_state.app_mode == "Skole" else 1,
+        help="Skole: mer forklaring og mellomregning. Produksjon: raskt resultat og mindre støy.",
+    )
+
+def is_school_mode() -> bool:
+    return st.session_state.get("app_mode", "Skole") == "Skole"
+
+
 # Profesjonell header med logo
 if LOGO_PATH.exists():
     header_left, header_right = st.columns([1, 3])
