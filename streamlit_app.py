@@ -257,7 +257,6 @@ def calc_fall(length_m: float, mode: str, value: float) -> CalcResult:
     )
 
 
-# OPPDATERT: målestokk med valgt enhet på tegning
 def calc_scale(drawing_value: float, drawing_unit: str, scale: int) -> CalcResult:
     warnings = []
     steps = []
@@ -420,6 +419,110 @@ def calc_deviation(projected: float, measured: float, tolerance_mm: float, unit:
     )
 
 
+# NYTT: Tømmermannskledning
+def calc_tommerkledning(
+    gross_area_m2: float,
+    openings_area_m2: float,
+    board_width_mm: float,
+    overlap_mm: float,
+    waste_percent: float,
+    include_underligger: bool,
+    extra_underligger_lm: float,
+    extras_percent: float,
+    extras_lm: float,
+) -> CalcResult:
+    warnings = []
+    steps = []
+
+    warn_if(gross_area_m2 <= 0, "Brutto areal må være > 0.", warnings)
+    warn_if(openings_area_m2 < 0, "Åpninger kan ikke være negativt.", warnings)
+    warn_if(openings_area_m2 > gross_area_m2, "Åpninger kan ikke være større enn brutto areal.", warnings)
+
+    warn_if(board_width_mm <= 0, "Bordbredde må være > 0.", warnings)
+    warn_if(overlap_mm < 0, "Overlegg kan ikke være negativt.", warnings)
+    warn_if(overlap_mm < 15 or overlap_mm > 25, "Overlegg virker uvanlig (typisk ca. 15–25 mm).", warnings)
+
+    warn_if(waste_percent < 0 or waste_percent > 30, "Svinn/kapp virker uvanlig (0–30%).", warnings)
+    warn_if(extras_percent < 0 or extras_percent > 30, "Tillegg % virker uvanlig (0–30%).", warnings)
+    warn_if(extra_underligger_lm < 0 or extras_lm < 0, "Tillegg i lm kan ikke være negativt.", warnings)
+
+    net_area_m2 = max(gross_area_m2 - openings_area_m2, 0.0)
+
+    # Dekningsmål = (2 x bordbredde) - (2 x overlegg), i meter
+    dekningsmål_mm = (2.0 * board_width_mm) - (2.0 * overlap_mm)
+    warn_if(dekningsmål_mm <= 0, "Dekningsmål ble <= 0. Sjekk bordbredde og overlegg.", warnings)
+
+    dekningsmål_m = mm_to_m(dekningsmål_mm)
+
+    # Overliggere i løpemeter: m² / m = lm
+    overligger_lm = 0.0 if dekningsmål_m <= 0 else (net_area_m2 / dekningsmål_m)
+
+    # Underliggere: normalt samme lm som overliggere + evt. ekstra
+    underligger_lm = overligger_lm if include_underligger else 0.0
+    underligger_lm = underligger_lm + (extra_underligger_lm if include_underligger else 0.0)
+
+    base_total_lm = overligger_lm + underligger_lm
+
+    steps.append("1) Netto areal = brutto areal − åpninger")
+    steps.append(f"= {gross_area_m2} − {openings_area_m2} = {net_area_m2} m²")
+
+    steps.append("2) Dekningsmål (m) = (2 × bordbredde − 2 × overlegg)")
+    steps.append(f"= (2×{board_width_mm} mm − 2×{overlap_mm} mm) = {dekningsmål_mm} mm = {dekningsmål_m} m")
+
+    steps.append("3) Overliggere (lm) = netto areal / dekningsmål")
+    steps.append(f"= {net_area_m2} / {dekningsmål_m} = {overligger_lm} lm")
+
+    if include_underligger:
+        steps.append("4) Underliggere (lm) = overliggere (lm) + evt. ekstra")
+        steps.append(f"= {overligger_lm} + {extra_underligger_lm} = {underligger_lm} lm")
+    else:
+        steps.append("4) Underliggere er ikke inkludert i totalen (valgfritt).")
+
+    steps.append("5) Sum lm (før svinn/tillegg) = overliggere + underliggere")
+    steps.append(f"= {overligger_lm} + {underligger_lm} = {base_total_lm} lm")
+
+    # Tillegg for hjørner/vannbrett osv.
+    total_with_extras = base_total_lm * (1 + extras_percent / 100.0) + extras_lm
+    steps.append("6) Tillegg (hjørner/vannbrett) = sum × (1 + tillegg%) + tillegg lm")
+    steps.append(f"= {base_total_lm} × (1 + {extras_percent}/100) + {extras_lm} = {total_with_extras} lm")
+
+    # Svinn/kapp
+    total_with_waste = total_with_extras * (1 + waste_percent / 100.0)
+    steps.append("7) Svinn/kapp = (sum med tillegg) × (1 + svinn%)")
+    steps.append(f"= {total_with_extras} × (1 + {waste_percent}/100) = {total_with_waste} lm")
+
+    outputs = {
+        "brutto_areal_m2": round_sensible(gross_area_m2, 3),
+        "apninger_areal_m2": round_sensible(openings_area_m2, 3),
+        "netto_areal_m2": round_sensible(net_area_m2, 3),
+        "dekningsmal_m": round_sensible(dekningsmål_m, 3),
+        "overliggere_lm": round_sensible(overligger_lm, 1),
+        "underliggere_lm": round_sensible(underligger_lm, 1),
+        "sum_lm_for_tillegg_og_svinn": round_sensible(base_total_lm, 1),
+        "sum_lm_med_tillegg": round_sensible(total_with_extras, 1),
+        "sum_lm_med_tillegg_og_svinn": round_sensible(total_with_waste, 1),
+    }
+
+    return CalcResult(
+        name="Tømmermannskledning",
+        inputs={
+            "brutto_areal_m2": gross_area_m2,
+            "apninger_areal_m2": openings_area_m2,
+            "bordbredde_mm": board_width_mm,
+            "overlegg_mm": overlap_mm,
+            "svinn_prosent": waste_percent,
+            "inkluder_underligger": include_underligger,
+            "ekstra_underligger_lm": extra_underligger_lm,
+            "tillegg_prosent": extras_percent,
+            "tillegg_lm": extras_lm,
+        },
+        outputs=outputs,
+        steps=steps,
+        warnings=warnings,
+        timestamp=make_timestamp(),
+    )
+
+
 # -----------------------------
 # Streamlit UI
 # -----------------------------
@@ -461,6 +564,7 @@ def show_result(res: CalcResult):
 
 tabs = st.tabs([
     "Måling/enheter",
+    "Tømmermannskledning",  # NY fane
     "Areal",
     "Volum/betong",
     "Målestokk",
@@ -489,8 +593,58 @@ with tabs[0]:
         st.write(f"= {round_sensible(m_to_mm(m_val), 1)} mm")
 
 
-# ---- Areal ----
+# ---- Tømmermannskledning ----
 with tabs[1]:
+    st.subheader("Tømmermannskledning (stående)")
+    st.caption(
+        "Metode: Netto areal (m²) → dekningsmål (m) → løpemeter (lm), med svinn og tillegg."
+    )
+
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        gross_area = st.number_input("Brutto veggareal (m²)", min_value=0.0, value=100.0, step=1.0, key="tk_gross")
+        openings_area = st.number_input("Åpninger (vinduer/dører) (m²)", min_value=0.0, value=0.0, step=0.5, key="tk_openings")
+
+    with c2:
+        board_width = st.number_input("Bordbredde (mm)", min_value=0.0, value=150.0, step=1.0, key="tk_bw")
+        overlap = st.number_input("Overlegg (mm)", min_value=0.0, value=20.0, step=1.0, key="tk_ol")
+
+    with c3:
+        waste_pct = st.number_input("Svinn/kapp (%)", min_value=0.0, value=10.0, step=0.5, key="tk_waste")
+        extras_pct = st.number_input("Tillegg hjørner/vannbrett (%)", min_value=0.0, value=0.0, step=0.5, key="tk_extras_pct")
+        extras_lm = st.number_input("Tillegg hjørner/vannbrett (lm)", min_value=0.0, value=0.0, step=1.0, key="tk_extras_lm")
+
+    st.divider()
+
+    c4, c5 = st.columns([1, 2])
+    with c4:
+        include_under = st.checkbox("Inkluder underliggere i totalen", value=True, key="tk_under_inc")
+    with c5:
+        extra_under_lm = st.number_input(
+            "Ekstra underligger (lm) (valgfritt – f.eks. oppstart/tilpasning)",
+            min_value=0.0,
+            value=1.0,
+            step=1.0,
+            key="tk_under_extra"
+        )
+
+    if st.button("Beregn tømmermannskledning", key="btn_tk", type="primary"):
+        res = calc_tommerkledning(
+            gross_area_m2=float(gross_area),
+            openings_area_m2=float(openings_area),
+            board_width_mm=float(board_width),
+            overlap_mm=float(overlap),
+            waste_percent=float(waste_pct),
+            include_underligger=bool(include_under),
+            extra_underligger_lm=float(extra_under_lm),
+            extras_percent=float(extras_pct),
+            extras_lm=float(extras_lm),
+        )
+        show_result(res)
+
+
+# ---- Areal ----
+with tabs[2]:
     st.subheader("Areal (rektangel)")
     l = st.number_input("Lengde (m)", min_value=0.0, value=5.0, step=0.1, key="areal_l")
     w = st.number_input("Bredde (m)", min_value=0.0, value=4.0, step=0.1, key="areal_w")
@@ -524,7 +678,7 @@ with tabs[1]:
 
 
 # ---- Volum/betong ----
-with tabs[2]:
+with tabs[3]:
     st.subheader("Betongplate")
     l = st.number_input("Lengde (m)", min_value=0.0, value=6.0, step=0.1, key="slab_l")
     w = st.number_input("Bredde (m)", min_value=0.0, value=4.0, step=0.1, key="slab_w")
@@ -552,7 +706,7 @@ with tabs[2]:
 
 
 # ---- Målestokk ----
-with tabs[3]:
+with tabs[4]:
     st.subheader("Målestokk (tegning → virkelighet)")
 
     c1, c2, c3 = st.columns([2, 1, 1])
@@ -569,7 +723,7 @@ with tabs[3]:
 
 
 # ---- Fall/vinkel/diagonal ----
-with tabs[4]:
+with tabs[5]:
     st.subheader("Fallberegning")
     length = st.number_input("Lengde (m)", min_value=0.0, value=2.0, step=0.1, key="fall_len")
     mode = st.selectbox("Angi fall som", options=["prosent", "1:x", "mm_per_m"], index=0, key="fall_mode")
@@ -593,7 +747,7 @@ with tabs[4]:
 
 
 # ---- Økonomi ----
-with tabs[5]:
+with tabs[6]:
     st.subheader("Pris (rabatt/påslag/MVA)")
     base = st.number_input("Grunnpris", min_value=0.0, value=1000.0, step=10.0, key="price_base")
     rabatt = st.number_input("Rabatt (%)", min_value=0.0, value=0.0, step=1.0, key="price_rabatt")
@@ -605,7 +759,7 @@ with tabs[5]:
 
 
 # ---- Tid ----
-with tabs[6]:
+with tabs[7]:
     st.subheader("Tidsestimat")
     qty = st.number_input("Mengde (f.eks. m²)", min_value=0.0, value=50.0, step=1.0, key="time_qty")
     prod = st.number_input("Produksjon per time (f.eks. m²/time)", min_value=0.0, value=10.0, step=0.5, key="time_prod")
@@ -615,7 +769,7 @@ with tabs[6]:
 
 
 # ---- Avvik/KS ----
-with tabs[7]:
+with tabs[8]:
     st.subheader("Avvik / toleranse")
     unit = st.selectbox("Enhet for inndata", options=["mm", "m"], index=0, key="dev_unit")
     projected = st.number_input("Prosjektert", value=1000.0 if unit == "mm" else 1.0,
@@ -629,7 +783,7 @@ with tabs[7]:
 
 
 # ---- Historikk ----
-with tabs[8]:
+with tabs[9]:
     st.subheader("Historikk")
     if not st.session_state.history:
         st.info("Ingen beregninger lagret ennå.")
