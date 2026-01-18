@@ -411,7 +411,7 @@ def calc_deviation(projected: float, measured: float, tolerance_mm: float, unit:
 # -----------------------------
 st.set_page_config(page_title="Bygg-kalkulator", layout="wide")
 
-st.title("Bygg-kalkulator (praktiske beregninger)")
+st.title("Bygg-kalkulatoren for praktiske beregninger")
 st.caption("Kalkulatorer for vanlige oppgaver i byggebransjen. Med enheter, kontroll og valgfri mellomregning.")
 
 if "history" not in st.session_state:
