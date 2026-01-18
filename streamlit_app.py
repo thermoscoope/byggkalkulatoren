@@ -678,7 +678,7 @@ if "history" not in st.session_state:
 # ============================================================
 tabs = st.tabs(
     [
-        "Måling/enheter",
+        "Enhetsomregner",
         "Areal",
         "Volum/betong",
         "Målestokk",
@@ -691,7 +691,7 @@ tabs = st.tabs(
     ]
 )
 
-# ---- Måling/enheter ----
+# ---- Enhetsomregner ----
 with tabs[0]:
     st.subheader("Enhetsomregner")
     st.caption("Skriv inn et tall, velg enhet, og få omregning til mm, cm og m i tabell.")
