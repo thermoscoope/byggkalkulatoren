@@ -719,7 +719,7 @@ def show_pro_screen():
 
 
 # ============================
-# Integrasjon: legg "Hva er Pro?" i sidepanelet
+# Integrasjon: legg "Bli en profesjonell yrkesutøver?" i sidepanelet
 # ============================
 
 # Sett default state
