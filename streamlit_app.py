@@ -649,27 +649,48 @@ with tabs[3]:
 
 
 # ---- Kledning ----
+# ---- Kledning ----
 with tabs[4]:
     st.subheader("Tømmermannskledning (kun bredde)")
-    st.caption("Tar kun hensyn til: mål fra–til (cm), omlegg (cm), og valg av under-/overliggerbredde.")
+    st.caption("Skriv inn fritt: mål fra–til (cm), omlegg (cm) og bordbredder (mm).")
 
     c1, c2, c3, c4 = st.columns([2, 2, 2, 2])
 
     with c1:
-        measure_cm = st.number_input("Mål fra–til (cm)", min_value=0.0, value=600.0, step=1.0, key="tk_measure_cm")
+        measure_cm = st.number_input(
+            "Mål fra–til (cm)",
+            min_value=0.0,
+            value=600.0,
+            step=1.0,
+            key="tk_measure_cm"
+        )
 
     with c2:
-        overlap_cm = st.number_input("Ønsket omlegg (cm)", min_value=0.0, value=2.0, step=0.1, key="tk_overlap_cm")
-
-    # Valg-lister kan du justere fritt til dine standarder/leverandørsortiment
-    under_options = [73, 98, 123, 148, 173, 198]   # mm
-    over_options = [36, 48, 58, 73, 98]            # mm
+        overlap_cm = st.number_input(
+            "Ønsket omlegg (cm)",
+            min_value=0.0,
+            value=2.0,
+            step=0.1,
+            key="tk_overlap_cm"
+        )
 
     with c3:
-        under_w = st.selectbox("Underligger bredde (mm)", options=under_options, index=3, key="tk_under_w")
+        under_w = st.number_input(
+            "Underligger bredde (mm)",
+            min_value=1.0,
+            value=148.0,
+            step=1.0,
+            key="tk_under_w"
+        )
 
     with c4:
-        over_w = st.selectbox("Overligger bredde (mm)", options=over_options, index=2, key="tk_over_w")
+        over_w = st.number_input(
+            "Overligger bredde (mm)",
+            min_value=1.0,
+            value=58.0,
+            step=1.0,
+            key="tk_over_w"
+        )
 
     if st.button("Beregn kledning", key="btn_tk"):
         res = calc_tommermannskledning_width(
@@ -679,6 +700,7 @@ with tabs[4]:
             over_width_mm=float(over_w),
         )
         show_result(res)
+
 
 
 # ---- Fall/vinkel/diagonal ----
