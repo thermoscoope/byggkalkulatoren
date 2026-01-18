@@ -886,10 +886,12 @@ with tabs[4]:
     if st.button("Beregn kledning", key="btn_tk"):
         show_result(calc_tommermannskledning_width(float(measure_cm), float(overlap_cm), float(under_w), float(over_w)))
 
-# ---- Fall/vinkel/diagonal ----
-with tabs[6]:
+# ---- Fall/vinkel ----
+with tabs[5]:
+    st.write("DEBUG: Fall/vinkel-fanen kjører.")  # skal vises uansett
+
     if is_school_mode():
-        st.caption("Pytagoras brukes kun i rettvinklede trekanter: c = √(a² + b²).")
+        st.caption("Fall kan angis i prosent, 1:x eller mm per meter.")
 
     st.subheader("Fallberegning")
     length = st.number_input("Lengde (m)", min_value=0.0, value=2.0, step=0.1, key="fall_len")
@@ -904,13 +906,6 @@ with tabs[6]:
 
     if st.button("Beregn fall", key="btn_fall"):
         show_result(calc_fall(length, mode, float(val)))
-
-    st.divider()
-    st.subheader("Pytagoras (diagonal)")
-    a = st.number_input("Side a (m)", min_value=0.0, value=3.0, step=0.1, key="pyt_a")
-    b = st.number_input("Side b (m)", min_value=0.0, value=4.0, step=0.1, key="pyt_b")
-    if st.button("Beregn diagonal", key="btn_pyt"):
-        show_result(calc_pythagoras(a, b))
 
 # ---- Økonomi ----
 with tabs[6]:
