@@ -28,20 +28,17 @@ def safe_float(x: Any, default: float = 0.0) -> float:
 def round_sensible(x: float, decimals: int = 3) -> float:
     return round(x, decimals)
 
-
-# NYTT: generisk konvertering for mål på tegning (mm/cm/m -> mm)
+# NYTT: konvertering fra (mm/cm/m) -> mm for mål på tegning
 def to_mm(value: float, unit: str) -> float:
-    """Konverterer verdi fra valgt enhet til mm."""
     if unit == "mm":
         return value
     if unit == "cm":
         return value * 10.0
     if unit == "m":
         return value * 1000.0
-    return value  # fallback
+    return value
 
 def mm_to_all(mm: float) -> Dict[str, float]:
-    """Returnerer mm, cm og m fra mm."""
     return {"mm": mm, "cm": mm / 10.0, "m": mm / 1000.0}
 
 
@@ -188,7 +185,7 @@ def calc_strip_foundation(length_m: float, width_m: float, height_mm: float) -> 
         outputs={"volum_m3": round_sensible(volume, 3)},
         steps=steps,
         warnings=warnings,
-        timestamp=make_timestamp(),
+       timestamp=make_timestamp(),
     )
 
 
@@ -216,6 +213,12 @@ def calc_column_cylinder(diameter_mm: float, height_m: float) -> CalcResult:
 
 
 def calc_fall(length_m: float, mode: str, value: float) -> CalcResult:
+    """
+    mode:
+      - 'prosent' value = % fall
+      - '1:x' value = x (f.eks. 50 for 1:50)
+      - 'mm_per_m' value = mm per meter
+    """
     warnings = []
     steps = []
     warn_if(length_m <= 0, "Lengde må være > 0.", warnings)
@@ -257,10 +260,10 @@ def calc_fall(length_m: float, mode: str, value: float) -> CalcResult:
     )
 
 
+# OPPDATERT: målestokk med valgt enhet på tegning
 def calc_scale(drawing_value: float, drawing_unit: str, scale: int) -> CalcResult:
     warnings = []
     steps = []
-
     warn_if(drawing_value <= 0, "Mål på tegning må være > 0.", warnings)
     warn_if(scale <= 0, "Målestokk må være > 0.", warnings)
     warn_if(scale not in [10, 20, 25, 50, 75, 100, 200], "Uvanlig målestokk. Sjekk at du har riktig.", warnings)
@@ -402,12 +405,7 @@ def calc_deviation(projected: float, measured: float, tolerance_mm: float, unit:
 
     return CalcResult(
         name="Avvik / toleranse",
-        inputs={
-            "prosjektert": projected,
-            "malt": measured,
-            "toleranse_mm": tolerance_mm,
-            "enhet": unit,
-        },
+        inputs={"prosjektert": projected, "malt": measured, "toleranse_mm": tolerance_mm, "enhet": unit},
         outputs={
             "avvik_mm": round_sensible(diff_mm, 1),
             "abs_avvik_mm": round_sensible(abs_diff_mm, 1),
@@ -419,104 +417,82 @@ def calc_deviation(projected: float, measured: float, tolerance_mm: float, unit:
     )
 
 
-# NYTT: Tømmermannskledning
-def calc_tommerkledning(
-    gross_area_m2: float,
-    openings_area_m2: float,
-    board_width_mm: float,
-    overlap_mm: float,
-    waste_percent: float,
-    include_underligger: bool,
-    extra_underligger_lm: float,
-    extras_percent: float,
-    extras_lm: float,
+# NYTT: Tømmermannskledning (kun bredde fra–til, omlegg og bordbredder)
+def calc_tommermannskledning_width(
+    measure_cm: float,
+    overlap_cm: float,
+    under_width_mm: float,
+    over_width_mm: float
 ) -> CalcResult:
+    """
+    Tømmermannskledning – beregning langs bredde (fra–til).
+
+    Avgrensning iht. ditt krav:
+    - Tar kun hensyn til: mål fra–til (cm), omlegg (cm), valg av under-/overliggerbredde (mm).
+    - Underliggere antas kant-i-kant (uten spalte).
+    - Overliggere dekker skjøtene mellom underliggere.
+    - Omlegg tolkes som overlapp inn på hver side -> min overliggerbredde = 2 * omlegg.
+    """
     warnings = []
     steps = []
 
-    warn_if(gross_area_m2 <= 0, "Brutto areal må være > 0.", warnings)
-    warn_if(openings_area_m2 < 0, "Åpninger kan ikke være negativt.", warnings)
-    warn_if(openings_area_m2 > gross_area_m2, "Åpninger kan ikke være større enn brutto areal.", warnings)
+    warn_if(measure_cm <= 0, "Mål fra–til må være > 0 cm.", warnings)
+    warn_if(overlap_cm < 0, "Omlegg kan ikke være negativt.", warnings)
+    warn_if(under_width_mm <= 0, "Underliggerbredde må være > 0 mm.", warnings)
+    warn_if(over_width_mm <= 0, "Overliggerbredde må være > 0 mm.", warnings)
 
-    warn_if(board_width_mm <= 0, "Bordbredde må være > 0.", warnings)
-    warn_if(overlap_mm < 0, "Overlegg kan ikke være negativt.", warnings)
-    warn_if(overlap_mm < 15 or overlap_mm > 25, "Overlegg virker uvanlig (typisk ca. 15–25 mm).", warnings)
+    measure_mm = measure_cm * 10.0
+    overlap_mm = overlap_cm * 10.0
 
-    warn_if(waste_percent < 0 or waste_percent > 30, "Svinn/kapp virker uvanlig (0–30%).", warnings)
-    warn_if(extras_percent < 0 or extras_percent > 30, "Tillegg % virker uvanlig (0–30%).", warnings)
-    warn_if(extra_underligger_lm < 0 or extras_lm < 0, "Tillegg i lm kan ikke være negativt.", warnings)
+    under_count = math.ceil(measure_mm / under_width_mm) if under_width_mm > 0 else 0
+    covered_mm = under_count * under_width_mm
+    overdekning_mm = covered_mm - measure_mm
 
-    net_area_m2 = max(gross_area_m2 - openings_area_m2, 0.0)
+    over_count = max(under_count - 1, 0)
 
-    # Dekningsmål = (2 x bordbredde) - (2 x overlegg), i meter
-    dekningsmål_mm = (2.0 * board_width_mm) - (2.0 * overlap_mm)
-    warn_if(dekningsmål_mm <= 0, "Dekningsmål ble <= 0. Sjekk bordbredde og overlegg.", warnings)
+    min_over_width_mm = 2.0 * overlap_mm
+    ok_over_width = over_width_mm >= min_over_width_mm
 
-    dekningsmål_m = mm_to_m(dekningsmål_mm)
+    if not ok_over_width:
+        warnings.append(
+            f"Valgt overligger ({over_width_mm} mm) er for smal for omlegg {overlap_cm} cm. "
+            f"Min anbefalt overliggerbredde er {min_over_width_mm:.0f} mm (2 × omlegg)."
+        )
 
-    # Overliggere i løpemeter: m² / m = lm
-    overligger_lm = 0.0 if dekningsmål_m <= 0 else (net_area_m2 / dekningsmål_m)
+    steps.append("Konvertering: cm → mm")
+    steps.append(f"Mål fra–til: {measure_cm} cm = {measure_mm} mm")
+    steps.append(f"Omlegg: {overlap_cm} cm = {overlap_mm} mm")
 
-    # Underliggere: normalt samme lm som overliggere + evt. ekstra
-    underligger_lm = overligger_lm if include_underligger else 0.0
-    underligger_lm = underligger_lm + (extra_underligger_lm if include_underligger else 0.0)
+    steps.append("Antall underliggere: ceil(bredde / underbredde)")
+    steps.append(f"= ceil({measure_mm} / {under_width_mm}) = {under_count}")
 
-    base_total_lm = overligger_lm + underligger_lm
+    steps.append("Dekket bredde = antall underliggere × underbredde")
+    steps.append(f"= {under_count} × {under_width_mm} = {covered_mm} mm")
+    steps.append(f"Overdekning = {covered_mm} - {measure_mm} = {overdekning_mm} mm")
 
-    steps.append("1) Netto areal = brutto areal − åpninger")
-    steps.append(f"= {gross_area_m2} − {openings_area_m2} = {net_area_m2} m²")
+    steps.append("Antall overliggere (skjøter) = underliggere - 1")
+    steps.append(f"= {under_count} - 1 = {over_count}")
 
-    steps.append("2) Dekningsmål (m) = (2 × bordbredde − 2 × overlegg)")
-    steps.append(f"= (2×{board_width_mm} mm − 2×{overlap_mm} mm) = {dekningsmål_mm} mm = {dekningsmål_m} m")
-
-    steps.append("3) Overliggere (lm) = netto areal / dekningsmål")
-    steps.append(f"= {net_area_m2} / {dekningsmål_m} = {overligger_lm} lm")
-
-    if include_underligger:
-        steps.append("4) Underliggere (lm) = overliggere (lm) + evt. ekstra")
-        steps.append(f"= {overligger_lm} + {extra_underligger_lm} = {underligger_lm} lm")
-    else:
-        steps.append("4) Underliggere er ikke inkludert i totalen (valgfritt).")
-
-    steps.append("5) Sum lm (før svinn/tillegg) = overliggere + underliggere")
-    steps.append(f"= {overligger_lm} + {underligger_lm} = {base_total_lm} lm")
-
-    # Tillegg for hjørner/vannbrett osv.
-    total_with_extras = base_total_lm * (1 + extras_percent / 100.0) + extras_lm
-    steps.append("6) Tillegg (hjørner/vannbrett) = sum × (1 + tillegg%) + tillegg lm")
-    steps.append(f"= {base_total_lm} × (1 + {extras_percent}/100) + {extras_lm} = {total_with_extras} lm")
-
-    # Svinn/kapp
-    total_with_waste = total_with_extras * (1 + waste_percent / 100.0)
-    steps.append("7) Svinn/kapp = (sum med tillegg) × (1 + svinn%)")
-    steps.append(f"= {total_with_extras} × (1 + {waste_percent}/100) = {total_with_waste} lm")
-
-    outputs = {
-        "brutto_areal_m2": round_sensible(gross_area_m2, 3),
-        "apninger_areal_m2": round_sensible(openings_area_m2, 3),
-        "netto_areal_m2": round_sensible(net_area_m2, 3),
-        "dekningsmal_m": round_sensible(dekningsmål_m, 3),
-        "overliggere_lm": round_sensible(overligger_lm, 1),
-        "underliggere_lm": round_sensible(underligger_lm, 1),
-        "sum_lm_for_tillegg_og_svinn": round_sensible(base_total_lm, 1),
-        "sum_lm_med_tillegg": round_sensible(total_with_extras, 1),
-        "sum_lm_med_tillegg_og_svinn": round_sensible(total_with_waste, 1),
-    }
+    steps.append("Kontroll: Min overliggerbredde = 2 × omlegg")
+    steps.append(f"= 2 × {overlap_mm} = {min_over_width_mm:.0f} mm")
+    steps.append(f"Valgt overliggerbredde: {over_width_mm} mm → {'OK' if ok_over_width else 'IKKE OK'}")
 
     return CalcResult(
-        name="Tømmermannskledning",
+        name="Tømmermannskledning (bredde)",
         inputs={
-            "brutto_areal_m2": gross_area_m2,
-            "apninger_areal_m2": openings_area_m2,
-            "bordbredde_mm": board_width_mm,
-            "overlegg_mm": overlap_mm,
-            "svinn_prosent": waste_percent,
-            "inkluder_underligger": include_underligger,
-            "ekstra_underligger_lm": extra_underligger_lm,
-            "tillegg_prosent": extras_percent,
-            "tillegg_lm": extras_lm,
+            "mal_fra_til_cm": measure_cm,
+            "omlegg_cm": overlap_cm,
+            "underligger_bredde_mm": under_width_mm,
+            "overligger_bredde_mm": over_width_mm,
         },
-        outputs=outputs,
+        outputs={
+            "underliggere_antall": under_count,
+            "overliggere_antall": over_count,
+            "dekket_bredde_mm": round_sensible(covered_mm, 1),
+            "overdekning_mm": round_sensible(overdekning_mm, 1),
+            "min_overligger_bredde_mm": round_sensible(min_over_width_mm, 0),
+            "overligger_ok_for_omlegg": "OK" if ok_over_width else "IKKE OK",
+        },
         steps=steps,
         warnings=warnings,
         timestamp=make_timestamp(),
@@ -564,10 +540,10 @@ def show_result(res: CalcResult):
 
 tabs = st.tabs([
     "Måling/enheter",
-    "Tømmermannskledning",  # NY fane
     "Areal",
     "Volum/betong",
     "Målestokk",
+    "Kledning",
     "Fall/vinkel/diagonal",
     "Økonomi",
     "Tid",
@@ -593,58 +569,8 @@ with tabs[0]:
         st.write(f"= {round_sensible(m_to_mm(m_val), 1)} mm")
 
 
-# ---- Tømmermannskledning ----
-with tabs[1]:
-    st.subheader("Tømmermannskledning (stående)")
-    st.caption(
-        "Metode: Netto areal (m²) → dekningsmål (m) → løpemeter (lm), med svinn og tillegg."
-    )
-
-    c1, c2, c3 = st.columns(3)
-    with c1:
-        gross_area = st.number_input("Brutto veggareal (m²)", min_value=0.0, value=100.0, step=1.0, key="tk_gross")
-        openings_area = st.number_input("Åpninger (vinduer/dører) (m²)", min_value=0.0, value=0.0, step=0.5, key="tk_openings")
-
-    with c2:
-        board_width = st.number_input("Bordbredde (mm)", min_value=0.0, value=150.0, step=1.0, key="tk_bw")
-        overlap = st.number_input("Overlegg (mm)", min_value=0.0, value=20.0, step=1.0, key="tk_ol")
-
-    with c3:
-        waste_pct = st.number_input("Svinn/kapp (%)", min_value=0.0, value=10.0, step=0.5, key="tk_waste")
-        extras_pct = st.number_input("Tillegg hjørner/vannbrett (%)", min_value=0.0, value=0.0, step=0.5, key="tk_extras_pct")
-        extras_lm = st.number_input("Tillegg hjørner/vannbrett (lm)", min_value=0.0, value=0.0, step=1.0, key="tk_extras_lm")
-
-    st.divider()
-
-    c4, c5 = st.columns([1, 2])
-    with c4:
-        include_under = st.checkbox("Inkluder underliggere i totalen", value=True, key="tk_under_inc")
-    with c5:
-        extra_under_lm = st.number_input(
-            "Ekstra underligger (lm) (valgfritt – f.eks. oppstart/tilpasning)",
-            min_value=0.0,
-            value=1.0,
-            step=1.0,
-            key="tk_under_extra"
-        )
-
-    if st.button("Beregn tømmermannskledning", key="btn_tk", type="primary"):
-        res = calc_tommerkledning(
-            gross_area_m2=float(gross_area),
-            openings_area_m2=float(openings_area),
-            board_width_mm=float(board_width),
-            overlap_mm=float(overlap),
-            waste_percent=float(waste_pct),
-            include_underligger=bool(include_under),
-            extra_underligger_lm=float(extra_under_lm),
-            extras_percent=float(extras_pct),
-            extras_lm=float(extras_lm),
-        )
-        show_result(res)
-
-
 # ---- Areal ----
-with tabs[2]:
+with tabs[1]:
     st.subheader("Areal (rektangel)")
     l = st.number_input("Lengde (m)", min_value=0.0, value=5.0, step=0.1, key="areal_l")
     w = st.number_input("Bredde (m)", min_value=0.0, value=4.0, step=0.1, key="areal_w")
@@ -678,7 +604,7 @@ with tabs[2]:
 
 
 # ---- Volum/betong ----
-with tabs[3]:
+with tabs[2]:
     st.subheader("Betongplate")
     l = st.number_input("Lengde (m)", min_value=0.0, value=6.0, step=0.1, key="slab_l")
     w = st.number_input("Bredde (m)", min_value=0.0, value=4.0, step=0.1, key="slab_w")
@@ -706,7 +632,7 @@ with tabs[3]:
 
 
 # ---- Målestokk ----
-with tabs[4]:
+with tabs[3]:
     st.subheader("Målestokk (tegning → virkelighet)")
 
     c1, c2, c3 = st.columns([2, 1, 1])
@@ -719,6 +645,39 @@ with tabs[4]:
 
     if st.button("Beregn virkelig mål", key="btn_scale"):
         res = calc_scale(float(draw_val), str(draw_unit), int(scale))
+        show_result(res)
+
+
+# ---- Kledning ----
+with tabs[4]:
+    st.subheader("Tømmermannskledning (kun bredde)")
+    st.caption("Tar kun hensyn til: mål fra–til (cm), omlegg (cm), og valg av under-/overliggerbredde.")
+
+    c1, c2, c3, c4 = st.columns([2, 2, 2, 2])
+
+    with c1:
+        measure_cm = st.number_input("Mål fra–til (cm)", min_value=0.0, value=600.0, step=1.0, key="tk_measure_cm")
+
+    with c2:
+        overlap_cm = st.number_input("Ønsket omlegg (cm)", min_value=0.0, value=2.0, step=0.1, key="tk_overlap_cm")
+
+    # Valg-lister kan du justere fritt til dine standarder/leverandørsortiment
+    under_options = [73, 98, 123, 148, 173, 198]   # mm
+    over_options = [36, 48, 58, 73, 98]            # mm
+
+    with c3:
+        under_w = st.selectbox("Underligger bredde (mm)", options=under_options, index=3, key="tk_under_w")
+
+    with c4:
+        over_w = st.selectbox("Overligger bredde (mm)", options=over_options, index=2, key="tk_over_w")
+
+    if st.button("Beregn kledning", key="btn_tk"):
+        res = calc_tommermannskledning_width(
+            measure_cm=float(measure_cm),
+            overlap_cm=float(overlap_cm),
+            under_width_mm=float(under_w),
+            over_width_mm=float(over_w),
+        )
         show_result(res)
 
 
@@ -772,10 +731,18 @@ with tabs[7]:
 with tabs[8]:
     st.subheader("Avvik / toleranse")
     unit = st.selectbox("Enhet for inndata", options=["mm", "m"], index=0, key="dev_unit")
-    projected = st.number_input("Prosjektert", value=1000.0 if unit == "mm" else 1.0,
-                                step=1.0 if unit == "mm" else 0.01, key="dev_proj")
-    measured = st.number_input("Målt", value=1002.0 if unit == "mm" else 1.002,
-                               step=1.0 if unit == "mm" else 0.01, key="dev_meas")
+    projected = st.number_input(
+        "Prosjektert",
+        value=1000.0 if unit == "mm" else 1.0,
+        step=1.0 if unit == "mm" else 0.01,
+        key="dev_proj"
+    )
+    measured = st.number_input(
+        "Målt",
+        value=1002.0 if unit == "mm" else 1.002,
+        step=1.0 if unit == "mm" else 0.01,
+        key="dev_meas"
+    )
     tol = st.number_input("Toleranse (mm)", min_value=0.0, value=2.0, step=0.5, key="dev_tol")
     if st.button("Beregn avvik", key="btn_dev"):
         res = calc_deviation(float(projected), float(measured), float(tol), unit)
@@ -801,8 +768,12 @@ with tabs[9]:
         st.dataframe(df, use_container_width=True)
 
         csv = df.to_csv(index=False).encode("utf-8")
-        st.download_button("Last ned historikk (CSV)", data=csv,
-                           file_name="bygg_kalkulator_historikk.csv", mime="text/csv")
+        st.download_button(
+            "Last ned historikk (CSV)",
+            data=csv,
+            file_name="bygg_kalkulator_historikk.csv",
+            mime="text/csv"
+        )
 
         if st.button("Tøm historikk"):
             st.session_state.history = []
