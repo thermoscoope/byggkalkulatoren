@@ -5,6 +5,37 @@ from typing import Dict, Any, List, Tuple
 
 import pandas as pd
 import streamlit as st
+# -----------------------------
+# Streamlit UI + LOGO
+# -----------------------------
+from pathlib import Path
+from PIL import Image
+
+LOGO_PATH = Path(__file__).parent / "logo.png"
+
+# Bruk logo som favicon (valgfritt, men profesjonelt)
+page_icon = None
+if LOGO_PATH.exists():
+    page_icon = Image.open(LOGO_PATH)
+
+st.set_page_config(
+    page_title="Bygg-kalkulatoren",
+    page_icon=page_icon,
+    layout="wide"
+)
+
+# Header med logo + tittel
+if LOGO_PATH.exists():
+    header_left, header_right = st.columns([1, 3])
+    with header_left:
+        st.image(str(LOGO_PATH), use_container_width=True)
+    with header_right:
+        st.title("Bygg-kalkulatoren")
+        st.caption("din hjelper på farta!")
+else:
+    st.title("Bygg-kalkulatoren")
+    st.caption("din hjelper på farta!")
+    st.warning("Finner ikke logo.png i prosjektmappen.")
 
 
 # -----------------------------
