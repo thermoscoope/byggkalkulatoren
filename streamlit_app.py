@@ -900,12 +900,11 @@ with tabs[4]:
         show_result(calc_tommermannskledning_width(float(measure_cm), float(overlap_cm), float(under_w), float(over_w)))
 
 # ---- Fall/vinkel/diagonal ----
-with tabs[5]:
-   with tabs[6]:
+with tabs[6]:
     if is_school_mode():
         st.caption(
-            "Pytagoras brukes kun i rettvinklede trekanter: c = √(a² + b²)
-    st.subheader("Diagonal (Pytagoras)")
+            "Pytagoras brukes kun i rettvinklede trekanter: c = √(a² + b²)."
+        )
 
     st.subheader("Diagonal (Pytagoras)")
 
