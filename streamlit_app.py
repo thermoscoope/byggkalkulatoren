@@ -46,8 +46,7 @@ with st.sidebar:
         "Modus",
         ["Skole", "Produksjon"],
         index=0 if st.session_state.app_mode == "Skole" else 1,
-        help="Skole: mer forklaring og mellomregning. Produksjon: raskt resultat og mindre støy.",
-    )
+        help="Skole: mer forklaring og mellomregning. Produksjon: raskt resultat og mindre støy.",)
 
     st.divider()
 
