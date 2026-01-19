@@ -55,19 +55,31 @@ def is_school_mode() -> bool:
 # ============================
 # Header (logo + hjem)
 # ============================
+# ============================
+# Header (logo + hjem)
+# ============================
 header_left, header_right = st.columns([1, 2])
 
 with header_left:
-    # STØRRE LOGO
-    st.image(str(LOGO_PATH), width=850)
+    # EKSTRA STOR LOGO
+    st.image(str(LOGO_PATH), width=300)
+
+    # UNDERTEKST TIL LOGO
+    st.markdown(
+        "<div style='font-size:16px; color:gray; margin-top:-10px;'>Din hjelp på farten!</div>",
+        unsafe_allow_html=True,
+    )
 
     # HJEM-KNAPP
     if st.button("🏠 Hjem", use_container_width=True, key="btn_home"):
         st.session_state.current_view = "home"
         st.session_state.show_pro = False
 
+    # TITTEL UNDER LOGO
+    st.markdown("## Bygg-kalkulatoren")
+
 with header_right:
-    st.empty()  # plassholder (kan brukes senere)
+    st.empty()
 
 
 # ============================================================
