@@ -793,9 +793,33 @@ with bar2:
             st.success("Produksjonsmodus er aktiv.")
 
 with bar3:
-    if st.button("⭐ Oppgrader til Pro", key="btn_pro_top", use_container_width=True):
-        st.session_state.show_pro = True
-        st.rerun()
+    if is_school_mode():
+        st.markdown(
+            """
+            <div style="
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            ">
+                <span style="
+                    background-color: #e3f2fd;
+                    color: #1565c0;
+                    padding: 2px 8px;
+                    border-radius: 12px;
+                    font-size: 12px;
+                    font-weight: 600;
+                ">
+                    Skole
+                </span>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        if st.button("⭐ Oppgrader til Pro", key="btn_pro_top", use_container_width=True):
+            st.session_state.show_pro = True
+            st.rerun()
+
 
 
 
