@@ -56,7 +56,7 @@ with header_right:
             height: 100%;
             padding-bottom: 6px;
         ">
-            <div style="font-size:16px; color:gray;">
+            <div style="font-size:px; color:gray;">
                - Din hjelp på farten!
             </div>
         </div>
@@ -65,7 +65,7 @@ with header_right:
     )
 
     # Trekker top-menylinjen (Hjem/innstillinger/pro) opp mot logoen
-st.markdown("<div style='margin-top:-35px;'></div>", unsafe_allow_html=True)
+st.markdown("<div style='margin-top:-10px;'></div>", unsafe_allow_html=True)
 
 
 
