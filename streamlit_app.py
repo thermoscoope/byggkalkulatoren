@@ -30,22 +30,6 @@ if "current_view" not in st.session_state:
 if "app_mode" not in st.session_state:
     st.session_state.app_mode = "Skole"
 
-with st.sidebar:
-    st.header("Innstillinger")
-
-    st.session_state.app_mode = st.radio(
-        "Modus",
-        ["Skole", "Produksjon"],
-        index=0 if st.session_state.app_mode == "Skole" else 1,
-        help="Skole: mer forklaring og mellomregning. Produksjon: raskt resultat og mindre støy.",
-    )
-
-    st.divider()
-
-    pro_btn_text = "📘 Hva er Pro? (skole)" if st.session_state.app_mode == "Skole" else "🛠️ Pro-verktøy"
-# Pro-knapp i sidebar / topp
-if st.button(pro_btn_text):
-    st.session_state.show_pro = True
 
 # ============================
 # PRO-VISNING (må ligge etter def show_pro_screen)
