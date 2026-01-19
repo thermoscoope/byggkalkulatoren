@@ -869,7 +869,6 @@ with bar1:
         st.rerun()
 
 with bar2:
-    # Innstillinger i samme rekke som Hjem-knappen
     st.session_state.app_mode = st.radio(
         "Modus",
         ["Skole", "Produksjon"],
@@ -880,7 +879,6 @@ with bar2:
     )
 
 with bar3:
-    # ÉN knapp for Pro (ingen separat "Pro-verktøy"-knapp)
     if st.button("⭐ Oppgrader til Pro", key="btn_pro_top", use_container_width=True):
         st.session_state.show_pro = True
         st.rerun()
