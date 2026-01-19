@@ -17,7 +17,6 @@ LOGO_PATH = Path(__file__).parent / "logo1.png"
 page_icon = None
 # Profesjonell header med logo
 
-
 # ============================================================
 # App-navigasjon (Hjem / Pro)
 # ============================================================
@@ -29,7 +28,6 @@ if "current_view" not in st.session_state:
 # ============================================================
 if "app_mode" not in st.session_state:
     st.session_state.app_mode = "Skole"
-
 
 
 # ============================
@@ -47,8 +45,6 @@ if st.session_state.show_pro:
         st.rerun()
 
     show_pro_screen()
-    st.stop()
-n()
     st.stop()
 
 
