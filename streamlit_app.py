@@ -1056,17 +1056,15 @@ with tabs[6]:
         show_result(calc_price(base, rabatt, paslag, mva))
 
 # ---- Diagonal (Pytagoras) ----
-with tabs[7]:
     if is_school_mode():
         st.caption("Pytagoras brukes i rettvinklede trekanter: c = √(a² + b²).")
 
-    st.subheader("📐 Diagonal (Pytagoras)")
+    st.subheader("Diagonal (Pytagoras)")
     a = st.number_input("Side a (m)", min_value=0.0, value=3.0, step=0.1, key="pyt_a")
     b = st.number_input("Side b (m)", min_value=0.0, value=4.0, step=0.1, key="pyt_b")
 
     if st.button("Beregn diagonal", key="btn_pyt"):
         show_result(calc_pythagoras(a, b))
-
         
 # ---- Historikk ----
 with tabs[8]:
