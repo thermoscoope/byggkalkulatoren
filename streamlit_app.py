@@ -877,6 +877,123 @@ with bar3:
 
 st.divider()
 
+# ============================
+# Pro-skjerm (innhold)
+# ============================
+def show_pro_screen():
+    is_school = is_school_mode()
+
+    st.subheader("Vil du bli en profesjonell yrkesutøver?")
+    st.caption("Pro gir deg funksjoner som sparer tid, gir bedre kontroll og gjør dokumentasjon enklere.")
+
+    c1, c2 = st.columns([2, 1])
+    with c1:
+        if is_school:
+            st.markdown(
+                """
+**Pro for skole** handler om læring, vurdering og struktur:
+
+- Oppgaver med *skjult fasit* (eleven må prøve først)
+- Refleksjon og egenkontroll knyttet til hver beregning
+- Eksport til PDF for innlevering
+- Lærer-/klassevis historikk (dokumentasjon av progresjon)
+                """
+            )
+        else:
+            st.markdown(
+                """
+**Pro for produksjon** handler om tempo, færre feil og bedre dokumentasjon:
+
+- Prosjektlogg (jobblogg): Prosjekt → rom → beregning
+- Eksport til PDF/CSV for KS, bestilling og dokumentasjon
+- Produksjonstilpasset avrunding og tydeligere varsler
+- Standardverdier for bransje (mål, svinn, toleranser)
+                """
+            )
+
+    with c2:
+        st.markdown("**Pro inkluderer**")
+        st.write("• Mer historikk")
+        st.write("• Eksport")
+        st.write("• Pro-funksjoner per fane")
+        st.write("• Prioritert støtte (valgfritt)")
+
+    st.divider()
+
+    st.markdown("### Gratis vs Pro")
+    left, right = st.columns(2)
+    with left:
+        st.markdown("#### Gratis")
+        st.write("• Alle grunnkalkulatorer")
+        st.write("• Skole/Produksjon-modus (basis)")
+        st.write("• Enkel historikk (begrenset)")
+        st.write("• Ingen eksport")
+    with right:
+        st.markdown("#### Pro")
+        st.write("• Utvidet historikk og filtrering")
+        st.write("• Eksport (PDF/CSV)")
+        if is_school:
+            st.write("• Skjult fasit + refleksjon")
+            st.write("• Oppgavebank (valgfritt)")
+            st.write("• Lærer-/klassefunksjoner (valgfritt)")
+        else:
+            st.write("• Prosjektstruktur (prosjekt/rom)")
+            st.write("• KS-notater / jobblogg")
+            st.write("• Bransjeavrunding + kontrollpunkter")
+
+    st.divider()
+
+    st.markdown("### Pro-funksjoner i denne modusen")
+    if is_school:
+        st.write("**Måling/enheter**: Eksempeloppgaver, typiske feil, skjult fasit.")
+        st.write("**Målestokk**: Oppgavemodus + kontrollspørsmål.")
+        st.write("**Fall/vinkel/diagonal**: Estimat før fasit + forklaringsmodus.")
+        st.write("**Historikk**: Eksport til PDF for innlevering.")
+    else:
+        st.write("**Måling/enheter**: Hurtigomregning + kopierbare resultater.")
+        st.write("**Målestokk**: Rask skala begge veier, mindre støy.")
+        st.write("**Fall/vinkel/diagonal**: Konvertering og kontrollpunkter for utførelse.")
+        st.write("**Historikk**: Jobblogg + eksport til KS/bestilling.")
+
+    st.divider()
+
+    st.markdown("### Pris (forslag)")
+    if is_school:
+        st.write("• Lærer: 399 kr/år (forslag)")
+        st.write("• Skolelisens: fra 3 000 kr/år (forslag)")
+    else:
+        st.write("• Enkeltbruker: 149 kr/mnd eller 1 490 kr/år (forslag)")
+        st.write("• Firma (1–10): fra 4 990 kr/år (forslag)")
+
+    st.info("Dette er forslag. Du kan endre prisene i teksten når du har bestemt modell.")
+
+    cta1, cta2, cta3 = st.columns(3)
+    with cta1:
+        st.button("Oppgrader til Pro (kommer)", disabled=True)
+    with cta2:
+        st.button("Kontakt / bestill lisens (kommer)", disabled=True)
+    with cta3:
+        st.button("Se hva Pro gir i historikk (kommer)", disabled=True)
+
+    st.caption("Tips: Start med Pro-funksjonene som gir mest verdi: eksport + utvidet historikk.")
+
+
+# ============================
+# Pro-state + visning
+# (legg denne rett før tabs)
+# ============================
+if "show_pro" not in st.session_state:
+    st.session_state.show_pro = False
+
+if st.session_state.show_pro:
+    st.divider()
+    if st.button("🏠 Tilbake til hovedsiden", key="btn_home_from_pro"):
+        st.session_state.show_pro = False
+        st.rerun()
+
+    show_pro_screen()
+    st.stop()
+
 
 # ============================================================
 # Tabs
