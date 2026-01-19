@@ -45,13 +45,16 @@ with st.sidebar:
     st.session_state.app_mode = st.radio(
         "Modus",
         ["Skole", "Produksjon"],
+        index=0 if st.session_state.app_mode == "Skole" else 1,
+        help="Skole: mer forklaring og mellomregning. Produksjon: raskt resultat og mindre støy.",
     )
 
     st.divider()
 
     pro_btn_text = "📘 Hva er Pro? (skole)" if st.session_state.app_mode == "Skole" else "🛠️ Pro-verktøy"
     if st.button(pro_btn_text):
-        st.session_state.current_view = "pro"
+        st.session_state.show_pro = True
+
 
         "Modus",
         options=["Skole", "Produksjon"],
