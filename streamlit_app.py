@@ -52,20 +52,26 @@ def is_school_mode() -> bool:
 
 
 # Profesjonell header med logo
-if LOGO_PATH.exists():
-    header_left, header_right = st.columns([1, 3])
+# ============================
+# Header (logo + hjem)
+# ============================
+header_left, header_right = st.columns([1, 2])
 
-    with header_left:
-        st.image(str(LOGO_PATH), use_container_width=True)
+with header_left:
+    # STØRRE LOGO
+    st.image(str(LOGO_PATH), width=220)
 
-        if st.button("🏠 Hjem", use_container_width=True, key="btn_home"):
-            st.session_state.current_view = "home"
-            st.session_state.show_pro = False
+    # HJEM-KNAPP
+    if st.button("🏠 Hjem", use_container_width=True, key="btn_home"):
+        st.session_state.current_view = "home"
+        st.session_state.show_pro = False
 
-        st.caption("din hjelper på farta!")
+    # TITTEL UNDER LOGO
+    st.markdown("## Bygg-kalkulatoren")
+    st.caption("din hjelper på farta!")
 
-    with header_right:
-        st.title("Bygg-kalkulatoren")
+with header_right:
+    st.empty()  # plassholder (kan brukes senere)
 
 
 # ============================================================
