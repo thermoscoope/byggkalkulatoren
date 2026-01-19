@@ -44,12 +44,21 @@ with st.sidebar:
 
     pro_btn_text = "📘 Hva er Pro? (skole)" if st.session_state.app_mode == "Skole" else "🛠️ Pro-verktøy"
     if st.button(pro_btn_text):
-        st.session_state.show_pro = True
+        if st.session_state.get("show_pro", False):
+    st.divider()
 
+    # HJEM/TILBAKE-knapp som alltid vises i Pro
+    if st.button("🏠 Tilbake til hovedsiden", key="btn_home_from_pro"):
+        st.session_state.show_pro = False
+        st.session_state.current_view = "home"
+        st.rerun()
+
+    show_pro_screen()
+
+    st.stop()
 
 def is_school_mode() -> bool:
     return st.session_state.get("app_mode", "Skole") == "Skole"
-
 
 
 # Header (logo venstre, tekst høyre)
@@ -65,7 +74,6 @@ with header_right:
         "<div style='font-size:16px; color:gray; margin-top:-6px;'>Din hjelp på farten!</div>",
         unsafe_allow_html=True,
     )
-
 
 # ============================================================
 # Hjelpefunksjoner (enheter + formatering)
