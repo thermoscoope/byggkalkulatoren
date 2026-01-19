@@ -57,7 +57,7 @@ with header_right:
             padding-bottom: 6px;
         ">
             <div style="font-size:16px; color:gray;">
-                Din hjelp på farten!
+               - Din hjelp på farten!
             </div>
         </div>
         """,
