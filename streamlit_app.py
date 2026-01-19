@@ -66,7 +66,6 @@ with header_left:
         st.session_state.current_view = "home"
         st.session_state.show_pro = False
 
-
 with header_right:
     st.empty()  # plassholder (kan brukes senere)
 
