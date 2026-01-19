@@ -12,7 +12,7 @@ from PIL import Image
 # ============================================================
 # Konfig + Logo (må ligge før all annen Streamlit-output)
 # ============================================================
-LOGO_PATH = Path(__file__).parent / "logo.png"
+LOGO_PATH = Path(__file__).parent / "logo1.png"
 
 page_icon = None
 if LOGO_PATH.exists():
