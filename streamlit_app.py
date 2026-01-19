@@ -51,8 +51,10 @@ with header_right:
             display: flex;
             flex-direction: column;
             justify-content: flex-end;
+            align-items: flex-start;
+            text-align: left;
             height: 100%;
-            padding-bottom: 12px;
+            padding-bottom: 6px;
         ">
             <div style="font-size:16px; color:gray;">
                 Din hjelp på farten!
@@ -61,6 +63,10 @@ with header_right:
         """,
         unsafe_allow_html=True,
     )
+
+    # Trekker top-menylinjen (Hjem/innstillinger/pro) opp mot logoen
+st.markdown("<div style='margin-top:-35px;'></div>", unsafe_allow_html=True)
+
 
 
 # ============================================================
