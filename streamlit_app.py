@@ -42,7 +42,9 @@ def is_school_mode() -> bool:
 header_left, header_right = st.columns([4, 3], gap="small")
 
 with header_left:
+    st.markdown("<div style='margin-bottom:-20px;'>", unsafe_allow_html=True)
     st.image(str(LOGO_PATH), use_container_width=True)
+    st.markdown("</div>", unsafe_allow_html=True)
 
 with header_right:
     st.markdown(
@@ -54,18 +56,19 @@ with header_right:
             align-items: flex-start;
             text-align: left;
             height: 100%;
-            padding-bottom: 6px;
+            padding-bottom: 4px;
         ">
-            <div style="font-size:px; color:gray;">
-               - Din hjelp på farten!
+            <div style="font-size:16px; color:gray;">
+                Din hjelp på farten!
             </div>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-    # Trekker top-menylinjen (Hjem/innstillinger/pro) opp mot logoen
-st.markdown("<div style='margin-top:-65px;'></div>", unsafe_allow_html=True)
+# Dra Hjem/innstillinger/pro helt opp mot logo
+st.markdown("<div style='margin-top:-60px;'></div>", unsafe_allow_html=True)
+
 
 
 
