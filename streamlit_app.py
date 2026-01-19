@@ -59,7 +59,7 @@ header_left, header_right = st.columns([1, 2])
 
 with header_left:
     # STØRRE LOGO
-    st.image(str(LOGO_PATH), width=330)
+    st.image(str(LOGO_PATH), width=550)
 
     # HJEM-KNAPP
     if st.button("🏠 Hjem", use_container_width=True, key="btn_home"):
