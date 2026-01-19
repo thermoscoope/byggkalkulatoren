@@ -85,10 +85,6 @@ with header_left:
         unsafe_allow_html=True,
     )
 
-    # HJEM-KNAPP (sentrert)
-    if st.button("🏠 Hjem", key="btn_home", use_container_width=False):
-        st.session_state.current_view = "home"
-        st.session_state.show_pro = False
 
     # TITTEL
     st.markdown("## Bygg-kalkulatoren")
@@ -874,6 +870,14 @@ def show_result(res: CalcResult):
 if "history" not in st.session_state:
     st.session_state.history: List[Dict[str, Any]] = []
 
+# ============================
+# Hjem-knapp (rett over fanene)
+# ============================
+if st.button("🏠 Hjem", key="btn_home_above_tabs", use_container_width=False):
+    st.session_state.current_view = "home"
+    st.session_state.show_pro = False
+
+st.divider()
 
 # ============================================================
 # Tabs
