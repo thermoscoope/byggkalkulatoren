@@ -43,7 +43,21 @@ header_left, header_right = st.columns([4, 3], gap="small")
 
 with header_left:
     st.markdown("<div style='margin-bottom:-20px;'>", unsafe_allow_html=True)
-    st.image(str(LOGO_PATH), use_container_width=True)
+    from PIL import Image
+
+def trim_transparent(img: Image.Image) -> Image.Image:
+    # Fungerer best på PNG med alpha (RGBA)
+    if img.mode != "RGBA":
+        img = img.convert("RGBA")
+    alpha = img.split()[-1]
+    bbox = alpha.getbbox()
+    return img.crop(bbox) if bbox else img
+
+with header_left:
+    img = Image.open(LOGO_PATH)
+    img_trim = trim_transparent(img)
+    st.image(img_trim, use_container_width=True)
+
     st.markdown("</div>", unsafe_allow_html=True)
 
 with header_right:
