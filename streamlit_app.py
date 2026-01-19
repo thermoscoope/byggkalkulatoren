@@ -65,7 +65,7 @@ with header_right:
     )
 
     # Trekker top-menylinjen (Hjem/innstillinger/pro) opp mot logoen
-st.markdown("<div style='margin-top:-35px;'></div>", unsafe_allow_html=True)
+st.markdown("<div style='margin-top:-65px;'></div>", unsafe_allow_html=True)
 
 
 
