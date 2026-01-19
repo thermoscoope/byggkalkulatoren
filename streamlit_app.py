@@ -17,6 +17,11 @@ LOGO_PATH = Path(__file__).parent / "logo1.png"
 page_icon = None
 if LOGO_PATH.exists():
     header_left, header_right = st.columns([1, 3])
+with header_left:
+    st.image(str(LOGO_PATH), use_container_width=True)
+
+    if st.button("🏠 Hjem", use_container_width=True):
+        st.session_state.current_view = "home"
 
 
 st.set_page_config(
