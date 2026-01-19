@@ -81,7 +81,7 @@ with header_right:
     )
 
 # Dra Hjem/innstillinger/pro helt opp mot logo
-st.markdown("<div style='margin-top:-60px;'></div>", unsafe_allow_html=True)
+st.markdown("<div style='margin-top:-20px;'></div>", unsafe_allow_html=True)
 
 
 
