@@ -66,9 +66,6 @@ with header_left:
         st.session_state.current_view = "home"
         st.session_state.show_pro = False
 
-    # TITTEL UNDER LOGO
-    st.markdown("## Bygg-kalkulatoren")
-    st.caption("din hjelper på farta!")
 
 with header_right:
     st.empty()  # plassholder (kan brukes senere)
