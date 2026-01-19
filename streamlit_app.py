@@ -58,8 +58,7 @@ with st.sidebar:
         "Modus",
         options=["Skole", "Produksjon"],
         index=0 if st.session_state.app_mode == "Skole" else 1,
-        help="Skole: mer forklaring og mellomregning. Produksjon: raskt resultat og mindre støy.",
-    )
+        help="Skole: mer forklaring og mellomregning. Produksjon: raskt resultat og mindre støy.",)
 
 def is_school_mode() -> bool:
     return st.session_state.get("app_mode", "Skole") == "Skole"
