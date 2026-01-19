@@ -51,19 +51,7 @@ def is_school_mode() -> bool:
     return st.session_state.get("app_mode", "Skole") == "Skole"
 
 
-# Profesjonell header med logo
-# ============================
-# Header (logo + hjem)
-# ============================
-# ============================
-# Header (logo + hjem)
-# ============================
-# ============================
-# Header (sentrert logo + hjem)
-# ============================
-header_left, header_right = st.columns([1, 2])
 
-# ============================
 # Header (logo venstre, tekst høyre)
 # ============================
 header_left, header_right = st.columns([1, 4])
@@ -77,25 +65,6 @@ with header_right:
         "<div style='font-size:16px; color:gray; margin-top:-6px;'>Din hjelp på farten!</div>",
         unsafe_allow_html=True,
     )
-
-
-    # STOR LOGO (sentrert)
-    st.image(str(LOGO_PATH), width=320)
-
-    # UNDERTEKST
-    st.markdown(
-        "<div style='font-size:16px; color:gray; margin-top:-8px;'>Din hjelp på farten!</div>",
-        unsafe_allow_html=True,
-    )
-
-
-    # TITTEL
-    st.markdown("## Bygg-kalkulatoren")
-
-    st.markdown("</div>", unsafe_allow_html=True)
-
-with header_right:
-    st.empty()
 
 
 # ============================================================
