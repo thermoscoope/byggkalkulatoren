@@ -797,10 +797,12 @@ def show_result(res: CalcResult):
 if "history" not in st.session_state:
     st.session_state.history: List[Dict[str, Any]] = []
 
-# ============================
-# Topmeny: Hjem + Innstillinger + Pro
-# (legg rett før tabs = st.tabs(...))
-# ============================
+# ============================================================
+# Topmeny: Hjem + Innstillinger + Pro  (SKAL LIGGE HER)
+# ============================================================
+
+# Trekker topmenyen helt opp mot logo
+st.markdown("<div style='margin-top:-55px;'></div>", unsafe_allow_html=True)
 
 bar1, bar2, bar3 = st.columns([1.2, 1.6, 1.6])
 
@@ -811,7 +813,6 @@ with bar1:
         st.rerun()
 
 with bar2:
-    # Innstillinger (Modus flyttes inn her)
     with st.popover("⚙️ Innstillinger", use_container_width=True):
         st.subheader("Innstillinger")
 
@@ -820,10 +821,8 @@ with bar2:
             ["Skole", "Produksjon"],
             index=0 if st.session_state.get("app_mode", "Skole") == "Skole" else 1,
             key="app_mode_settings",
-            help="Skole: mer forklaring og mellomregning. Produksjon: raskt resultat og mindre støy.",
         )
 
-        st.divider()
         if st.session_state.app_mode == "Skole":
             st.info("Skolemodus er aktiv.")
         else:
@@ -831,36 +830,12 @@ with bar2:
 
 with bar3:
     if is_school_mode():
-        st.markdown(
-            """
-            <div style="
-                display: flex;
-                align-items: center;
-                gap: 8px;
-            ">
-                <span style="
-                    background-color: #e3f2fd;
-                    color: #1565c0;
-                    padding: 2px 8px;
-                    border-radius: 12px;
-                    font-size: 12px;
-                    font-weight: 600;
-                ">
-                    Skole
-                </span>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
         if st.button("⭐ Oppgrader til Pro", key="btn_pro_top", use_container_width=True):
             st.session_state.show_pro = True
             st.rerun()
 
-
-
-
 st.divider()
+
 
 
 # ============================================================
