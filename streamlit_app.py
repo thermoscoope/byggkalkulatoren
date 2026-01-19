@@ -72,8 +72,8 @@ with header_right:
             height: 100%;
             padding-bottom: 4px;
         ">
-            <div style="font-size:16px; color:gray;">
-                Din hjelp på farten!
+            <div style="font-size:30px; color:gray;">
+                - Din hjelp på farten!
             </div>
         </div>
         """,
