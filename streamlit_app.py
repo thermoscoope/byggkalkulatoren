@@ -35,19 +35,33 @@ def is_school_mode() -> bool:
     return st.session_state.get("app_mode", "Skole") == "Skole"
 
 
-# Header (logo venstre, tekst høyre)
 # ============================
-header_left, header_right = st.columns([4, 3])
+# Header (logo venstre, tekst høyre – justert ned)
+# ============================
+
+header_left, header_right = st.columns([4, 3], gap="small")
 
 with header_left:
     st.image(str(LOGO_PATH), use_container_width=True)
 
 with header_right:
-    st.markdown("")
     st.markdown(
-        "<div style='font-size:16px; color:gray; margin-top:-6px;'>- Din hjelp på farten!</div>",
+        """
+        <div style="
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            height: 100%;
+            padding-bottom: 12px;
+        ">
+            <div style="font-size:16px; color:gray;">
+                Din hjelp på farten!
+            </div>
+        </div>
+        """,
         unsafe_allow_html=True,
     )
+
 
 # ============================================================
 # Hjelpefunksjoner (enheter + formatering)
