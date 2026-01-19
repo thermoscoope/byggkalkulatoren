@@ -62,7 +62,7 @@ header_left, header_right = st.columns([1, 2])
 
 with header_left:
     # EKSTRA STOR LOGO
-    st.image(str(LOGO_PATH), width=300)
+    st.image(str(LOGO_PATH), width=550)
 
     # UNDERTEKST TIL LOGO
     st.markdown(
