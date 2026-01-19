@@ -43,14 +43,17 @@ with st.sidebar:
     st.divider()
 
     pro_btn_text = "📘 Hva er Pro? (skole)" if st.session_state.app_mode == "Skole" else "🛠️ Pro-verktøy"
-    if st.button(pro_btn_text):
-        if st.session_state.get("show_pro", False):
+# Pro-knapp i sidebar / topp
+if st.button(pro_btn_text):
+    st.session_state.show_pro = True
+
+# ============================
+# PRO-VISNING
+# ============================
+if st.session_state.get("show_pro", False):
     st.divider()
 
     # HJEM/TILBAKE-knapp som alltid vises i Pro
-    if st.session_state.get("show_pro", False):
-    st.divider()
-
     if st.button("🏠 Tilbake til hovedsiden", key="btn_home_from_pro"):
         st.session_state.show_pro = False
         st.session_state.current_view = "home"
@@ -58,6 +61,7 @@ with st.sidebar:
 
     show_pro_screen()
     st.stop()
+
 
 def is_school_mode() -> bool:
     return st.session_state.get("app_mode", "Skole") == "Skole"
