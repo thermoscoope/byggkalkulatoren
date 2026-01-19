@@ -847,9 +847,11 @@ tabs = st.tabs(
         "📐 Målestokk",
         "🪵 Kledning",
         "📉 Fall/vinkel",
+        "🧮 Prosent",
         "📐 Diagonal (Pytagoras)",
         "💰 Økonomi",
         "⏱️ Tid",
+        "⚠️ Avvik/KS",
         "📊 Historikk",
     ]
 )
@@ -1053,29 +1055,21 @@ with tabs[6]:
     if st.button("Beregn pris", key="btn_price"):
         show_result(calc_price(base, rabatt, paslag, mva))
 
-# ---- Tid ----
+# ---- Diagonal (Pytagoras) ----
 with tabs[7]:
-    st.subheader("Tidsestimat")
-    qty = st.number_input("Mengde (f.eks. m²)", min_value=0.0, value=50.0, step=1.0, key="time_qty")
-    prod = st.number_input("Produksjon per time (f.eks. m²/time)", min_value=0.0, value=10.0, step=0.5, key="time_prod")
-    if st.button("Beregn tid", key="btn_time"):
-        show_result(calc_time_estimate(qty, prod))
-
-# ---- Diagonal (pytagoras) ----
-with tabs[8]:
-       # ---- Diagonal (Pytagoras) ----
     if is_school_mode():
         st.caption("Pytagoras brukes i rettvinklede trekanter: c = √(a² + b²).")
 
-    st.subheader("Diagonal (Pytagoras)")
+    st.subheader("📐 Diagonal (Pytagoras)")
     a = st.number_input("Side a (m)", min_value=0.0, value=3.0, step=0.1, key="pyt_a")
     b = st.number_input("Side b (m)", min_value=0.0, value=4.0, step=0.1, key="pyt_b")
 
     if st.button("Beregn diagonal", key="btn_pyt"):
         show_result(calc_pythagoras(a, b))
+
         
 # ---- Historikk ----
-with tabs[9]:
+with tabs[8]:
     st.subheader("Historikk")
 
     if not st.session_state.history:
