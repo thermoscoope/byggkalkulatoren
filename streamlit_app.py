@@ -41,7 +41,10 @@ if st.session_state.get("show_pro", False):
         st.session_state.show_pro = False
         st.rerun()
 
-    show_pro_screen()# <- riktig funksjonsnavn
+    # ============================
+# Pro-skjerm (innhold)
+# ============================
+def show_pro_screen():
     is_school = is_school_mode()
 
     st.subheader("Vil du bli en profesjonell yrkesutøver?")
@@ -71,6 +74,7 @@ if st.session_state.get("show_pro", False):
 - Standardverdier for bransje (mål, svinn, toleranser)
                 """
             )
+
     with c2:
         st.markdown("**Pro inkluderer**")
         st.write("• Mer historikk")
@@ -127,8 +131,6 @@ if st.session_state.get("show_pro", False):
 
     st.info("Dette er forslag. Du kan endre prisene i teksten når du har bestemt modell.")
 
-
-    # CTA-knapper (ikke betaling – bare UI)
     cta1, cta2, cta3 = st.columns(3)
     with cta1:
         st.button("Oppgrader til Pro (kommer)", disabled=True)
@@ -139,7 +141,23 @@ if st.session_state.get("show_pro", False):
 
     st.caption("Tips: Start med Pro-funksjonene som gir mest verdi: eksport + utvidet historikk.")
 
+
+# ============================
+# Pro-state + visning
+# (legg denne rett før tabs)
+# ============================
+if "show_pro" not in st.session_state:
+    st.session_state.show_pro = False
+
+if st.session_state.show_pro:
+    st.divider()
+    if st.button("🏠 Tilbake til hovedsiden", key="btn_home_from_pro"):
+        st.session_state.show_pro = False
+        st.rerun()
+
+    show_pro_screen()
     st.stop()
+
 
 
 
