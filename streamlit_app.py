@@ -43,9 +43,9 @@ with header_left:
     st.image(str(LOGO_PATH), width=350)
 
 with header_right:
-    st.markdown("## Bygg-kalkulatoren")
+    st.markdown("")
     st.markdown(
-        "<div style='font-size:16px; color:gray; margin-top:-6px;'>Din hjelp på farten!</div>",
+        "<div style='font-size:16px; color:gray; margin-top:-6px;'>- Din hjelp på farten!</div>",
         unsafe_allow_html=True,
     )
 
