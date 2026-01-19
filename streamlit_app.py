@@ -869,9 +869,10 @@ with bar2:
             st.success("Produksjonsmodus er aktiv.")
 
 with bar3:
-    if st.button("⭐ Oppgrader til Pro", key="btn_pro_top", use_container_width=True):
-        st.session_state.show_pro = True
-        st.rerun()
+if st.button("⭐ Oppgrader til Pro", key="btn_pro_top", use_container_width=True):
+    st.session_state.show_pro = True
+    st.rerun()
+
 
 st.divider()
 
