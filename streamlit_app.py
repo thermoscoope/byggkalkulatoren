@@ -26,6 +26,12 @@ st.set_page_config(
     page_icon=page_icon,
     layout="wide",
 )
+# ============================================================
+# App-navigasjon (Hjem / Pro)
+# ============================================================
+if "current_view" not in st.session_state:
+    st.session_state.current_view = "home"
+
 
 # ============================================================
 # Modus: Skole / Produksjon
@@ -36,6 +42,11 @@ if "app_mode" not in st.session_state:
 with st.sidebar:
     st.header("Innstillinger")
     st.session_state.app_mode = st.radio(
+            st.divider()
+    pro_btn_text = "📘 Hva er Pro? (skole)" if st.session_state.app_mode == "Skole" else "🛠️ Pro-verktøy"
+    if st.button(pro_btn_text):
+        st.session_state.current_view = "pro"
+
         "Modus",
         options=["Skole", "Produksjon"],
         index=0 if st.session_state.app_mode == "Skole" else 1,
