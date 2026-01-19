@@ -41,8 +41,14 @@ if "app_mode" not in st.session_state:
 
 with st.sidebar:
     st.header("Innstillinger")
+
     st.session_state.app_mode = st.radio(
-            st.divider()
+        "Modus",
+        ["Skole", "Produksjon"],
+    )
+
+    st.divider()
+
     pro_btn_text = "📘 Hva er Pro? (skole)" if st.session_state.app_mode == "Skole" else "🛠️ Pro-verktøy"
     if st.button(pro_btn_text):
         st.session_state.current_view = "pro"
