@@ -48,12 +48,11 @@ if st.button(pro_btn_text):
     st.session_state.show_pro = True
 
 # ============================
-# PRO-VISNING
+# PRO-VISNING (må ligge etter def show_pro_screen)
 # ============================
 if st.session_state.get("show_pro", False):
     st.divider()
 
-    # HJEM/TILBAKE-knapp som alltid vises i Pro
     if st.button("🏠 Tilbake til hovedsiden", key="btn_home_from_pro"):
         st.session_state.show_pro = False
         st.session_state.current_view = "home"
@@ -61,6 +60,7 @@ if st.session_state.get("show_pro", False):
 
     show_pro_screen()
     st.stop()
+
 
 
 def is_school_mode() -> bool:
