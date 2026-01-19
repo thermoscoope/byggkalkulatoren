@@ -740,7 +740,43 @@ def label_for(key: str) -> str:
 # ============================
 
 def show_pro_screen():
-    pass
+    is_school = is_school_mode()
+
+    st.subheader("Vil du bli en profesjonell yrkesutøver?")
+    st.caption("Pro gir deg funksjoner som sparer tid, gir bedre kontroll og gjør dokumentasjon enklere.")
+
+    c1, c2 = st.columns([2, 1])
+    with c1:
+        if is_school:
+            st.markdown(
+                """
+**Pro for skole** handler om læring, vurdering og struktur:
+
+- Oppgaver med *skjult fasit* (eleven må prøve først)
+- Refleksjon og egenkontroll knyttet til hver beregning
+- Eksport til PDF for innlevering
+- Lærer-/klassevis historikk (dokumentasjon av progresjon)
+                """
+            )
+        else:
+            st.markdown(
+                """
+**Pro for produksjon** handler om tempo, færre feil og bedre dokumentasjon:
+
+- Prosjektlogg (jobblogg): Prosjekt → rom → beregning
+- Eksport til PDF/CSV for KS, bestilling og dokumentasjon
+- Produksjonstilpasset avrunding og tydeligere varsler
+- Standardverdier for bransje (mål, svinn, toleranser)
+                """
+            )
+
+    with c2:
+        st.markdown("**Pro inkluderer**")
+        st.write("• Mer historikk")
+        st.write("• Eksport")
+        st.write("• Pro-funksjoner per fane")
+        st.write("• Prioritert støtte (valgfritt)")
+
 
 # ============================
 # Integrasjon: legg "Bli en profesjonell yrkesutøver?" i sidepanelet
