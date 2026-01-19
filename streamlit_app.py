@@ -841,8 +841,9 @@ if "history" not in st.session_state:
 # ============================================================
 tabs = st.tabs(
     [
-        "📏 Måling/enheter",
+        "📏 Enhetomregner",
         "⬛ Areal",
+        "🧵 Omkrets",
         "🧱 Volum/betong",
         "📐 Målestokk",
         "🪵 Kledning",
@@ -850,10 +851,11 @@ tabs = st.tabs(
         "🧮 Prosent",
         "📐 Diagonal (Pytagoras)",
         "💰 Økonomi",
+        "⏱️ Tid",
+        "⚠️ Avvik/KS",
         "📊 Historikk",
     ]
 )
-
 
 # ---- Enhetsomregner ----
 with tabs[0]:
@@ -936,8 +938,39 @@ with tabs[1]:
     if st.button("Beregn sammensatt areal", key="btn_comp"):
         show_result(calc_area_composite(rects))
 
-# ---- Volum/betong ----
+# ---- Omkrets ----
 with tabs[2]:
+    if is_school_mode():
+        st.caption("Omkrets er lengden rundt en figur. Rektangel: 2(a+b). Sirkel: 2πr.")
+
+    st.subheader("🧵 Omkrets")
+    shape = st.selectbox("Velg figur", ["Rektangel", "Sirkel"], key="per_shape")
+
+    unit = st.selectbox("Enhet for inndata", ["mm", "cm", "m"], index=2, key="per_unit")
+
+    if shape == "Rektangel":
+        c1, c2 = st.columns(2)
+        with c1:
+            a = st.number_input("Side a", min_value=0.0, value=2.0, step=0.1, key="per_a")
+        with c2:
+            b = st.number_input("Side b", min_value=0.0, value=1.0, step=0.1, key="per_b")
+
+        a_m = to_mm(float(a), unit) / 1000.0
+        b_m = to_mm(float(b), unit) / 1000.0
+
+        if st.button("Beregn omkrets", key="btn_per_rect"):
+            show_result(calc_perimeter("Rektangel", a_m=a_m, b_m=b_m))
+
+    else:
+        r = st.number_input("Radius", min_value=0.0, value=0.5, step=0.1, key="per_r")
+        r_m = to_mm(float(r), unit) / 1000.0
+
+        if st.button("Beregn omkrets", key="btn_per_circ"):
+            show_result(calc_perimeter("Sirkel", r_m=r_m))
+
+
+# ---- Volum/betong ----
+with tabs[3]:
     if is_school_mode():
         st.caption("Volum beregnes i m³. Tykkelser oppgis ofte i mm og må konverteres til meter.")
 
@@ -964,7 +997,7 @@ with tabs[2]:
         show_result(calc_column_cylinder(d, hm))
 
 # ---- Målestokk (begge veier + 1–100) ----
-with tabs[3]:
+with tabs[4]:
     if is_school_mode():
         st.caption("Husk: 1:50 betyr at 1 enhet på tegning tilsvarer 50 enheter i virkeligheten.")
 
@@ -994,7 +1027,7 @@ with tabs[3]:
         show_result(calc_scale_bidir(float(val), str(unit), int(scale_n), str(direction)))
 
 # ---- Kledning ----
-with tabs[4]:
+with tabs[5]:
     st.subheader("Tømmermannskledning (kun bredde)")
     st.caption("Fritt innskrive: mål fra–til (cm), omlegg (cm) og bordbredder (mm).")
 
@@ -1012,7 +1045,7 @@ with tabs[4]:
         show_result(calc_tommermannskledning_width(float(measure_cm), float(overlap_cm), float(under_w), float(over_w)))
 
 # ---- Fall/vinkel ----
-with tabs[5]:
+with tabs[6]:
     st.write("DEBUG: Fall/vinkel-fanen kjører.")  # skal vises uansett
 
     if is_school_mode():
@@ -1034,7 +1067,7 @@ with tabs[5]:
 
 
 # ---- Økonomi ----
-with tabs[6]:
+with tabs[7]:
     st.subheader("Pris (rabatt/påslag/MVA)")
     base = st.number_input("Grunnpris", min_value=0.0, value=1000.0, step=10.0, key="price_base")
     rabatt = st.number_input("Rabatt (%)", min_value=0.0, value=0.0, step=1.0, key="price_rabatt")
@@ -1044,7 +1077,7 @@ with tabs[6]:
         show_result(calc_price(base, rabatt, paslag, mva))
 
 # ---- Diagonal (Pytagoras) ----
-with tabs[7]:
+with tabs[8]:
     if is_school_mode():
         st.caption("Pytagoras brukes i rettvinklede trekanter: c = √(a² + b²).")
 
@@ -1056,7 +1089,7 @@ with tabs[7]:
         show_result(calc_pythagoras(a, b))
         
 # ---- Historikk ----
-with tabs[8]:
+with tabs[9]:
     st.subheader("Historikk")
 
     if not st.session_state.history:
