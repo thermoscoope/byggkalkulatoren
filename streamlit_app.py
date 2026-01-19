@@ -856,8 +856,7 @@ if st.session_state.show_pro:
     show_pro_screen()
     st.stop()
 
-st.markdown("<div style='margin-top:-30px;'></div>", unsafe_allow_html=True)
-
+st.markdown("<div style='margin-top:-10px;'></div>", unsafe_allow_html=True)
 
 # ============================================================
 # Tabs
