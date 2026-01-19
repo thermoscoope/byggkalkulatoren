@@ -33,9 +33,6 @@ if LOGO_PATH.exists():
         st.title("Bygg-kalkulatoren")
 else:
     st.title("Bygg-kalkulatoren")
-    st.caption("din hjelper på farta!")
-
-
 
 st.set_page_config(
     page_title="Bygg-kalkulatoren",
