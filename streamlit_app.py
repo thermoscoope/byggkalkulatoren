@@ -857,10 +857,11 @@ if "history" not in st.session_state:
     st.session_state.history: List[Dict[str, Any]] = []
 
 # ============================
-# Toppmeny: Hjem + Modus + Pro
+# Topmeny: Hjem + Innstillinger + Pro
 # (legg rett før tabs = st.tabs(...))
 # ============================
-bar1, bar2, bar3 = st.columns([1.2, 2.2, 1.6])
+
+bar1, bar2, bar3 = st.columns([1.2, 1.6, 1.6])
 
 with bar1:
     if st.button("🏠 Hjem", key="btn_home_top", use_container_width=True):
@@ -869,14 +870,23 @@ with bar1:
         st.rerun()
 
 with bar2:
-    st.session_state.app_mode = st.radio(
-        "Modus",
-        ["Skole", "Produksjon"],
-        index=0 if st.session_state.get("app_mode", "Skole") == "Skole" else 1,
-        horizontal=True,
-        key="app_mode_top",
-        help="Skole: mer forklaring og mellomregning. Produksjon: raskt resultat og mindre støy.",
-    )
+    # Innstillinger (Modus flyttes inn her)
+    with st.popover("⚙️ Innstillinger", use_container_width=True):
+        st.subheader("Innstillinger")
+
+        st.session_state.app_mode = st.radio(
+            "Modus",
+            ["Skole", "Produksjon"],
+            index=0 if st.session_state.get("app_mode", "Skole") == "Skole" else 1,
+            key="app_mode_settings",
+            help="Skole: mer forklaring og mellomregning. Produksjon: raskt resultat og mindre støy.",
+        )
+
+        st.divider()
+        if st.session_state.app_mode == "Skole":
+            st.info("Skolemodus er aktiv.")
+        else:
+            st.success("Produksjonsmodus er aktiv.")
 
 with bar3:
     if st.button("⭐ Oppgrader til Pro", key="btn_pro_top", use_container_width=True):
@@ -884,6 +894,7 @@ with bar3:
         st.rerun()
 
 st.divider()
+
 
 # ============================================================
 # Tabs
