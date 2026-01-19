@@ -48,13 +48,15 @@ with st.sidebar:
     st.divider()
 
     # HJEM/TILBAKE-knapp som alltid vises i Pro
+    if st.session_state.get("show_pro", False):
+    st.divider()
+
     if st.button("🏠 Tilbake til hovedsiden", key="btn_home_from_pro"):
         st.session_state.show_pro = False
         st.session_state.current_view = "home"
         st.rerun()
 
     show_pro_screen()
-
     st.stop()
 
 def is_school_mode() -> bool:
