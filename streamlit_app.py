@@ -850,7 +850,6 @@ tabs = st.tabs(
         "📐 Diagonal (Pytagoras)",
         "💰 Økonomi",
         "⏱️ Tid",
-        "⚠️ Avvik/KS",
         "📊 Historikk",
     ]
 )
@@ -1062,27 +1061,19 @@ with tabs[7]:
     if st.button("Beregn tid", key="btn_time"):
         show_result(calc_time_estimate(qty, prod))
 
-# ---- Avvik/KS ----
+# ---- Diagonal (pytagoras) ----
 with tabs[8]:
-    st.subheader("Avvik / toleranse")
-    unit = st.selectbox("Enhet for inndata", options=["mm", "m"], index=0, key="dev_unit")
-    projected = st.number_input(
-        "Prosjektert",
-        value=1000.0 if unit == "mm" else 1.0,
-        step=1.0 if unit == "mm" else 0.01,
-        key="dev_proj",
-    )
-    measured = st.number_input(
-        "Målt",
-        value=1002.0 if unit == "mm" else 1.002,
-        step=1.0 if unit == "mm" else 0.01,
-        key="dev_meas",
-    )
-    tol = st.number_input("Toleranse (mm)", min_value=0.0, value=2.0, step=0.5, key="dev_tol")
+       # ---- Diagonal (Pytagoras) ----
+    if is_school_mode():
+        st.caption("Pytagoras brukes i rettvinklede trekanter: c = √(a² + b²).")
 
-    if st.button("Beregn avvik", key="btn_dev"):
-        show_result(calc_deviation(float(projected), float(measured), float(tol), unit))
+    st.subheader("Diagonal (Pytagoras)")
+    a = st.number_input("Side a (m)", min_value=0.0, value=3.0, step=0.1, key="pyt_a")
+    b = st.number_input("Side b (m)", min_value=0.0, value=4.0, step=0.1, key="pyt_b")
 
+    if st.button("Beregn diagonal", key="btn_pyt"):
+        show_result(calc_pythagoras(a, b))
+        
 # ---- Historikk ----
 with tabs[9]:
     st.subheader("Historikk")
