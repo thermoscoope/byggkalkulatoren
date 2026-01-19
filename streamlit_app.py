@@ -30,11 +30,6 @@ if LOGO_PATH.exists():
 
         st.caption("din hjelper på farta!")  # tekst under logoen
 
-    with header_right:
-        st.title("Bygg-kalkulatoren")
-else:
-    st.title("Bygg-kalkulatoren")
-    st.caption("din hjelper på farta!")
 
 # ============================================================
 # App-navigasjon (Hjem / Pro)
