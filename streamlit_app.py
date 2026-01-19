@@ -857,11 +857,33 @@ if "history" not in st.session_state:
     st.session_state.history: List[Dict[str, Any]] = []
 
 # ============================
-# Hjem-knapp (rett over fanene)
+# Toppmeny: Hjem + Modus + Pro
+# (legg rett før tabs = st.tabs(...))
 # ============================
-if st.button("🏠 Hjem", key="btn_home_above_tabs", use_container_width=False):
-    st.session_state.current_view = "home"
-    st.session_state.show_pro = False
+bar1, bar2, bar3 = st.columns([1.2, 2.2, 1.6])
+
+with bar1:
+    if st.button("🏠 Hjem", key="btn_home_top", use_container_width=True):
+        st.session_state.current_view = "home"
+        st.session_state.show_pro = False
+        st.rerun()
+
+with bar2:
+    # Innstillinger i samme rekke som Hjem-knappen
+    st.session_state.app_mode = st.radio(
+        "Modus",
+        ["Skole", "Produksjon"],
+        index=0 if st.session_state.get("app_mode", "Skole") == "Skole" else 1,
+        horizontal=True,
+        key="app_mode_top",
+        help="Skole: mer forklaring og mellomregning. Produksjon: raskt resultat og mindre støy.",
+    )
+
+with bar3:
+    # ÉN knapp for Pro (ingen separat "Pro-verktøy"-knapp)
+    if st.button("⭐ Oppgrader til Pro", key="btn_pro_top", use_container_width=True):
+        st.session_state.show_pro = True
+        st.rerun()
 
 st.divider()
 
