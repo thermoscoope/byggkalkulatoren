@@ -31,34 +31,25 @@ if "app_mode" not in st.session_state:
     st.session_state.app_mode = "Skole"
 
 
-# ============================
-# Pro-visning (må ligge etter def show_pro_screen)
-# ============================
-if st.session_state.get("show_pro", False):
-    st.divider()
-
-    if st.button("🏠 Tilbake til hovedsiden", key="btn_home_from_pro"):
-        st.session_state.show_pro = False
-        st.rerun()
 
 # ============================
-# Pro-state + visning
-# (legg denne rett før tabs)
+# Pro-visning (må ligge FØR tabs)
 # ============================
+
 if "show_pro" not in st.session_state:
     st.session_state.show_pro = False
 
 if st.session_state.show_pro:
     st.divider()
+
     if st.button("🏠 Tilbake til hovedsiden", key="btn_home_from_pro"):
         st.session_state.show_pro = False
         st.rerun()
 
     show_pro_screen()
     st.stop()
-
-
-
+n()
+    st.stop()
 
 
 def is_school_mode() -> bool:
