@@ -16,10 +16,13 @@ LOGO_PATH = Path(__file__).parent / "logo1.png"
 
 page_icon = None
 if LOGO_PATH.exists():
-    try:
-        page_icon = Image.open(LOGO_PATH)
-    except Exception:
-        page_icon = None
+    header_left, header_right = st.columns([1, 3])
+    with header_left:
+        st.image(str(LOGO_PATH), use_container_width=True)
+    with header_right:
+        st.title("Bygg-kalkulatoren")
+        st.caption("din hjelper på farta!")
+
 
 st.set_page_config(
     page_title="Bygg-kalkulatoren",
