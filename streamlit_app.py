@@ -63,18 +63,21 @@ def is_school_mode() -> bool:
 # ============================
 header_left, header_right = st.columns([1, 2])
 
+# ============================
+# Header (logo venstre, tekst høyre)
+# ============================
+header_left, header_right = st.columns([1, 4])
+
 with header_left:
+    st.image(str(LOGO_PATH), width=220)
+
+with header_right:
+    st.markdown("## Bygg-kalkulatoren")
     st.markdown(
-        """
-        <div style="
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            text-align: center;
-        ">
-        """,
+        "<div style='font-size:16px; color:gray; margin-top:-6px;'>Din hjelp på farten!</div>",
         unsafe_allow_html=True,
     )
+
 
     # STOR LOGO (sentrert)
     st.image(str(LOGO_PATH), width=320)
