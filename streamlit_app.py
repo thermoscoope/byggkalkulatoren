@@ -23,10 +23,6 @@ page_icon = None
 # ============================================================
 if "current_view" not in st.session_state:
     st.session_state.current_view = "home"
-# HJEM-knapp under logoen
-        if st.button("🏠 Hjem", use_container_width=True, key="btn_home"):
-            st.session_state.current_view = "home"
-            st.session_state.show_pro = False  # lukker Pro-skjerm hvis den er åpen
 
 # ============================================================
 # Modus: Skole / Produksjon
