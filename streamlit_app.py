@@ -16,29 +16,18 @@ LOGO_PATH = Path(__file__).parent / "logo1.png"
 
 page_icon = None
 # Profesjonell header med logo
+# Profesjonell header med logo
 if LOGO_PATH.exists():
     header_left, header_right = st.columns([1, 3])
-
     with header_left:
         st.image(str(LOGO_PATH), use_container_width=True)
-
-        # HJEM-knapp under logoen
-        if st.button("🏠 Hjem", use_container_width=True, key="btn_home"):
-            st.session_state.current_view = "home"
-            st.session_state.show_pro = False  # lukker Pro-skjerm hvis den er åpen
-
-        st.caption("din hjelper på farta!")  # tekst under logoen
-
     with header_right:
         st.title("Bygg-kalkulatoren")
+        st.caption("din hjelper på farta!")
 else:
     st.title("Bygg-kalkulatoren")
+    st.caption("din hjelper på farta!")
 
-st.set_page_config(
-    page_title="Bygg-kalkulatoren",
-    page_icon=page_icon,
-    layout="wide",
-)
 # ============================================================
 # App-navigasjon (Hjem / Pro)
 # ============================================================
