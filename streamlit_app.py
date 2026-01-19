@@ -37,7 +37,7 @@ def is_school_mode() -> bool:
 
 # Header (logo venstre, tekst høyre)
 # ============================
-header_left, header_right = st.columns([1, 4])
+header_left, header_right = st.columns([2, 3])
 
 with header_left:
     st.image(str(LOGO_PATH), width=350)
