@@ -62,6 +62,7 @@ with header_left:
     with header_right:
         st.title("Bygg-kalkulatoren")
         st.caption("din hjelper på farta!")
+        
 else:
     st.title("Bygg-kalkulatoren")
     st.caption("din hjelper på farta!")
