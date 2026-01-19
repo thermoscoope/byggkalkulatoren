@@ -740,6 +740,7 @@ def label_for(key: str) -> str:
 # ============================
 
 def show_pro_screen():
+    pass
 
 # ============================
 # Integrasjon: legg "Bli en profesjonell yrkesutøver?" i sidepanelet
