@@ -40,7 +40,7 @@ def is_school_mode() -> bool:
 header_left, header_right = st.columns([1, 4])
 
 with header_left:
-    st.image(str(LOGO_PATH), width=220)
+    st.image(str(LOGO_PATH), width=350)
 
 with header_right:
     st.markdown("## Bygg-kalkulatoren")
