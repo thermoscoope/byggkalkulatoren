@@ -657,7 +657,7 @@ def calc_tommermannskledning_width(
     steps.append(f"Valgt overliggerbredde: {over_width_mm} mm → {'OK' if ok_over_width else 'IKKE OK'}")
 
     return CalcResult(
-        name="Tømmermannskledning (bredde)",
+        name="Tømmermannskledning",
         inputs={
             "mal_fra_til_cm": measure_cm,
             "omlegg_cm": overlap_cm,
@@ -671,6 +671,107 @@ def calc_tommermannskledning_width(
             "overdekning_mm": round_sensible(overdekning_mm, 1),
             "min_overligger_bredde_mm": round_sensible(min_over_width_mm, 0),
             "overligger_ok_for_omlegg": "OK" if ok_over_width else "IKKE OK",
+        },
+        steps=steps,
+        warnings=warnings,
+        timestamp=make_timestamp(),
+    )
+
+def calc_tiles_wall(
+    tile_h: float,
+    tile_h_unit: str,
+    tile_w: float,
+    tile_w_unit: str,
+    grout: float,
+    grout_unit: str,
+    wall_h: float,
+    wall_h_unit: str,
+    wall_w: float,
+    wall_w_unit: str,
+    add_10_percent: bool,
+    price_per_tile: float,
+) -> CalcResult:
+    """
+    Fliskalkulator (vegg):
+    - Regner antall fliser i høyde og bredde basert på "modul" = flis + fuge.
+    - Total = antall_h * antall_b
+    - Valgfritt: +10% ekstra
+    - Valgfritt: pris per flis -> totalpris
+
+    Merk: Dette er en praktisk, robust tommelfingerregel for bestilling.
+    """
+
+    warnings, steps = [], []
+
+    # Validering
+    warn_if(tile_h <= 0 or tile_w <= 0, "Flisstørrelse må være > 0.", warnings)
+    warn_if(wall_h <= 0 or wall_w <= 0, "Vegg-mål må være > 0.", warnings)
+    warn_if(grout < 0, "Fugeavstand kan ikke være negativ.", warnings)
+    warn_if(price_per_tile < 0, "Pris kan ikke være negativ.", warnings)
+
+    # Konverter alt til mm
+    tile_h_mm = to_mm(float(tile_h), str(tile_h_unit))
+    tile_w_mm = to_mm(float(tile_w), str(tile_w_unit))
+    grout_mm = to_mm(float(grout), str(grout_unit))
+    wall_h_mm = to_mm(float(wall_h), str(wall_h_unit))
+    wall_w_mm = to_mm(float(wall_w), str(wall_w_unit))
+
+    # Modulmål (flis + fuge)
+    module_h = tile_h_mm + grout_mm
+    module_w = tile_w_mm + grout_mm
+
+    warn_if(module_h <= 0 or module_w <= 0, "Ugyldig modulmål (flis + fuge).", warnings)
+
+    # Antall i hver retning (enkel og robust metode)
+    # NB: I praksis kan det bli kutt på kantene. Derfor finnes +10% valget.
+    tiles_h = math.ceil(wall_h_mm / module_h) if module_h > 0 else 0
+    tiles_w = math.ceil(wall_w_mm / module_w) if module_w > 0 else 0
+    base_total = tiles_h * tiles_w
+
+    extra_total = math.ceil(base_total * 1.10) if add_10_percent else base_total
+
+    total_price = (extra_total * price_per_tile) if price_per_tile and price_per_tile > 0 else 0.0
+
+    # Stegvis forklaring (skolemodus)
+    steps.append("1) Gjør om alle mål til samme enhet (mm).")
+    steps.append(f"Flis (H×B): {tile_h} {tile_h_unit} × {tile_w} {tile_w_unit} = {tile_h_mm:.1f} mm × {tile_w_mm:.1f} mm")
+    steps.append(f"Fuge: {grout} {grout_unit} = {grout_mm:.1f} mm")
+    steps.append(f"Vegg (H×B): {wall_h} {wall_h_unit} × {wall_w} {wall_w_unit} = {wall_h_mm:.1f} mm × {wall_w_mm:.1f} mm")
+    steps.append("2) Modul = flis + fuge (i hver retning).")
+    steps.append(f"Modul høyde = {tile_h_mm:.1f} + {grout_mm:.1f} = {module_h:.1f} mm")
+    steps.append(f"Modul bredde = {tile_w_mm:.1f} + {grout_mm:.1f} = {module_w:.1f} mm")
+    steps.append("3) Antall fliser = tak-oppover (ceil) av veggmål / modul.")
+    steps.append(f"Antall i høyden = ceil({wall_h_mm:.1f} / {module_h:.1f}) = {tiles_h}")
+    steps.append(f"Antall i bredden = ceil({wall_w_mm:.1f} / {module_w:.1f}) = {tiles_w}")
+    steps.append(f"4) Totalt antall = {tiles_h} × {tiles_w} = {base_total} fliser")
+
+    if add_10_percent:
+        steps.append(f"5) +10% ekstra: ceil({base_total} × 1,10) = {extra_total} fliser")
+
+    if price_per_tile and price_per_tile > 0:
+        steps.append(f"Totalpris = {extra_total} × {price_per_tile} = {total_price}")
+
+    # Varsler (realistisk bruk)
+    warn_if(grout_mm > 10, "Fugeavstand virker stor. Sjekk enhet (mm/cm).", warnings)
+    warn_if(tile_h_mm > 1200 or tile_w_mm > 1200, "Flisstørrelse virker uvanlig stor. Sjekk enhet.", warnings)
+    warn_if(wall_h_mm > 6000 or wall_w_mm > 8000, "Vegg-mål virker store. Sjekk enhet.", warnings)
+
+    return CalcResult(
+        name="Fliser",
+        inputs={
+            "flis_hoyde": tile_h, "flis_h_enhet": tile_h_unit,
+            "flis_bredde": tile_w, "flis_b_enhet": tile_w_unit,
+            "fuge": grout, "fuge_enhet": grout_unit,
+            "vegg_hoyde": wall_h, "vegg_h_enhet": wall_h_unit,
+            "vegg_bredde": wall_w, "vegg_b_enhet": wall_w_unit,
+            "legg_til_10_prosent": add_10_percent,
+            "pris_per_flis": price_per_tile,
+        },
+        outputs={
+            "fliser_hoyde_antall": tiles_h,
+            "fliser_bredde_antall": tiles_w,
+            "trenger_fliser": extra_total,
+            "totalpris": round_sensible(total_price, 2),
         },
         steps=steps,
         warnings=warnings,
@@ -1334,6 +1435,95 @@ with tabs[5]:
 
     if st.button("Beregn kledning", key="btn_tk"):
         show_result(calc_tommermannskledning_width(float(measure_cm), float(overlap_cm), float(under_w), float(over_w)))
+
+    st.divider()
+    st.subheader("Fliser")
+    if is_school_mode():
+        st.caption("Du regner antall fliser ved å bruke modulmål: (flis + fuge). Antall = ceil(vegg / modul).")
+
+    left, right = st.columns([2.2, 1.3], gap="large")
+
+    with left:
+        st.markdown("### Flisstørrelse")
+        c1, c2, c3, c4 = st.columns([1.2, 1, 1.2, 1])
+        with c1:
+            tile_h = st.number_input("Høyde", min_value=0.0, value=15.0, step=1.0, key="tile_h")
+        with c2:
+            tile_h_unit = st.selectbox(" ", ["mm", "cm", "m"], index=1, key="tile_h_unit")
+        with c3:
+            tile_w = st.number_input("Bredde", min_value=0.0, value=10.0, step=1.0, key="tile_w")
+        with c4:
+            tile_w_unit = st.selectbox("  ", ["mm", "cm", "m"], index=1, key="tile_w_unit")
+
+        st.markdown("### Flisfugeavstand")
+        c5, c6 = st.columns([1.2, 1])
+        with c5:
+            grout = st.number_input("Fuge", min_value=0.0, value=2.0, step=0.5, key="tile_grout")
+        with c6:
+            grout_unit = st.selectbox("   ", ["mm", "cm", "m"], index=1, key="tile_grout_unit")
+
+        st.markdown("### Mål på overflaten som skal flislegges")
+        method = st.selectbox("Metode", ["Angi dimensjoner"], index=0, key="tile_method")
+
+        c7, c8 = st.columns([1.2, 1])
+        with c7:
+            wall_h = st.number_input("Høyde (vegg)", min_value=0.0, value=2.4, step=0.1, key="wall_h")
+        with c8:
+            wall_h_unit = st.selectbox("    ", ["mm", "cm", "m"], index=2, key="wall_h_unit")
+
+        c9, c10 = st.columns([1.2, 1])
+        with c9:
+            wall_w = st.number_input("Bredde (vegg)", min_value=0.0, value=3.0, step=0.1, key="wall_w")
+        with c10:
+            wall_w_unit = st.selectbox("     ", ["mm", "cm", "m"], index=2, key="wall_w_unit")
+
+        st.markdown("### Pris (valgfritt)")
+        st.caption("Angi pris per flis for å beregne totalpris.")
+        c11, c12 = st.columns([1.2, 1])
+        with c11:
+            price_per_tile = st.number_input("Pris per flis", min_value=0.0, value=0.0, step=1.0, key="tile_price")
+        with c12:
+            st.write("NOK")
+
+        calc_now = st.button("Beregn fliser", key="btn_tiles", use_container_width=True)
+
+    with right:
+        st.markdown("### Resultat")
+        add10 = st.checkbox(
+            "Legg til 10 % ekstra fliser (i tilfelle kutting, problemer eller fremtidige bytter).",
+            value=True,
+            key="tile_add10",
+        )
+
+        # Når bruker klikker "Beregn fliser"
+        if calc_now:
+            res = calc_tiles_wall(
+                tile_h=tile_h, tile_h_unit=tile_h_unit,
+                tile_w=tile_w, tile_w_unit=tile_w_unit,
+                grout=grout, grout_unit=grout_unit,
+                wall_h=wall_h, wall_h_unit=wall_h_unit,
+                wall_w=wall_w, wall_w_unit=wall_w_unit,
+                add_10_percent=add10,
+                price_per_tile=price_per_tile,
+            )
+
+            # Vis “likt bildet”: felt for antall + totalpris
+            o = res.outputs
+            st.text_input("Trenger fliser:", value=str(o.get("trenger_fliser", 0)), disabled=True, key="tiles_out_count")
+
+            # Totalpris
+            totalpris = o.get("totalpris", 0.0)
+            st.text_input("Totalpris", value=f"{totalpris:.2f}", disabled=True, key="tiles_out_price")
+            st.write("NOK")
+
+            # Skolemodus: vis utregning
+            with st.expander("Vis utregning", expanded=is_school_mode()):
+                for s in res.steps:
+                    st.write(f"- {s}")
+
+            if res.warnings:
+                st.warning("Sjekk dette:\n- " + "\n- ".join(res.warnings))
+
 
 # ---- Fall/vinkel ----
 with tabs[6]:
