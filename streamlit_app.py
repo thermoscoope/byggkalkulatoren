@@ -1,6 +1,5 @@
 import math
 import time
-import re
 from dataclasses import dataclass
 from typing import Dict, Any, List, Tuple
 from pathlib import Path
@@ -8,6 +7,29 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 from PIL import Image
+
+
+# ============================================================
+# Streamlit side-oppsett (må komme før annen Streamlit-bruk)
+# ============================================================
+st.set_page_config(
+    page_title="Bygg-kalkulatoren",
+    page_icon="🧮",
+    layout="wide",
+    initial_sidebar_state="collapsed",
+)
+
+# Komprimer vertikal luft (logo / toppmeny / tabs)
+st.markdown(
+    """
+    <style>
+      .block-container { padding-top: 0.6rem; padding-bottom: 1.0rem; }
+      /* Litt strammere avstand mellom elementer */
+      div[data-testid="stVerticalBlock"] { gap: 0.35rem; }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
 
 # ============================================================
@@ -43,7 +65,8 @@ def is_school_mode() -> bool:
 header_left, header_right = st.columns([4, 3], gap="small")
 
 with header_left:
-    st.markdown("<div style='margin-bottom:-20px;'>", unsafe_allow_html=True)
+    # Strammere header slik at logo ligger tettere på toppmenyen
+    st.markdown("<div style='margin-bottom:-45px;'>", unsafe_allow_html=True)
     from PIL import Image
 
 def trim_transparent(img: Image.Image) -> Image.Image:
@@ -71,9 +94,9 @@ with header_right:
             align-items: flex-start;
             text-align: left;
             height: 100%;
-            padding-bottom: 4px;
+            padding-bottom: 0px;
         ">
-            <div style="font-size:30px; color:gray;">
+            <div style="font-size:24px; line-height:1.0; margin:0; color:gray;">
                 - Din hjelp på farten!
             </div>
         </div>
@@ -82,7 +105,7 @@ with header_right:
     )
 
 # Dra Hjem/innstillinger/pro helt opp mot logo
-st.markdown("<div style='margin-top:-10px;'></div>", unsafe_allow_html=True)
+st.markdown("<div style='margin-top:-35px;'></div>", unsafe_allow_html=True)
 
 
 
@@ -161,55 +184,6 @@ def make_timestamp() -> str:
 def warn_if(condition: bool, msg: str, warnings: List[str]):
     if condition:
         warnings.append(msg)
-
-
-# ============================================================
-# Offline AI-robot (enkle matematiske spørsmål)
-# ============================================================
-def ai_math_bot(question: str) -> str:
-    """Rask, deterministisk og offline matematikk-hjelper.
-
-    Bevisst avgrenset til typiske spørsmål i byggfag/praktisk matematikk.
-    """
-    q = (question or "").strip().lower()
-    if not q:
-        return "Skriv et spørsmål først."
-
-    # Areal: f.eks. "areal 4 x 6" / "areal av rom 4×6"
-    m = re.search(r"areal.*?(\d+\.?\d*)\s*[x×]\s*(\d+\.?\d*)", q)
-    if m:
-        l, b = float(m.group(1)), float(m.group(2))
-        return f"Areal = {l} × {b} = {l*b:.2f} m²"
-
-    # Volum (betongplate): f.eks. "volum 5 x 4 x 100 mm"
-    m = re.search(r"volum.*?(\d+\.?\d*)\s*[x×]\s*(\d+\.?\d*).*?(\d+\.?\d*)\s*mm", q)
-    if m:
-        l, b, t_mm = float(m.group(1)), float(m.group(2)), float(m.group(3))
-        t_m = t_mm / 1000.0
-        return f"Volum = {l} × {b} × {t_m:g} = {l*b*t_m:.3f} m³"
-
-    # Fall: f.eks. "2 % fall på 3 m"
-    m = re.search(r"(\d+\.?\d*)\s*%\s*fall.*?(\d+\.?\d*)\s*m", q)
-    if m:
-        pct, length_m = float(m.group(1)), float(m.group(2))
-        mm = pct / 100.0 * length_m * 1000.0
-        return f"Fall = {pct:g}% over {length_m:g} m → {mm:.1f} mm"
-
-    # Pytagoras/diagonal: f.eks. "diagonal 3 og 4" / "pytagoras 3 4"
-    m = re.search(r"(diagonal|pytagoras).*?(\d+\.?\d*)\D+(\d+\.?\d*)", q)
-    if m:
-        a, b = float(m.group(2)), float(m.group(3))
-        c = math.sqrt(a**2 + b**2)
-        return f"Diagonal = √({a}² + {b}²) = {c:.2f} m"
-
-    # Prosent av: f.eks. "25 % av 1800"
-    m = re.search(r"(\d+\.?\d*)\s*%\s*av\s*(\d+\.?\d*)", q)
-    if m:
-        pct, base = float(m.group(1)), float(m.group(2))
-        val = pct / 100.0 * base
-        return f"{pct:g}% av {base:g} = {val:.2f}"
-
-    return "Jeg forstår ikke spørsmålet ennå. Prøv f.eks. 'Areal 4 x 6' eller '2 % fall på 3 m'."
 
 
 # ============================================================
@@ -742,10 +716,6 @@ def show_pro_screen():
 if "show_pro" not in st.session_state:
     st.session_state.show_pro = False
 
-# Sett default state for AI-robot
-if "show_ai" not in st.session_state:
-    st.session_state.show_ai = False
-
 
 # Vis Pro-skjerm øverst i appen når brukeren klikker
 if st.session_state.get("show_pro", False):
@@ -753,23 +723,6 @@ if st.session_state.get("show_pro", False):
     show_pro_screen()
     if st.button("Lukk Pro-skjerm"):
         st.session_state.show_pro = False
-    st.stop()
-
-
-# Vis AI-skjerm øverst i appen når brukeren klikker
-if st.session_state.get("show_ai", False):
-    st.divider()
-    st.subheader("🤖 Offline AI – matematikkhjelp")
-    st.caption("Skriv korte og konkrete spørsmål. Eksempel: Areal 4 x 6 eller 2 % fall på 3 m")
-
-    question = st.text_input("Hva lurer du på?", key="ai_question_top")
-    if question:
-        st.success(ai_math_bot(question))
-
-    if st.button("Lukk AI-robot"):
-        st.session_state.show_ai = False
-        st.rerun()
-
     st.stop()
 
 
@@ -872,25 +825,18 @@ if "history" not in st.session_state:
 # Topmeny: Hjem + Innstillinger + Pro  (SKAL LIGGE HER)
 # ============================================================
 
-# Trekker topmenyen helt opp mot logo
-st.markdown("<div style='margin-top:-55px;'></div>", unsafe_allow_html=True)
+# Trekker topmenyen helt opp mot logo (komprimert layout)
+st.markdown("<div style='margin-top:-85px;'></div>", unsafe_allow_html=True)
 
-bar1, bar2, bar3, bar4 = st.columns([1.2, 1.6, 1.8, 1.6])
+bar1, bar2, bar3 = st.columns([1.2, 1.6, 1.6])
 
 with bar1:
     if st.button("🏠 Hjem", key="btn_home_top", use_container_width=True):
         st.session_state.current_view = "home"
         st.session_state.show_pro = False
-        st.session_state.show_ai = False
         st.rerun()
 
 with bar2:
-    if st.button("🤖 AI-robot", key="btn_ai_top", use_container_width=True):
-        st.session_state.show_ai = True
-        st.session_state.show_pro = False
-        st.rerun()
-
-with bar3:
     with st.popover("⚙️ Innstillinger", use_container_width=True):
         st.subheader("Innstillinger")
 
@@ -906,11 +852,10 @@ with bar3:
         else:
             st.success("Produksjonsmodus er aktiv.")
 
-with bar4:
+with bar3:
     if is_school_mode():
         if st.button("⭐ Oppgrader til Pro", key="btn_pro_top", use_container_width=True):
             st.session_state.show_pro = True
-            st.session_state.show_ai = False
             st.rerun()
 
 st.divider()
@@ -950,6 +895,8 @@ tabs = st.tabs(
         "🧮 Prosent",
         "📐 Diagonal (Pytagoras)",
         "💰 Økonomi",
+        "⏱️ Tid",
+        "⚠️ Avvik/KS",
         "📊 Historikk",
     ]
 )
