@@ -9,24 +9,6 @@ import pandas as pd
 import streamlit as st
 from PIL import Image
 
-
-# ============================================================
-# Beta-flagg (sett True for funksjoner under utvikling)
-# ============================================================
-FEATURE_BETA_MATERIALLISTE = False  # Tegning -> materialliste (beta)
-
-
-# --- Ekstern modul: Tegning → materialliste (Nivå 1 prototype, BETA)
-render_drawing_to_materials_page = None
-_MATSCAN_AVAILABLE = False
-if FEATURE_BETA_MATERIALLISTE:
-    try:
-        from tegningtilmaterialliste import render_drawing_to_materials_page
-        _MATSCAN_AVAILABLE = True
-    except Exception:
-        render_drawing_to_materials_page = None
-        _MATSCAN_AVAILABLE = False
-
 import re
 import ast
 import operator as op
@@ -126,7 +108,7 @@ with header_right:
         <div class="bk-header-tight">
           <div class="bk-title-row">
             <div class="bk-title"></div>
-            <div class="bk-sub" style="margin-top:10px;">Velkommen til din hjelper ved matematiske utfordringer i ditt yrkesfag!</div>
+            <div class="bk-sub" style="margin-top:10px;">– din hjelper i farta</div>
           </div>
         </div>
         """,
@@ -1063,9 +1045,6 @@ if "show_pro" not in st.session_state:
 if "show_ai" not in st.session_state:
     st.session_state.show_ai = False
 
-if "show_material_scan" not in st.session_state:
-    st.session_state.show_material_scan = False
-
 
 # ============================================================
 # Topmeny: Hjem + Innstillinger + Pro  (SKAL LIGGE HER)
@@ -1074,41 +1053,21 @@ if "show_material_scan" not in st.session_state:
 # Trekker topmenyen tett opp mot headeren (komprimert, men uten å skjule logo/tekst)
 st.markdown("<div style='margin-top:-18px;'></div>", unsafe_allow_html=True)
 
-bar1, bar2, bar3, bar4, bar5 = st.columns([1.2, 1.4, 1.9, 1.9, 1.6])
+bar1, bar2, bar3, bar4 = st.columns([1.2, 1.4, 1.8, 1.6])
 
 with bar1:
     if st.button("🏠 Hjem", key="btn_home_top", use_container_width=True):
         st.session_state.show_ai = False
         st.session_state.show_pro = False
-        st.session_state.show_material_scan = False
         st.rerun()
 
 with bar2:
     if st.button("🤖 AI-robot", key="btn_ai_top", use_container_width=True):
         st.session_state.show_ai = True
         st.session_state.show_pro = False
-        st.session_state.show_material_scan = False
         st.rerun()
 
-
 with bar3:
-    if FEATURE_BETA_MATERIALLISTE:
-        label = "📷 Tegning → Materialliste (beta)"
-        if st.button(label, key="btn_matscan_top", use_container_width=True):
-            if _MATSCAN_AVAILABLE:
-                st.session_state.show_material_scan = True
-                st.session_state.show_ai = False
-                st.session_state.show_pro = False
-                st.rerun()
-            else:
-                st.session_state.show_material_scan = True  # viser feilmelding-skjerm
-                st.session_state.show_ai = False
-                st.session_state.show_pro = False
-                st.rerun()
-    else:
-        st.empty()
-
-with bar4:
     with st.popover("⚙️ Innstillinger", use_container_width=True):
         st.subheader("Innstillinger")
         st.session_state.app_mode = st.radio(
@@ -1122,12 +1081,11 @@ with bar4:
         else:
             st.success("Produksjonsmodus er aktiv.")
 
-with bar5:
+with bar4:
     if is_school_mode():
         if st.button("⭐ Oppgrader til Pro", key="btn_pro_top", use_container_width=True):
             st.session_state.show_pro = True
             st.session_state.show_ai = False
-            st.session_state.show_material_scan = False
             st.rerun()
 
 st.divider()
@@ -1165,35 +1123,6 @@ if st.session_state.get("show_ai", False):
 
     if st.button("Lukk AI-robot"):
         st.session_state.show_ai = False
-        st.rerun()
-
-    st.stop()
-
-
-# ------------------------------------------------------------
-# Skjerm: Tegning → materialliste (Nivå 1)
-# ------------------------------------------------------------
-if st.session_state.get("show_material_scan", False):
-    # Beta-guard: skjul funksjonen helt når beta er avslått
-    if not FEATURE_BETA_MATERIALLISTE:
-        st.session_state.show_material_scan = False
-        st.rerun()
-
-    st.divider()
-    st.subheader("📷 Tegning → materialliste")
-
-    if not _MATSCAN_AVAILABLE:
-        st.error(
-            "Fant ikke modulen 'tegningtilmaterialliste.py' eller avhengigheter. "
-            "Sørg for at filen ligger i samme mappe som streamlit_app.py og at requirements er oppdatert."
-        )
-        st.caption("Hvis du kjører på Streamlit Cloud: sjekk at opplastede filer er i repoet, og at requirements.txt inneholder nødvendige pakker.")
-    else:
-        # Render hele siden fra modulen
-        render_drawing_to_materials_page()
-
-    if st.button("Lukk", key="btn_close_matscan"):
-        st.session_state.show_material_scan = False
         st.rerun()
 
     st.stop()
