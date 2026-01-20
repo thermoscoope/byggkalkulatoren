@@ -117,7 +117,7 @@ with header_right:
         <div class="bk-header-tight">
           <div class="bk-title-row">
             <div class="bk-title"></div>
-            <div class="bk-sub" style="margin-top:10px;">– din hjelper i farta</div>
+            <div class="bk-sub" style="margin-top:10px;">Velkommen til din hjelper når det gjelder matematiske utfordringer i ditt yrkesfag.</div>
           </div>
         </div>
         """,
