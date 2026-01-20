@@ -883,6 +883,10 @@ if st.session_state.show_pro:
 
 st.markdown("<div style='margin-top:-10px;'></div>", unsafe_allow_html=True)
 
+# Sett default state for AI-robot
+if "show_ai" not in st.session_state:
+    st.session_state.show_ai = False
+
 # ============================================================
 # Tabs
 # ============================================================
