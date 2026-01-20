@@ -792,6 +792,33 @@ def show_result(res: CalcResult):
 
 
 # ============================================================
+# Offline AI-robot (enkle matematiske spørsmål)
+# ============================================================
+import re
+
+def ai_math_bot(question: str) -> str:
+    q = question.lower()
+
+    match = re.search(r"areal.*?(\d+\.?\d*)\s*[x×]\s*(\d+\.?\d*)", q)
+    if match:
+        l, b = float(match.group(1)), float(match.group(2))
+        return f"Areal = {l} × {b} = {l*b:.2f} m²"
+
+    match = re.search(r"volum.*?(\d+\.?\d*)\s*[x×]\s*(\d+\.?\d*).*?(\d+)\s*mm", q)
+    if match:
+        l, b, t = float(match.group(1)), float(match.group(2)), float(match.group(3))/1000
+        return f"Volum = {l} × {b} × {t} = {l*b*t:.3f} m³"
+
+    match = re.search(r"diagonal.*?(\d+\.?\d*).*?(\d+\.?\d*)", q)
+    if match:
+        a, b = float(match.group(1)), float(match.group(2))
+        c = math.sqrt(a**2 + b**2)
+        return f"Diagonal = √({a}² + {b}²) = {c:.2f} m"
+
+    return "Jeg forstår ikke spørsmålet ennå. Prøv å skrive det litt enklere."
+
+
+# ============================================================
 # App-state
 # ============================================================
 if "history" not in st.session_state:
