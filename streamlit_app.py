@@ -81,15 +81,16 @@ st.markdown(
         display: flex;
         align-items: center;
         gap: 10px;
-        height: 72px;
-        margin-bottom: -18px;
+        /* Lav og stabil headerhøyde uten at toppmenyen overlapper */
+        height: 60px;
+        margin-bottom: 0px;
     }}
     .header-logo {{
-        height: 48px; /* skalert ned slik at alt synes */
+        height: 42px; /* skalert ned slik at alt synes */
         width: auto;
     }}
     .header-title {{
-        font-size: 34px;
+        font-size: 30px;
         font-weight: 700;
         color: #ff7a00;
         line-height: 1;
@@ -97,7 +98,7 @@ st.markdown(
         padding: 0;
     }}
     .header-sub {{
-        font-size: 16px;
+        font-size: 14px;
         color: #9aa4ad;
         margin-left: 6px;
         line-height: 1;
@@ -116,8 +117,8 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# Trekker topmenyen opp mot headeren
-st.markdown("<div style='margin-top:-12px;'></div>", unsafe_allow_html=True)
+# Trekker toppmenyen litt opp mot headeren (uten overlapp)
+st.markdown("<div style='margin-top:-6px;'></div>", unsafe_allow_html=True)
 
 
 
@@ -837,8 +838,8 @@ if "history" not in st.session_state:
 # Topmeny: Hjem + Innstillinger + Pro  (SKAL LIGGE HER)
 # ============================================================
 
-# Trekker topmenyen helt opp mot logo (komprimert layout)
-st.markdown("<div style='margin-top:-85px;'></div>", unsafe_allow_html=True)
+# Trekker topmenyen tett opp mot headeren (komprimert, men uten å skjule logo/tekst)
+st.markdown("<div style='margin-top:-18px;'></div>", unsafe_allow_html=True)
 
 bar1, bar2, bar3 = st.columns([1.2, 1.6, 1.6])
 
