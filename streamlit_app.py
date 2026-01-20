@@ -950,8 +950,6 @@ tabs = st.tabs(
         "🧮 Prosent",
         "📐 Diagonal (Pytagoras)",
         "💰 Økonomi",
-        "⏱️ Tid",
-        "⚠️ Avvik/KS",
         "📊 Historikk",
     ]
 )
