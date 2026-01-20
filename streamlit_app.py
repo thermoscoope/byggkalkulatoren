@@ -1602,16 +1602,29 @@ with tabs[7]:
 
 
 # ---- Diagonal (Pytagoras) ----
+# ---- Diagonal (Pytagoras) ----
 with tabs[8]:
     if is_school_mode():
-        st.caption("Pytagoras brukes når du skal finne diagonal eller kontrollere om noe er i vinkel (90°), for eksempel ved oppsetting av vegger. Pytagoras brukes i rettvinklede trekanter: c = √(a² + b²).")
+        st.caption("Pytagoras brukes i rettvinklede trekanter: c = √(a² + b²). Sjekk alltid enhet før du regner.")
 
     st.subheader("Diagonal (Pytagoras)")
-    a = st.number_input("Side a (m)", min_value=0.0, value=3.0, step=0.1, key="pyt_a")
-    b = st.number_input("Side b (m)", min_value=0.0, value=4.0, step=0.1, key="pyt_b")
 
-    if st.button("Beregn diagonal", key="btn_pyt"):
-        show_result(calc_pythagoras(a, b))
+    unit = st.selectbox("Enhet for inndata", ["mm", "cm", "m"], index=2, key="pyt_unit")
+
+    c1, c2 = st.columns(2)
+    with c1:
+        a = st.number_input("Side a", min_value=0.0, value=3000.0 if unit == "mm" else (300.0 if unit == "cm" else 3.0),
+                            step=1.0 if unit != "m" else 0.1, key="pyt_a_any")
+    with c2:
+        b = st.number_input("Side b", min_value=0.0, value=4000.0 if unit == "mm" else (400.0 if unit == "cm" else 4.0),
+                            step=1.0 if unit != "m" else 0.1, key="pyt_b_any")
+
+    # Konverter til meter før beregning
+    a_m = to_mm(float(a), unit) / 1000.0
+    b_m = to_mm(float(b), unit) / 1000.0
+
+    if st.button("Beregn diagonal", key="btn_pyt_any"):
+        show_result(calc_pythagoras(a_m, b_m))
 
 # ---- Økonomi ----
 with tabs[9]:
