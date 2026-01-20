@@ -64,7 +64,7 @@ def is_school_mode() -> bool:
 # Komprimert header (logo + tittel + undertittel på én linje)
 # ============================
 
-LOGO_PATH = Path(__file__).parent / "logo1.png"
+LOGO_PATH = Path(__file__).parent / "logo.png"
 
 # Strammere CSS rundt bilder/kolonner slik at logoen faktisk kan ligge tett på topmenyen.
 st.markdown(
