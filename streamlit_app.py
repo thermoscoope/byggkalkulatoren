@@ -1990,7 +1990,6 @@ with tabs[7]:
 
 
 # ---- Diagonal (Pytagoras) ----
-# ---- Diagonal (Pytagoras) ----
 with tabs[8]:
     if is_school_mode():
         st.caption("Pytagoras brukes i rettvinklede trekanter: c = √(a² + b²). Sjekk alltid enhet før du regner.")
