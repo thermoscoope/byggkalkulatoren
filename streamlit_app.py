@@ -1150,14 +1150,22 @@ def list_progress_from_db(limit: int = 300) -> list:
 
 
 def reset_progress_in_db(user_id: str) -> None:
-    """Nullstiller progresjon for en elev (for lærer)."""
+    """Nullstiller progresjon for en elev (for lærer). Beholder klassekode hvis den finnes."""
     sb = _get_supabase_client()
     if sb is None or not user_id:
         return
     try:
-        sb.table("progress").upsert({"user_id": user_id, "data": {"play_progress": {}, "play_state": {}}}, on_conflict="user_id").execute()
+        existing = sb.table("progress").select("data").eq("user_id", user_id).limit(1).execute()
+        class_code = ""
+        if existing and getattr(existing, "data", None):
+            class_code = (existing.data[0].get("data") or {}).get("class_code") or ""
+        sb.table("progress").upsert(
+            {"user_id": user_id, "data": {"class_code": class_code, "play_progress": {}, "play_state": {}}},
+            on_conflict="user_id",
+        ).execute()
     except Exception:
         pass
+
 
 
 def _summarize_student_row(row: dict) -> dict:
@@ -1202,7 +1210,7 @@ def _get_progress(topic: str) -> dict:
     k = _pp_key(topic)
     prog = st.session_state.play_progress.get(k)
     if not prog:
-        prog = {"unlocked": 1, "completed": set(), "stars": {}, "correct_counts": {}}
+        prog = {"unlocked": 1, "completed": set(), "stars": {}, "correct_counts": {}, "stats": {}}
         st.session_state.play_progress[k] = prog
     if isinstance(prog.get("completed"), list):
         prog["completed"] = set(prog["completed"])
@@ -1213,6 +1221,28 @@ def _set_completed(topic: str, level: int):
     prog = _get_progress(topic)
     prog["completed"].add(int(level))
     prog["unlocked"] = max(int(prog.get("unlocked", 1)), int(level) + 1)
+
+
+
+def _update_stats(topic: str, level: int, is_correct: bool) -> None:
+    """Oppdaterer forsøk/riktig/feil per tema og nivå for progresjonsrapport."""
+    prog = _get_progress(topic)
+    stats = prog.get("stats")
+    if not isinstance(stats, dict):
+        stats = {}
+        prog["stats"] = stats
+
+    lvl = str(int(level))
+    row = stats.get(lvl)
+    if not isinstance(row, dict):
+        row = {"attempts": 0, "correct": 0, "wrong": 0}
+        stats[lvl] = row
+
+    row["attempts"] = int(row.get("attempts", 0)) + 1
+    if is_correct:
+        row["correct"] = int(row.get("correct", 0)) + 1
+    else:
+        row["wrong"] = int(row.get("wrong", 0)) + 1
 
 
 def _question_seed(topic: str, level: int, idx: int) -> int:
@@ -1455,11 +1485,15 @@ def show_play_screen():
     # --- Elev-ID for å kunne lagre progresjon mellom økter (Streamlit Cloud) ---
     # Hvis Supabase er aktivert, lagres/lastes progresjon automatisk for denne ID-en.
     user_id = st.text_input("Elev-ID (lagrer nivå)", placeholder="F.eks. Magnus-0421", key="play_user_id").strip()
+    class_code = st.text_input("Klassekode (lagrer gruppe/klasse)", placeholder="F.eks. BA1A", key="play_class_code").strip()
     if _sb_enabled() and user_id:
         # Last inn kun én gang per valgt elev-ID
         last_loaded = st.session_state.get("_play_last_loaded_user")
         if last_loaded != user_id:
             saved = load_progress_from_db(user_id)
+            # Klassekode kan ligge i databasen og brukes for filtrering i læreroversikten
+            if not st.session_state.get("play_class_code") and saved.get("class_code"):
+                st.session_state["play_class_code"] = str(saved.get("class_code") or "").strip()
             st.session_state.play_progress = _deserialize_play_progress(saved.get("play_progress", {}))
             st.session_state.play_state = saved.get("play_state", {}) or {}
             st.session_state["_play_last_loaded_user"] = user_id
@@ -1513,8 +1547,8 @@ def show_play_screen():
                         data = r.get("data") or {}
                         pp = _deserialize_play_progress((data or {}).get("play_progress", {}))
                         overview.append(
-                            {
-                                "Elev-ID": uid,
+                            {"Elev-ID": uid,
+                                "Klasse": str((data or {}).get("class_code", "") or ""),
                                 "Sist oppdatert": str(r.get("updated_at", "")),
                                 "Areal (låst opp)": _topic_unlocked(pp, "Areal"),
                                 "Omkrets (låst opp)": _topic_unlocked(pp, "Omkrets"),
@@ -1526,6 +1560,12 @@ def show_play_screen():
                         )
 
                     df = pd.DataFrame(overview)
+
+                    # Filtrer på klasse
+                    classes = sorted([c for c in df.get("Klasse", pd.Series(dtype=str)).astype(str).unique().tolist() if c and c != "nan"])
+                    class_sel = st.selectbox("Filtrer (Klasse)", options=["Alle"] + classes, key="teacher_class_filter")
+                    if class_sel != "Alle":
+                        df = df[df["Klasse"].astype(str) == class_sel]
                     # Enkel filtrering
                     f = st.text_input("Filtrer (Elev-ID)", key="teacher_filter").strip().lower()
                     if f:
@@ -1533,8 +1573,59 @@ def show_play_screen():
 
                     st.dataframe(df, use_container_width=True, hide_index=True)
 
+                    st.markdown("#### Progresjonsrapport")
+                    # Bygg detaljrapport fra lagret statistikk
+                    def _build_report(play_prog: dict) -> pd.DataFrame:
+                        rows2 = []
+                        topics2 = ["Areal", "Omkrets", "Volum", "Målestokk", "Prosent"]
+                        for t in topics2:
+                            p = (play_prog or {}).get(_pp_key(t), {})
+                            stats = p.get("stats", {}) if isinstance(p, dict) else {}
+                            if not isinstance(stats, dict):
+                                stats = {}
+                            for lvl_str, s in stats.items():
+                                if not isinstance(s, dict):
+                                    continue
+                                attempts = int(s.get("attempts", 0))
+                                correct = int(s.get("correct", 0))
+                                wrong = int(s.get("wrong", 0))
+                                if attempts <= 0:
+                                    continue
+                                acc = (correct / attempts) * 100.0 if attempts else 0.0
+                                rows2.append({
+                                    "Tema": t,
+                                    "Nivå": int(lvl_str),
+                                    "Forsøk": attempts,
+                                    "Riktig": correct,
+                                    "Feil": wrong,
+                                    "Treff %": round(acc, 1),
+                                })
+                        if not rows2:
+                            return pd.DataFrame(columns=["Tema", "Nivå", "Forsøk", "Riktig", "Feil", "Treff %"])
+                        df2 = pd.DataFrame(rows2)
+                        df2 = df2.sort_values(["Treff %", "Feil", "Forsøk"], ascending=[True, False, False])
+                        return df2
+
                     st.markdown("#### Administrasjon")
                     selected = st.selectbox("Velg elev", options=[o["Elev-ID"] for o in overview], key="teacher_select")
+
+                    # Hent valgt elev sin progresjon og vis rapport
+                    chosen_row = next((rr for rr in rows if rr.get("user_id") == selected), None)
+                    chosen_data = (chosen_row or {}).get("data") or {}
+                    chosen_pp = _deserialize_play_progress((chosen_data or {}).get("play_progress", {}))
+                    report_df = _build_report(chosen_pp)
+                    if report_df.empty:
+                        st.caption("Ingen statistikk registrert ennå for valgt elev. (Statistikk bygges når eleven sjekker svar.)")
+                    else:
+                        st.dataframe(report_df, use_container_width=True, hide_index=True)
+                        # Kort oppsummering
+                        total_attempts = int(report_df["Forsøk"].sum())
+                        total_correct = int(report_df["Riktig"].sum())
+                        total_acc = (total_correct / total_attempts) * 100.0 if total_attempts else 0.0
+                        toughest = report_df.head(3)
+                        tough_txt = ", ".join([f"{r.Tema} nivå {int(r.Nivå)}" for r in toughest.itertuples(index=False)])
+                        st.info(f"Totalt: {total_attempts} forsøk, {total_correct} riktige (treff {total_acc:.1f}%). Mest krevende nå: {tough_txt}.")
+
                     c1, c2 = st.columns([1, 2])
                     with c1:
                         if st.button("♻️ Nullstill valgt elev", key="teacher_reset"):
@@ -1559,7 +1650,7 @@ def show_play_screen():
             st.toast("Progresjon nullstilt.")
             if _sb_enabled() and st.session_state.get("play_user_id", "").strip():
                 uid = st.session_state.get("play_user_id", "").strip()
-                save_progress_to_db(uid, {"play_progress": {}, "play_state": {}})
+                save_progress_to_db(uid, {"class_code": st.session_state.get("play_class_code", "").strip(), "play_progress": {}, "play_state": {}})
 
             st.rerun()
 
@@ -1613,6 +1704,7 @@ def show_play_screen():
     with b1:
         if st.button("✅ Sjekk svar", key="play_check", use_container_width=True):
             ok = _check_answer(user_ans, q.get("answer", 0.0), q.get("tolerance", 0.01))
+            _update_stats(topic, level, ok)
             if ok:
                 state["correct_in_level"] = correct_now + 1
                 state["last_feedback"] = (True, f"Riktig. God kontroll.")
@@ -1637,6 +1729,7 @@ def show_play_screen():
             if _sb_enabled() and st.session_state.get("play_user_id", "").strip():
                 uid = st.session_state.get("play_user_id", "").strip()
                 save_progress_to_db(uid, {
+                    "class_code": st.session_state.get("play_class_code", "").strip(),
                     "play_progress": _serialize_play_progress(st.session_state.get("play_progress", {})),
                     "play_state": st.session_state.get("play_state", {}),
                 })
@@ -1653,6 +1746,7 @@ def show_play_screen():
             if _sb_enabled() and st.session_state.get("play_user_id", "").strip():
                 uid = st.session_state.get("play_user_id", "").strip()
                 save_progress_to_db(uid, {
+                    "class_code": st.session_state.get("play_class_code", "").strip(),
                     "play_progress": _serialize_play_progress(st.session_state.get("play_progress", {})),
                     "play_state": st.session_state.get("play_state", {}),
                 })
@@ -1667,6 +1761,7 @@ def show_play_screen():
             if _sb_enabled() and st.session_state.get("play_user_id", "").strip():
                 uid = st.session_state.get("play_user_id", "").strip()
                 save_progress_to_db(uid, {
+                    "class_code": st.session_state.get("play_class_code", "").strip(),
                     "play_progress": _serialize_play_progress(st.session_state.get("play_progress", {})),
                     "play_state": st.session_state.get("play_state", {}),
                 })
