@@ -1,6 +1,7 @@
 import math
 import base64
 import time
+import random
 from dataclasses import dataclass
 from typing import Dict, Any, List, Tuple
 from pathlib import Path
@@ -12,7 +13,6 @@ from PIL import Image
 import re
 import ast
 import operator as op
-import random
 
 
 # ============================================================
@@ -1024,6 +1024,22 @@ def show_pro_screen():
         st.write("• Prioritert støtte (valgfritt)")
 
 
+# ============================
+# Integrasjon: legg "Bli en profesjonell yrkesutøver?" i sidepanelet
+# ============================
+
+# Sett default state
+if "show_pro" not in st.session_state:
+    st.session_state.show_pro = False
+
+
+# Vis Pro-skjerm øverst i appen når brukeren klikker
+if st.session_state.get("show_pro", False):
+    st.divider()
+    show_pro_screen()
+    if st.button("Lukk Pro-skjerm"):
+        st.session_state.show_pro = False
+    st.stop()
 
 
 # ============================================================
@@ -1514,13 +1530,13 @@ if "play_state" not in st.session_state:
 
 
 # ============================================================
-# Topmeny: Hjem + Innstillinger + Pro  (SKAL LIGGE HER)
+# Topmeny: Hjem + Lek og lær + AI-robot + Innstillinger
 # ============================================================
 
 # Trekker topmenyen tett opp mot headeren (komprimert, men uten å skjule logo/tekst)
 st.markdown("<div style='margin-top:-18px;'></div>", unsafe_allow_html=True)
 
-bar1, bar2, bar3, bar4 = st.columns([1.2, 1.4, 1.8, 1.6])
+bar1, bar2, bar3, bar4 = st.columns([1.2, 1.4, 1.4, 1.8])
 
 with bar1:
     if st.button("🏠 Hjem", key="btn_home_top", use_container_width=True):
@@ -1530,13 +1546,22 @@ with bar1:
         st.rerun()
 
 with bar2:
+    # Lek og lær er kun tilgjengelig i skolemodus
+    play_disabled = not is_school_mode()
+    if st.button("🎯 Lek og lær", key="btn_play_top", use_container_width=True, disabled=play_disabled):
+        st.session_state.show_play = True
+        st.session_state.show_ai = False
+        st.session_state.show_pro = False
+        st.rerun()
+
+with bar3:
     if st.button("🤖 AI-robot", key="btn_ai_top", use_container_width=True):
         st.session_state.show_ai = True
         st.session_state.show_pro = False
         st.session_state.show_play = False
         st.rerun()
 
-with bar3:
+with bar4:
     with st.popover("⚙️ Innstillinger", use_container_width=True):
         st.subheader("Innstillinger")
         st.session_state.app_mode = st.radio(
@@ -1559,20 +1584,12 @@ with bar3:
             st.session_state.show_play = False
             st.rerun()
 
-with bar4:
-    if is_school_mode():
-        if st.button("🎯 Lek og lær", key="btn_play_top", use_container_width=True):
-            st.session_state.show_play = True
-            st.session_state.show_ai = False
-            st.session_state.show_pro = False
-            st.rerun()
-
 st.divider()
 
 
 
 # ============================================================
-# Pro/AI-visning
+# Pro/AI/Lek og lær-visning
 # ============================================================
 if st.session_state.show_pro:
     st.divider()
@@ -1608,13 +1625,10 @@ if st.session_state.get("show_ai", False):
 
     st.stop()
 
-
-# Lek og lær-visning
 if st.session_state.get("show_play", False):
     st.divider()
     show_play_screen()
     st.stop()
-
 
 st.markdown("<div style='margin-top:-10px;'></div>", unsafe_allow_html=True)
 
@@ -1989,6 +2003,7 @@ with tabs[7]:
 
 
 
+# ---- Diagonal (Pytagoras) ----
 # ---- Diagonal (Pytagoras) ----
 with tabs[8]:
     if is_school_mode():
