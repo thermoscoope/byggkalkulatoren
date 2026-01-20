@@ -1139,7 +1139,7 @@ tabs = st.tabs(
         "🧵 Omkrets",
         "🧱 Volum",
         "📐 Målestokk",
-        "🪵 Kledning",
+        "🪵 Beregninger",
         "📉 Fall",
         "🧮 Prosent",
         "📐 Diagonal (Pytagoras)",
