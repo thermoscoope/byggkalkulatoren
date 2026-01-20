@@ -994,7 +994,7 @@ def label_for(key: str) -> str:
 def show_pro_screen():
     is_school = is_school_mode()
 
-    st.subheader("Vil du bli en profesjonell yrkesutøver?")
+    st.subheader("Vil du videre utvikle deg som yrkesutøver?")
     st.caption("Pro gir deg funksjoner som sparer tid, gir bedre kontroll og gjør dokumentasjon enklere.")
 
     c1, c2 = st.columns([2, 1])
@@ -1002,7 +1002,7 @@ def show_pro_screen():
         if is_school:
             st.markdown(
                 """
-**Pro for skole** handler om læring, vurdering og struktur:
+**Pro handler om læring, vurdering og struktur i et bredere spekter mot en lærlingtid.:
 
 - Oppgaver med *skjult fasit* (eleven må prøve først)
 - Refleksjon og egenkontroll knyttet til hver beregning
