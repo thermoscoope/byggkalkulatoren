@@ -115,7 +115,7 @@ with header_right:
         <div class="bk-header-tight">
           <div class="bk-title-row">
             <div class="bk-title"></div>
-            <div class="bk-sub" style="margin-top:10px;">Fra skole til yrke – matematikk tilpasset yrkesfag!</div>
+            <div class="bk-sub" style="margin-top:10px;">Fra skole til yrke – matematikk tilpasset yrkeslivet!</div>
           </div>
         </div>
         """,
