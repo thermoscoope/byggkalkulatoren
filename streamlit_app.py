@@ -80,7 +80,7 @@ st.markdown(
       .bk-sub { font-size: 15px; color: #9aa4ad; line-height: 1; white-space: nowrap; }
 
       /* Trekk litt opp, men uten å overlappe */
-      .bk-header-tight { margin-bottom: 12px; }
+      .bk-header-tight { margin-bottom: 20px; }
     </style>
     """,
     unsafe_allow_html=True,
