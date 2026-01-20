@@ -12,6 +12,7 @@ from PIL import Image
 import re
 import ast
 import operator as op
+import random
 
 
 # ============================================================
@@ -1023,22 +1024,376 @@ def show_pro_screen():
         st.write("• Prioritert støtte (valgfritt)")
 
 
-# ============================
-# Integrasjon: legg "Bli en profesjonell yrkesutøver?" i sidepanelet
-# ============================
-
-# Sett default state
-if "show_pro" not in st.session_state:
-    st.session_state.show_pro = False
 
 
-# Vis Pro-skjerm øverst i appen når brukeren klikker
-if st.session_state.get("show_pro", False):
-    st.divider()
-    show_pro_screen()
-    if st.button("Lukk Pro-skjerm"):
-        st.session_state.show_pro = False
-    st.stop()
+# ============================================================
+# Lek og lær (nivåbasert trening i skolemodus)
+# ============================================================
+
+_PLAY_CORRECT_TO_PASS = 3  # antall riktige i hvert nivå for å låse opp neste
+
+
+def _pp_key(topic: str) -> str:
+    return topic.strip().lower()
+
+
+def _get_progress(topic: str) -> dict:
+    k = _pp_key(topic)
+    prog = st.session_state.play_progress.get(k)
+    if not prog:
+        prog = {"unlocked": 1, "completed": set(), "stars": {}, "correct_counts": {}}
+        st.session_state.play_progress[k] = prog
+    if isinstance(prog.get("completed"), list):
+        prog["completed"] = set(prog["completed"])
+    return prog
+
+
+def _set_completed(topic: str, level: int):
+    prog = _get_progress(topic)
+    prog["completed"].add(int(level))
+    prog["unlocked"] = max(int(prog.get("unlocked", 1)), int(level) + 1)
+
+
+def _question_seed(topic: str, level: int, idx: int) -> int:
+    # Stabil, men fortsatt "tilfeldig" per brukerøkt
+    base = int(st.session_state.get("_play_seed", 0) or 0)
+    if base == 0:
+        base = random.randint(10_000, 99_999)
+        st.session_state["_play_seed"] = base
+    return hash((base, _pp_key(topic), int(level), int(idx))) & 0xFFFFFFFF
+
+
+def _make_question(topic: str, level: int, q_index: int) -> dict:
+    rnd = random.Random(_question_seed(topic, level, q_index))
+
+    # Genererer oppgaver som treffer fanene i appen (Areal/Omkrets/Volum/Målestokk/Prosent)
+    if topic == "Areal":
+        if level == 1:
+            l = rnd.randint(2, 12)
+            w = rnd.randint(2, 10)
+            ans = l * w
+            return {
+                "prompt": f"Finn arealet av et rektangel: lengde {l} m og bredde {w} m. Svar i m².",
+                "answer": float(ans),
+                "tolerance": 0.01,
+                "unit": "m²",
+                "hint": "Areal = lengde × bredde",
+            }
+        if level == 2:
+            l_cm = rnd.choice([250, 300, 420, 560, 675, 720])
+            w_cm = rnd.choice([120, 150, 180, 200, 240, 260])
+            l_m = l_cm / 100
+            w_m = w_cm / 100
+            ans = l_m * w_m
+            return {
+                "prompt": f"Finn arealet: lengde {l_cm} cm og bredde {w_cm} cm. Konverter til meter først. Svar i m².",
+                "answer": float(ans),
+                "tolerance": 0.01,
+                "unit": "m²",
+                "hint": "cm → m: del på 100. Areal = l × b.",
+            }
+        # level 3+
+        base_area = rnd.choice([12, 18, 24, 30, 36, 42])
+        waste = rnd.choice([5, 10, 12, 15])
+        ans = base_area * (1 + waste / 100)
+        return {
+            "prompt": f"Du har et areal på {base_area} m² og svinn på {waste}%. Hva er bestillingsarealet?",
+            "answer": float(ans),
+            "tolerance": 0.05,
+            "unit": "m²",
+            "hint": "Bestillingsareal = areal × (1 + svinn/100)",
+        }
+
+    if topic == "Omkrets":
+        if level == 1:
+            a = rnd.randint(2, 12)
+            b = rnd.randint(2, 10)
+            ans = 2 * (a + b)
+            return {
+                "prompt": f"Finn omkretsen av et rektangel med sider {a} m og {b} m. Svar i meter.",
+                "answer": float(ans),
+                "tolerance": 0.01,
+                "unit": "m",
+                "hint": "Omkrets (rektangel) = 2(a + b)",
+            }
+        if level == 2:
+            r = rnd.choice([0.2, 0.25, 0.3, 0.35, 0.4, 0.5])
+            ans = 2 * math.pi * r
+            return {
+                "prompt": f"Finn omkretsen av en sirkel med radius {r} m. Bruk π ≈ 3,14. Svar i meter.",
+                "answer": float(ans),
+                "tolerance": 0.05,
+                "unit": "m",
+                "hint": "Omkrets (sirkel) = 2πr",
+            }
+        # level 3+
+        a_cm = rnd.choice([120, 150, 180, 220, 260])
+        b_cm = rnd.choice([80, 90, 100, 110, 140])
+        ans = 2 * ((a_cm + b_cm) / 100)
+        return {
+            "prompt": f"Finn omkretsen av et rektangel: {a_cm} cm og {b_cm} cm. Svar i meter.",
+            "answer": float(ans),
+            "tolerance": 0.02,
+            "unit": "m",
+            "hint": "Konverter cm → m først, så 2(a+b).",
+        }
+
+    if topic == "Volum":
+        if level == 1:
+            l = rnd.randint(2, 8)
+            w = rnd.randint(2, 6)
+            t_mm = rnd.choice([80, 100, 120, 150, 200])
+            ans = l * w * (t_mm / 1000)
+            return {
+                "prompt": f"Betongplate: {l} m × {w} m med tykkelse {t_mm} mm. Finn volum i m³.",
+                "answer": float(ans),
+                "tolerance": 0.02,
+                "unit": "m³",
+                "hint": "mm → m: del på 1000. Volum = l × b × t",
+            }
+        if level == 2:
+            d_mm = rnd.choice([200, 250, 300, 350, 400])
+            h = rnd.choice([2.0, 2.4, 2.8, 3.0])
+            r = (d_mm / 1000) / 2
+            ans = math.pi * (r ** 2) * h
+            return {
+                "prompt": f"Søyle (sylinder): diameter {d_mm} mm og høyde {h} m. Finn volum i m³.",
+                "answer": float(ans),
+                "tolerance": 0.03,
+                "unit": "m³",
+                "hint": "Volum sylinder = π r² h (r = diameter/2)",
+            }
+        # level 3+
+        l = rnd.randint(8, 25)
+        w = rnd.choice([0.3, 0.4, 0.5])
+        h_mm = rnd.choice([300, 400, 500, 600])
+        ans = l * w * (h_mm / 1000)
+        return {
+            "prompt": f"Stripefundament: lengde {l} m, bredde {w} m, høyde {h_mm} mm. Finn volum i m³.",
+            "answer": float(ans),
+            "tolerance": 0.05,
+            "unit": "m³",
+            "hint": "Volum = lengde × bredde × høyde (mm → m)",
+        }
+
+    if topic == "Målestokk":
+        if level == 1:
+            drawing_cm = rnd.choice([2.5, 3.0, 4.2, 5.6, 7.5, 10.0])
+            n = rnd.choice([20, 25, 50, 75, 100])
+            real_cm = drawing_cm * n
+            real_m = real_cm / 100
+            return {
+                "prompt": f"Tegning → virkelighet: {drawing_cm} cm på tegning i målestokk 1:{n}. Hva er virkelig lengde i meter?",
+                "answer": float(real_m),
+                "tolerance": 0.02,
+                "unit": "m",
+                "hint": "Virkelig = tegning × n. Konverter cm → m.",
+            }
+        if level == 2:
+            real_m = rnd.choice([3.6, 4.8, 6.0, 7.2, 9.0])
+            n = rnd.choice([20, 25, 50, 75, 100])
+            drawing_m = real_m / n
+            drawing_mm = drawing_m * 1000
+            return {
+                "prompt": f"Virkelighet → tegning: {real_m} m i målestokk 1:{n}. Hva blir tegningen i mm?",
+                "answer": float(drawing_mm),
+                "tolerance": 1.0,
+                "unit": "mm",
+                "hint": "Tegning = virkelighet / n. Konverter m → mm.",
+            }
+        # level 3+
+        drawing_mm = rnd.choice([35, 48, 62, 80, 95, 120])
+        n = rnd.choice([10, 20, 25, 50, 75, 100])
+        real_mm = drawing_mm * n
+        real_m = real_mm / 1000
+        return {
+            "prompt": f"Tegning → virkelighet: {drawing_mm} mm på tegning i målestokk 1:{n}. Hva er virkelig lengde i meter?",
+            "answer": float(real_m),
+            "tolerance": 0.02,
+            "unit": "m",
+            "hint": "Virkelig (mm) = tegning (mm) × n. Konverter mm → m.",
+        }
+
+    if topic == "Prosent":
+        if level == 1:
+            pct = rnd.choice([5, 10, 12.5, 15, 20, 25])
+            base = rnd.choice([240, 360, 480, 800, 1200, 1800])
+            ans = base * (pct / 100)
+            return {
+                "prompt": f"Finn {pct}% av {base}.",
+                "answer": float(ans),
+                "tolerance": 0.5,
+                "unit": "",
+                "hint": "Prosent av = tall × (p/100)",
+            }
+        if level == 2:
+            part = rnd.choice([120, 240, 300, 450, 600])
+            whole = rnd.choice([800, 1200, 1500, 1800, 2000])
+            ans = (part / whole) * 100
+            return {
+                "prompt": f"Hvor mange prosent er {part} av {whole}? Svar i prosent.",
+                "answer": float(ans),
+                "tolerance": 0.5,
+                "unit": "%",
+                "hint": "Prosent = (del/helhet) × 100",
+            }
+        # level 3+
+        base = rnd.choice([500, 800, 1200, 1500, 2000])
+        rabatt = rnd.choice([10, 15, 20, 25])
+        mva = 25
+        after = base * (1 - rabatt / 100)
+        inc = after * (1 + mva / 100)
+        return {
+            "prompt": f"En vare koster {base} kr. Du får {rabatt}% rabatt og legger på {mva}% MVA. Hva blir sluttprisen?",
+            "answer": float(inc),
+            "tolerance": 2.0,
+            "unit": "kr",
+            "hint": "Først rabatt, så MVA: pris × (1-r/100) × (1+m/100)",
+        }
+
+    # fallback
+    a = rnd.randint(2, 10)
+    b = rnd.randint(2, 10)
+    return {
+        "prompt": f"Regn ut {a} × {b}.",
+        "answer": float(a * b),
+        "tolerance": 0.01,
+        "unit": "",
+        "hint": "Gange",
+    }
+
+
+def _start_level(topic: str, level: int):
+    st.session_state.play_state = {
+        "topic": topic,
+        "level": int(level),
+        "q_index": 1,
+        "correct_in_level": 0,
+        "current": _make_question(topic, int(level), 1),
+        "last_feedback": None,
+    }
+
+
+def _check_answer(user_answer: float, correct: float, tol: float) -> bool:
+    if user_answer is None:
+        return False
+    try:
+        return abs(float(user_answer) - float(correct)) <= float(tol)
+    except Exception:
+        return False
+
+
+def show_play_screen():
+    if not is_school_mode():
+        st.warning("'Lek og lær' er kun tilgjengelig i Skolemodus.")
+        return
+
+    st.subheader("🎯 Lek og lær")
+    st.caption("Nivåbaserte oppgaver i praktisk matematikk. For å gå videre må du få nok riktige svar på hvert nivå.")
+
+    topics = ["Areal", "Omkrets", "Volum", "Målestokk", "Prosent"]
+
+    top_left, top_right = st.columns([2, 1])
+    with top_left:
+        topic = st.selectbox("Velg tema", topics, key="play_topic")
+    with top_right:
+        if st.button("🔄 Nullstill progresjon", key="play_reset"):
+            st.session_state.play_progress = {}
+            st.session_state.play_state = {}
+            st.toast("Progresjon nullstilt.")
+            st.rerun()
+
+    prog = _get_progress(topic)
+    unlocked = int(prog.get("unlocked", 1))
+
+    st.markdown("### Velg nivå")
+    level_cols = st.columns(6)
+    max_levels = 6
+
+    chosen_level = None
+    for lvl in range(1, max_levels + 1):
+        is_locked = lvl > unlocked
+        label = f"Nivå {lvl}" if not is_locked else f"🔒 Nivå {lvl}"
+        with level_cols[(lvl - 1) % 6]:
+            if st.button(label, key=f"play_lvl_{topic}_{lvl}", disabled=is_locked, use_container_width=True):
+                chosen_level = lvl
+
+    # Start nivå ved klikk
+    if chosen_level is not None:
+        _start_level(topic, chosen_level)
+        st.rerun()
+
+    state = st.session_state.get("play_state", {})
+    if state.get("topic") != topic:
+        # Bytte tema: ikke vis "gammel" oppgave
+        return
+
+    if not state:
+        st.info("Velg et nivå for å starte.")
+        return
+
+    level = int(state.get("level", 1))
+    q = state.get("current") or _make_question(topic, level, int(state.get("q_index", 1)))
+
+    # Progresjon i nivå
+    correct_now = int(state.get("correct_in_level", 0))
+    st.progress(min(correct_now / _PLAY_CORRECT_TO_PASS, 1.0))
+    st.caption(f"Riktige i dette nivået: {correct_now}/{_PLAY_CORRECT_TO_PASS}")
+
+    st.markdown("### Oppgave")
+    st.write(q.get("prompt", ""))
+
+    with st.expander("Hint", expanded=False):
+        st.write(q.get("hint", ""))
+
+    ans_label = "Svar" + (f" ({q.get('unit')})" if q.get("unit") else "")
+    user_ans = st.number_input(ans_label, value=0.0, step=0.1, key=f"play_answer_{topic}_{level}")
+
+    b1, b2, b3 = st.columns([1.2, 1.2, 2])
+    with b1:
+        if st.button("✅ Sjekk svar", key="play_check", use_container_width=True):
+            ok = _check_answer(user_ans, q.get("answer", 0.0), q.get("tolerance", 0.01))
+            if ok:
+                state["correct_in_level"] = correct_now + 1
+                state["last_feedback"] = (True, f"Riktig. God kontroll.")
+
+                # Ferdig med nivå?
+                if state["correct_in_level"] >= _PLAY_CORRECT_TO_PASS:
+                    _set_completed(topic, level)
+                    state["last_feedback"] = (True, f"Nivå {level} bestått. Neste nivå er låst opp.")
+                else:
+                    # Neste oppgave i samme nivå
+                    state["q_index"] = int(state.get("q_index", 1)) + 1
+                    state["current"] = _make_question(topic, level, int(state["q_index"]))
+
+            else:
+                corr = float(q.get("answer", 0.0))
+                unit = q.get("unit", "")
+                state["last_feedback"] = (False, f"Ikke helt. Fasit er omtrent {corr:.3f} {unit}. Prøv en ny oppgave eller bruk hint.")
+
+            st.session_state.play_state = state
+            st.rerun()
+
+    with b2:
+        if st.button("➡️ Ny oppgave", key="play_new", use_container_width=True):
+            state["q_index"] = int(state.get("q_index", 1)) + 1
+            state["current"] = _make_question(topic, level, int(state["q_index"]))
+            st.session_state.play_state = state
+            st.rerun()
+
+    with b3:
+        if st.button("🏠 Tilbake til hovedsiden", key="play_back", use_container_width=True):
+            st.session_state.show_play = False
+            st.session_state.play_state = {}
+            st.rerun()
+
+    fb = state.get("last_feedback")
+    if fb:
+        ok, msg = fb
+        if ok:
+            st.success(msg)
+        else:
+            st.warning(msg)
 
 
 def show_result(res: CalcResult):
@@ -1146,6 +1501,17 @@ if "show_pro" not in st.session_state:
 if "show_ai" not in st.session_state:
     st.session_state.show_ai = False
 
+if "show_play" not in st.session_state:
+    st.session_state.show_play = False
+
+# Lek og lær progresjon
+if "play_progress" not in st.session_state:
+    st.session_state.play_progress = {}
+
+# Aktiv oppgave i Lek og lær
+if "play_state" not in st.session_state:
+    st.session_state.play_state = {}
+
 
 # ============================================================
 # Topmeny: Hjem + Innstillinger + Pro  (SKAL LIGGE HER)
@@ -1160,12 +1526,14 @@ with bar1:
     if st.button("🏠 Hjem", key="btn_home_top", use_container_width=True):
         st.session_state.show_ai = False
         st.session_state.show_pro = False
+        st.session_state.show_play = False
         st.rerun()
 
 with bar2:
     if st.button("🤖 AI-robot", key="btn_ai_top", use_container_width=True):
         st.session_state.show_ai = True
         st.session_state.show_pro = False
+        st.session_state.show_play = False
         st.rerun()
 
 with bar3:
@@ -1182,11 +1550,21 @@ with bar3:
         else:
             st.success("Produksjonsmodus er aktiv.")
 
-with bar4:
-    if is_school_mode():
-        if st.button("⭐ Oppgrader til Pro", key="btn_pro_top", use_container_width=True):
+        st.divider()
+        st.markdown("**Oppgradering**")
+        st.caption("Pro gir ekstra funksjoner for læring, dokumentasjon og eksport.")
+        if st.button("⭐ Oppgrader til Pro", key="btn_pro_settings", use_container_width=True):
             st.session_state.show_pro = True
             st.session_state.show_ai = False
+            st.session_state.show_play = False
+            st.rerun()
+
+with bar4:
+    if is_school_mode():
+        if st.button("🎯 Lek og lær", key="btn_play_top", use_container_width=True):
+            st.session_state.show_play = True
+            st.session_state.show_ai = False
+            st.session_state.show_pro = False
             st.rerun()
 
 st.divider()
@@ -1201,6 +1579,7 @@ if st.session_state.show_pro:
 
     if st.button("🏠 Tilbake til hovedsiden", key="btn_home_from_pro"):
         st.session_state.show_pro = False
+        st.session_state.show_play = False
         st.rerun()
 
     show_pro_screen()
@@ -1224,9 +1603,18 @@ if st.session_state.get("show_ai", False):
 
     if st.button("Lukk AI-robot"):
         st.session_state.show_ai = False
+        st.session_state.show_play = False
         st.rerun()
 
     st.stop()
+
+
+# Lek og lær-visning
+if st.session_state.get("show_play", False):
+    st.divider()
+    show_play_screen()
+    st.stop()
+
 
 st.markdown("<div style='margin-top:-10px;'></div>", unsafe_allow_html=True)
 
