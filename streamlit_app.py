@@ -84,7 +84,7 @@ st.markdown(
       .bk-sub { font-size: 15px; color: #9aa4ad; line-height: 1; white-space: nowrap; }
 
       /* Trekk litt opp, men uten å overlappe */
-      .bk-header-tight { margin-bottom: 20px; }
+      .bk-header-tight { margin-bottom: 8px; }
     </style>
     """,
     unsafe_allow_html=True,
@@ -97,7 +97,7 @@ with header_left:
     try:
         img = Image.open(LOGO_PATH)
         # Skaler ned slik at alt synes (logoen var for høy i tidligere versjoner)
-        st.image(img, width=1000)
+        st.image(img, width=260)
     except Exception:
         # Hvis logo mangler i deploy, ikke knekk appen
         st.write("")
@@ -108,7 +108,7 @@ with header_right:
         <div class="bk-header-tight">
           <div class="bk-title-row">
             <div class="bk-title"></div>
-            <div class="bk-sub">– din hjelper i farta</div>
+            <div class="bk-sub" style="margin-top:10px;">– din hjelper i farta</div>
           </div>
         </div>
         """,
@@ -268,6 +268,49 @@ def calc_area_composite(rectangles: List[Tuple[float, float]]) -> CalcResult:
         timestamp=make_timestamp(),
     )
 
+
+
+
+def calc_perimeter(shape: str, a_m: float = 0.0, b_m: float = 0.0, r_m: float = 0.0) -> CalcResult:
+    warnings, steps = [], []
+
+    if shape == "Rektangel":
+        warn_if(a_m <= 0 or b_m <= 0, "Begge sider må være > 0.", warnings)
+        p = 2.0 * (a_m + b_m)
+        steps.append("Omkrets (rektangel) = 2 × (a + b)")
+        steps.append(f"= 2 × ({a_m} + {b_m}) = {p} m")
+        return CalcResult(
+            name="Omkrets (rektangel)",
+            inputs={"a_m": a_m, "b_m": b_m},
+            outputs={"omkrets_m": round_sensible(p, 3)},
+            steps=steps,
+            warnings=warnings,
+            timestamp=make_timestamp(),
+        )
+
+    if shape == "Sirkel":
+        warn_if(r_m <= 0, "Radius må være > 0.", warnings)
+        p = 2.0 * math.pi * r_m
+        steps.append("Omkrets (sirkel) = 2 × π × r")
+        steps.append(f"= 2 × π × {r_m} = {p} m")
+        return CalcResult(
+            name="Omkrets (sirkel)",
+            inputs={"r_m": r_m},
+            outputs={"omkrets_m": round_sensible(p, 3)},
+            steps=steps,
+            warnings=warnings,
+            timestamp=make_timestamp(),
+        )
+
+    warnings.append("Ukjent figur.")
+    return CalcResult(
+        name="Omkrets",
+        inputs={"figur": shape},
+        outputs={},
+        steps=steps,
+        warnings=warnings,
+        timestamp=make_timestamp(),
+    )
 
 def calc_concrete_slab(length_m: float, width_m: float, thickness_mm: float) -> CalcResult:
     warnings, steps = [], []
@@ -827,6 +870,9 @@ OUTPUT_LABELS = {
     "etter_rabatt": "Etter rabatt",
     "etter_paslag": "Etter påslag",
     "inkl_mva": "Inkl. MVA",
+    "omkrets_m": "Omkrets (m)",
+    "resultat": "Resultat",
+    "endring_prosent": "Endring (%)",
 }
 
 
@@ -989,6 +1035,17 @@ def show_result(res: CalcResult):
 if "history" not in st.session_state:
     st.session_state.history: List[Dict[str, Any]] = []
 
+
+# ------------------------------------------------------------
+# UI-state (må være definert før topmenyen bruker dem)
+# ------------------------------------------------------------
+if "show_pro" not in st.session_state:
+    st.session_state.show_pro = False
+
+if "show_ai" not in st.session_state:
+    st.session_state.show_ai = False
+
+
 # ============================================================
 # Topmeny: Hjem + Innstillinger + Pro  (SKAL LIGGE HER)
 # ============================================================
@@ -996,7 +1053,7 @@ if "history" not in st.session_state:
 # Trekker topmenyen tett opp mot headeren (komprimert, men uten å skjule logo/tekst)
 st.markdown("<div style='margin-top:-18px;'></div>", unsafe_allow_html=True)
 
-bar1, bar2, bar3 = st.columns([1.2, 1.6, 1.6])
+bar1, bar2, bar3, bar4 = st.columns([1.2, 1.4, 1.8, 1.6])
 
 with bar1:
     if st.button("🏠 Hjem", key="btn_home_top", use_container_width=True):
@@ -1036,14 +1093,8 @@ st.divider()
 
 
 # ============================================================
-# Pro-visning (må ligge ETTER def show_pro_screen)
+# Pro/AI-visning
 # ============================================================
-if "show_pro" not in st.session_state:
-    st.session_state.show_pro = False
-
-if "show_ai" not in st.session_state:
-    st.session_state.show_ai = False
-
 if st.session_state.show_pro:
     st.divider()
 
@@ -1307,14 +1358,58 @@ with tabs[6]:
 
 
 # ---- Økonomi ----
+
 with tabs[7]:
-    st.subheader("Pris (rabatt/påslag/MVA)")
-    base = st.number_input("Grunnpris", min_value=0.0, value=1000.0, step=10.0, key="price_base")
-    rabatt = st.number_input("Rabatt (%)", min_value=0.0, value=0.0, step=1.0, key="price_rabatt")
-    paslag = st.number_input("Påslag (%)", min_value=0.0, value=0.0, step=1.0, key="price_paslag")
-    mva = st.number_input("MVA (%)", min_value=0.0, value=25.0, step=1.0, key="price_mva")
-    if st.button("Beregn pris", key="btn_price"):
-        show_result(calc_price(base, rabatt, paslag, mva))
+    st.subheader("🧮 Prosent")
+    st.caption("Regn ut prosent av et tall, eller finn hvor mange prosent et tall er av et annet.")
+
+    mode = st.radio(
+        "Velg type",
+        ["Prosent av et tall", "Hvor mange prosent?"],
+        horizontal=True,
+        key="pct_mode",
+    )
+
+    if mode == "Prosent av et tall":
+        c1, c2 = st.columns(2)
+        with c1:
+            pct = st.number_input("Prosent (%)", min_value=0.0, value=25.0, step=0.5, key="pct_a")
+        with c2:
+            base = st.number_input("Av tallet", min_value=0.0, value=1800.0, step=10.0, key="pct_b")
+
+        if st.button("Beregn", key="btn_pct_of"):
+            res = base * (pct / 100.0)
+            steps = [f"{pct}% av {base} = {base} × ({pct}/100) = {res}"]
+            show_result(CalcResult(
+                name="Prosent (av et tall)",
+                inputs={"prosent": pct, "av": base},
+                outputs={"resultat": round_sensible(res, 2)},
+                steps=steps,
+                warnings=[],
+                timestamp=make_timestamp(),
+            ))
+
+    else:
+        c1, c2 = st.columns(2)
+        with c1:
+            part = st.number_input("Del", min_value=0.0, value=450.0, step=10.0, key="pct_part")
+        with c2:
+            whole = st.number_input("Av (total)", min_value=0.0, value=1800.0, step=10.0, key="pct_whole")
+
+        if st.button("Beregn", key="btn_pct_how"):
+            pct = (part / whole * 100.0) if whole else 0.0
+            steps = [f"Prosent = (del / total) × 100 = ({part}/{whole}) × 100 = {pct}"]
+            show_result(CalcResult(
+                name="Prosent (hvor mange prosent)",
+                inputs={"del": part, "total": whole},
+                outputs={"prosent": round_sensible(pct, 2)},
+                steps=steps,
+                warnings=[],
+                timestamp=make_timestamp(),
+            ))
+
+
+
 
 # ---- Diagonal (Pytagoras) ----
 with tabs[8]:
@@ -1327,9 +1422,30 @@ with tabs[8]:
 
     if st.button("Beregn diagonal", key="btn_pyt"):
         show_result(calc_pythagoras(a, b))
+
+# ---- Økonomi ----
+with tabs[9]:
+    st.subheader('💰 Økonomi')
+    if is_school_mode():
+        st.caption('Brukes til enkel prisregning: rabatt, påslag og MVA. Pass på prosent og rekkefølge.')
+
+    st.markdown('### Pris (rabatt / påslag / MVA)')
+    base = st.number_input('Grunnpris', min_value=0.0, value=1000.0, step=10.0, key='price_base')
+    rabatt = st.number_input('Rabatt (%)', min_value=0.0, value=0.0, step=1.0, key='price_rabatt')
+    paslag = st.number_input('Påslag (%)', min_value=0.0, value=0.0, step=1.0, key='price_paslag')
+    mva = st.number_input('MVA (%)', min_value=0.0, value=25.0, step=1.0, key='price_mva')
+    if st.button('Beregn pris', key='btn_price'):
+        show_result(calc_price(base, rabatt, paslag, mva))
+
+    st.divider()
+    st.markdown('### Tidsestimat')
+    q = st.number_input('Mengde', min_value=0.0, value=10.0, step=1.0, key='time_qty')
+    prod = st.number_input('Produksjon per time', min_value=0.0, value=2.0, step=0.1, key='time_prod')
+    if st.button('Beregn tid', key='btn_time'):
+        show_result(calc_time_estimate(q, prod))
         
 # ---- Historikk ----
-with tabs[9]:
+with tabs[10]:
     st.subheader("Historikk")
 
     if not st.session_state.history:
