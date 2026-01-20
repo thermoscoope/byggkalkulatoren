@@ -1036,6 +1036,9 @@ st.divider()
 if "show_pro" not in st.session_state:
     st.session_state.show_pro = False
 
+if "show_ai" not in st.session_state:
+    st.session_state.show_ai = False
+
 if st.session_state.show_pro:
     st.divider()
 
@@ -1044,6 +1047,28 @@ if st.session_state.show_pro:
         st.rerun()
 
     show_pro_screen()
+    st.stop()
+
+if st.session_state.get("show_ai", False):
+    st.divider()
+    st.subheader("🤖 Spør din verksmester!")
+    st.caption("Skriv både tekst og regnestykker. Eksempel: 'areal 4 x 6' eller '2*(3+5)'.")
+
+    q = st.text_input("Spør AI-roboten", key="ai_input_top")
+    if q:
+        res = ai_math_bot(q)
+        if res["ok"]:
+            st.success(res["answer"])
+            with st.expander("Vis forklaring", expanded=is_school_mode()):
+                for s in res["steps"]:
+                    st.write(f"- {s}")
+        else:
+            st.warning(res["answer"])
+
+    if st.button("Lukk AI-robot"):
+        st.session_state.show_ai = False
+        st.rerun()
+
     st.stop()
 
 st.markdown("<div style='margin-top:-10px;'></div>", unsafe_allow_html=True)
