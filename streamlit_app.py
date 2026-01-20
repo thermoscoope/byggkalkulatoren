@@ -847,15 +847,22 @@ if "history" not in st.session_state:
 # Trekker topmenyen helt opp mot logo
 st.markdown("<div style='margin-top:-55px;'></div>", unsafe_allow_html=True)
 
-bar1, bar2, bar3 = st.columns([1.2, 1.6, 1.6])
+bar1, bar2, bar3, bar4 = st.columns([1.2, 1.6, 1.8, 1.6])
 
 with bar1:
     if st.button("🏠 Hjem", key="btn_home_top", use_container_width=True):
         st.session_state.current_view = "home"
         st.session_state.show_pro = False
+        st.session_state.show_ai = False
         st.rerun()
 
 with bar2:
+    if st.button("🤖 AI-robot", key="btn_ai_top", use_container_width=True):
+        st.session_state.show_ai = True
+        st.session_state.show_pro = False
+        st.rerun()
+
+with bar3:
     with st.popover("⚙️ Innstillinger", use_container_width=True):
         st.subheader("Innstillinger")
 
@@ -871,10 +878,11 @@ with bar2:
         else:
             st.success("Produksjonsmodus er aktiv.")
 
-with bar3:
+with bar4:
     if is_school_mode():
         if st.button("⭐ Oppgrader til Pro", key="btn_pro_top", use_container_width=True):
             st.session_state.show_pro = True
+            st.session_state.show_ai = False
             st.rerun()
 
 st.divider()
