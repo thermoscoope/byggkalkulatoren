@@ -701,6 +701,22 @@ if st.session_state.get("show_pro", False):
         st.session_state.show_pro = False
     st.stop()
 
+# Vis AI-skjerm øverst i appen når brukeren klikker
+if st.session_state.get("show_ai", False):
+    st.divider()
+    st.subheader("🤖 Offline AI – matematikkhjelp")
+    st.caption("Skriv korte og konkrete spørsmål. Eksempel: Areal 4 x 6 meter")
+
+    question = st.text_input("Hva lurer du på?", key="ai_question_top")
+    if question:
+        st.success(ai_math_bot(question))
+
+    if st.button("Lukk AI-robot"):
+        st.session_state.show_ai = False
+        st.rerun()
+
+    st.stop()
+
 
 def show_result(res: CalcResult):
     school = is_school_mode()
