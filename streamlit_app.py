@@ -24,7 +24,7 @@ st.set_page_config(
 st.markdown(
     """
     <style>
-      .block-container { padding-top: 2.5rem; padding-bottom: 1.0rem; }
+      .block-container { padding-top: 3.5rem; padding-bottom: 1.0rem; }
       /* Litt strammere avstand mellom elementer */
       div[data-testid="stVerticalBlock"] { gap: 0.35rem; }
     </style>
