@@ -1002,9 +1002,14 @@ def show_pro_screen():
         if is_school:
             st.markdown(
                 """
-**Pro handler om læring, vurdering og struktur i et bredere spekter mot en lærlingtid.:
+Pro handler om læring, vurdering og struktur i et bredere spekter mot en lærlingtid. I pro-pakken vil du kunne ha::
 
-- Oppgaver med *skjult fasit* (eleven må prøve først)
+- Øvingsoppgaver med *skjult fasit*
+- HMS - Hvorfor er HMS viktig?
+- Verktøyopplæring
+- Hvorfor dokumentasjon av eget arbeid er viktig for seg selv og andre.
+- TEK-kravene
+- Lese og forstår tegning.
 - Refleksjon og egenkontroll knyttet til hver beregning
 - Eksport til PDF for innlevering
 - Lærer-/klassevis historikk (dokumentasjon av progresjon)
