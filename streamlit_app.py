@@ -61,64 +61,58 @@ def is_school_mode() -> bool:
 
 
 # ============================
-# Komprimert header (logo + tekst på én linje)
+# Komprimert header (logo + tittel + undertittel på én linje)
 # ============================
 
-# Bruker HTML/CSS for å unngå at st.image() reserverer ekstra vertikal plass.
-# Dette gir presis kontroll på høyde og gjør headeren mer komprimert.
 LOGO_PATH = Path(__file__).parent / "logo1.png"
 
-def load_logo_base64(path: Path) -> str:
-    with open(path, "rb") as f:
-        return base64.b64encode(f.read()).decode("utf-8")
-
-logo_base64 = load_logo_base64(LOGO_PATH)
-
+# Strammere CSS rundt bilder/kolonner slik at logoen faktisk kan ligge tett på topmenyen.
 st.markdown(
-    f"""
+    """
     <style>
-    .header-container {{
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        /* Lav og stabil headerhøyde uten at toppmenyen overlapper */
-        height: 60px;
-        margin-bottom: 0px;
-    }}
-    .header-logo {{
-        height: 42px; /* skalert ned slik at alt synes */
-        width: auto;
-    }}
-    .header-title {{
-        font-size: 30px;
-        font-weight: 700;
-        color: #ff7a00;
-        line-height: 1;
-        margin: 0;
-        padding: 0;
-    }}
-    .header-sub {{
-        font-size: 14px;
-        color: #9aa4ad;
-        margin-left: 6px;
-        line-height: 1;
-        white-space: nowrap;
-    }}
-    </style>
+      /* Fjern unødvendig luft rundt Streamlit-bilder */
+      div[data-testid="stImage"] { margin-top: 0rem !important; margin-bottom: 0rem !important; }
+      div[data-testid="stImage"] > img { display:block; }
 
-    <div class="header-container">
-        <img src="data:image/png;base64,{logo_base64}" class="header-logo"/>
-        <div>
-            <span class="header-title">Bygg-kalkulatoren</span>
-            <span class="header-sub">– din hjelper i farta</span>
-        </div>
-    </div>
+      /* Header-tekst: tittel + undertittel på én linje */
+      .bk-title-row { display:flex; align-items: baseline; gap: 8px; line-height: 1; margin: 0; padding: 0; }
+      .bk-title { font-size: 32px; font-weight: 800; color: #ff7a00; line-height: 1; }
+      .bk-sub { font-size: 15px; color: #9aa4ad; line-height: 1; white-space: nowrap; }
+
+      /* Trekk litt opp, men uten å overlappe */
+      .bk-header-tight { margin-bottom: -6px; }
+    </style>
     """,
     unsafe_allow_html=True,
 )
 
+# Header rad: logo til venstre, tittel+undertittel rett etter.
+header_left, header_right = st.columns([1.1, 5], gap="small")
+
+with header_left:
+    try:
+        img = Image.open(LOGO_PATH)
+        # Skaler ned slik at alt synes (logoen var for høy i tidligere versjoner)
+        st.image(img, width=120)
+    except Exception:
+        # Hvis logo mangler i deploy, ikke knekk appen
+        st.write("")
+
+with header_right:
+    st.markdown(
+        """
+        <div class="bk-header-tight">
+          <div class="bk-title-row">
+            <div class="bk-title">Bygg-kalkulatoren</div>
+            <div class="bk-sub">– din hjelper i farta</div>
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
 # Trekker toppmenyen litt opp mot headeren (uten overlapp)
-st.markdown("<div style='margin-top:-6px;'></div>", unsafe_allow_html=True)
+st.markdown("<div style='margin-top:-10px;'></div>", unsafe_allow_html=True)
 
 
 
