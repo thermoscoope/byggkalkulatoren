@@ -1,5 +1,6 @@
 import math
 import time
+import re
 from dataclasses import dataclass
 from typing import Dict, Any, List, Tuple
 from pathlib import Path
@@ -160,6 +161,55 @@ def make_timestamp() -> str:
 def warn_if(condition: bool, msg: str, warnings: List[str]):
     if condition:
         warnings.append(msg)
+
+
+# ============================================================
+# Offline AI-robot (enkle matematiske spørsmål)
+# ============================================================
+def ai_math_bot(question: str) -> str:
+    """Rask, deterministisk og offline matematikk-hjelper.
+
+    Bevisst avgrenset til typiske spørsmål i byggfag/praktisk matematikk.
+    """
+    q = (question or "").strip().lower()
+    if not q:
+        return "Skriv et spørsmål først."
+
+    # Areal: f.eks. "areal 4 x 6" / "areal av rom 4×6"
+    m = re.search(r"areal.*?(\d+\.?\d*)\s*[x×]\s*(\d+\.?\d*)", q)
+    if m:
+        l, b = float(m.group(1)), float(m.group(2))
+        return f"Areal = {l} × {b} = {l*b:.2f} m²"
+
+    # Volum (betongplate): f.eks. "volum 5 x 4 x 100 mm"
+    m = re.search(r"volum.*?(\d+\.?\d*)\s*[x×]\s*(\d+\.?\d*).*?(\d+\.?\d*)\s*mm", q)
+    if m:
+        l, b, t_mm = float(m.group(1)), float(m.group(2)), float(m.group(3))
+        t_m = t_mm / 1000.0
+        return f"Volum = {l} × {b} × {t_m:g} = {l*b*t_m:.3f} m³"
+
+    # Fall: f.eks. "2 % fall på 3 m"
+    m = re.search(r"(\d+\.?\d*)\s*%\s*fall.*?(\d+\.?\d*)\s*m", q)
+    if m:
+        pct, length_m = float(m.group(1)), float(m.group(2))
+        mm = pct / 100.0 * length_m * 1000.0
+        return f"Fall = {pct:g}% over {length_m:g} m → {mm:.1f} mm"
+
+    # Pytagoras/diagonal: f.eks. "diagonal 3 og 4" / "pytagoras 3 4"
+    m = re.search(r"(diagonal|pytagoras).*?(\d+\.?\d*)\D+(\d+\.?\d*)", q)
+    if m:
+        a, b = float(m.group(2)), float(m.group(3))
+        c = math.sqrt(a**2 + b**2)
+        return f"Diagonal = √({a}² + {b}²) = {c:.2f} m"
+
+    # Prosent av: f.eks. "25 % av 1800"
+    m = re.search(r"(\d+\.?\d*)\s*%\s*av\s*(\d+\.?\d*)", q)
+    if m:
+        pct, base = float(m.group(1)), float(m.group(2))
+        val = pct / 100.0 * base
+        return f"{pct:g}% av {base:g} = {val:.2f}"
+
+    return "Jeg forstår ikke spørsmålet ennå. Prøv f.eks. 'Areal 4 x 6' eller '2 % fall på 3 m'."
 
 
 # ============================================================
@@ -692,6 +742,10 @@ def show_pro_screen():
 if "show_pro" not in st.session_state:
     st.session_state.show_pro = False
 
+# Sett default state for AI-robot
+if "show_ai" not in st.session_state:
+    st.session_state.show_ai = False
+
 
 # Vis Pro-skjerm øverst i appen når brukeren klikker
 if st.session_state.get("show_pro", False):
@@ -701,11 +755,12 @@ if st.session_state.get("show_pro", False):
         st.session_state.show_pro = False
     st.stop()
 
+
 # Vis AI-skjerm øverst i appen når brukeren klikker
 if st.session_state.get("show_ai", False):
     st.divider()
     st.subheader("🤖 Offline AI – matematikkhjelp")
-    st.caption("Skriv korte og konkrete spørsmål. Eksempel: Areal 4 x 6 meter")
+    st.caption("Skriv korte og konkrete spørsmål. Eksempel: Areal 4 x 6 eller 2 % fall på 3 m")
 
     question = st.text_input("Hva lurer du på?", key="ai_question_top")
     if question:
@@ -808,33 +863,6 @@ def show_result(res: CalcResult):
 
 
 # ============================================================
-# Offline AI-robot (enkle matematiske spørsmål)
-# ============================================================
-import re
-
-def ai_math_bot(question: str) -> str:
-    q = question.lower()
-
-    match = re.search(r"areal.*?(\d+\.?\d*)\s*[x×]\s*(\d+\.?\d*)", q)
-    if match:
-        l, b = float(match.group(1)), float(match.group(2))
-        return f"Areal = {l} × {b} = {l*b:.2f} m²"
-
-    match = re.search(r"volum.*?(\d+\.?\d*)\s*[x×]\s*(\d+\.?\d*).*?(\d+)\s*mm", q)
-    if match:
-        l, b, t = float(match.group(1)), float(match.group(2)), float(match.group(3))/1000
-        return f"Volum = {l} × {b} × {t} = {l*b*t:.3f} m³"
-
-    match = re.search(r"diagonal.*?(\d+\.?\d*).*?(\d+\.?\d*)", q)
-    if match:
-        a, b = float(match.group(1)), float(match.group(2))
-        c = math.sqrt(a**2 + b**2)
-        return f"Diagonal = √({a}² + {b}²) = {c:.2f} m"
-
-    return "Jeg forstår ikke spørsmålet ennå. Prøv å skrive det litt enklere."
-
-
-# ============================================================
 # App-state
 # ============================================================
 if "history" not in st.session_state:
@@ -906,10 +934,6 @@ if st.session_state.show_pro:
     st.stop()
 
 st.markdown("<div style='margin-top:-10px;'></div>", unsafe_allow_html=True)
-
-# Sett default state for AI-robot
-if "show_ai" not in st.session_state:
-    st.session_state.show_ai = False
 
 # ============================================================
 # Tabs
