@@ -108,7 +108,7 @@ with header_right:
         <div class="bk-header-tight">
           <div class="bk-title-row">
             <div class="bk-title"></div>
-            <div class="bk-sub" style="margin-top:10px;">Velkommen til din praktiske matematikk hjelper! Velg den kalkulatoren du ønsker å bruke for å løse dine matematiske utfordringer.</div>
+            <div class="bk-sub" style="margin-top:10px;">Velkommen til din praktiske matematikk hjelper! Velg den kalkulatoren du ønsker å bruke, for å løse dine matematiske utfordringer, eller spør vår AI!</div>
           </div>
         </div>
         """,
