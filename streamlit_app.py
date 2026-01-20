@@ -1919,7 +1919,7 @@ with bar2:
         st.rerun()
 
 with bar3:
-    if st.button("🤖 Spør AI! (BETA)", key="btn_ai_top", use_container_width=True):
+    if st.button("🤖 Spør Robokai (BETA)", key="btn_ai_top", use_container_width=True):
         st.session_state.show_ai = True
         st.session_state.show_pro = False
         st.session_state.show_play = False
