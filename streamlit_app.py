@@ -36,7 +36,7 @@ st.markdown(
 # ============================================================
 # Konfig + Logo (må ligge før all annen Streamlit-output)
 # ============================================================
-LOGO_PATH = Path(__file__).parent / "logo1.png"
+LOGO_PATH = Path(__file__).parent / "logo.png"
 
 page_icon = None
 # Profesjonell header med logo
