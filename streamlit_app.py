@@ -1151,7 +1151,7 @@ tabs = st.tabs(
 # ---- Enhetsomregner ----
 with tabs[0]:
     st.subheader("Enhetsomregner")
-    st.caption("Skriv inn et tall, velg enhet, og få omregning til mm, cm og m i tabell.")
+    st.caption("I byggfag brukes måleenheter som millimeter (mm), centimeter (cm) og meter (m). For å regne riktig må alle mål ofte være i samme enhet. Skriv inn et tall, velg enhet, og få omregning til mm, cm og m i tabell.")
 
     c1, c2 = st.columns([2, 1])
 
@@ -1186,7 +1186,7 @@ with tabs[0]:
 # ---- Areal ----
 with tabs[1]:
     if is_school_mode():
-        st.caption("Tenk: areal = lengde × bredde. Sjekk alltid at begge mål er i meter.")
+        st.caption("Areal forteller hvor stor en flate er. I bygg brukes areal for å finne hvor mye gulv, vegg, isolasjon eller kledning som trengs. Tenk: areal = lengde × bredde. Sjekk alltid at begge mål er i meter.")
 
     st.subheader("Areal (rektangel)")
     l = st.number_input("Lengde (m)", min_value=0.0, value=5.0, step=0.1, key="areal_l")
@@ -1232,7 +1232,7 @@ with tabs[1]:
 # ---- Omkrets ----
 with tabs[2]:
     if is_school_mode():
-        st.caption("Omkrets er lengden rundt en figur. Rektangel: 2(a+b). Sirkel: 2πr.")
+        st.caption("Omkrets er lengden rundt en figur. I bygg brukes omkrets blant annet for å finne lengde på lister, sviller eller fundament. Rektangel: 2(a+b). Sirkel: 2πr.")
 
     st.subheader("🧵 Omkrets")
     shape = st.selectbox("Velg figur", ["Rektangel", "Sirkel"], key="per_shape")
@@ -1263,7 +1263,7 @@ with tabs[2]:
 # ---- Volum/betong ----
 with tabs[3]:
     if is_school_mode():
-        st.caption("Volum beregnes i m³. Tykkelser oppgis ofte i mm og må konverteres til meter.")
+        st.caption("Volum sier hvor mye noe rommer. I bygg brukes volum særlig når man skal beregne mengde betong, masser eller fyll. Volum beregnes i m³. Tykkelser oppgis ofte i mm og må konverteres til meter.")
 
     st.subheader("Betongplate")
     l = st.number_input("Lengde (m)", min_value=0.0, value=6.0, step=0.1, key="slab_l")
@@ -1290,7 +1290,7 @@ with tabs[3]:
 # ---- Målestokk (begge veier + 1–100) ----
 with tabs[4]:
     if is_school_mode():
-        st.caption("Husk: 1:50 betyr at 1 enhet på tegning tilsvarer 50 enheter i virkeligheten.")
+        st.caption("Målestokk viser forholdet mellom en tegning og virkeligheten. En målestokk på 1:50 betyr at 1 cm på tegningen er 50 cm i virkeligheten.")
 
     st.subheader("Målestokk")
 
@@ -1320,7 +1320,7 @@ with tabs[4]:
 # ---- Kledning ----
 with tabs[5]:
     st.subheader("Tømmermannskledning (kun bredde)")
-    st.caption("Fritt innskrive: mål fra–til (cm), omlegg (cm) og bordbredder (mm).")
+    st.caption("Når du kler en vegg, må du vite hvor mange bord som trengs, og om bordene dekker hele bredden riktig. Fritt innskrive: mål fra–til (cm), omlegg (cm) og bordbredder (mm).")
 
     c1, c2, c3, c4 = st.columns([2, 2, 2, 2])
     with c1:
@@ -1340,7 +1340,7 @@ with tabs[6]:
     st.write("DEBUG: Fall/vinkel-fanen kjører.")  # skal vises uansett
 
     if is_school_mode():
-        st.caption("Fall kan angis i prosent, 1:x eller mm per meter.")
+        st.caption("Fall brukes for å sikre at vann renner riktig vei, for eksempel på bad, terrasse eller tak. Fall kan angis i prosent, 1:x eller mm per meter.")
 
     st.subheader("Fallberegning")
     length = st.number_input("Lengde (m)", min_value=0.0, value=2.0, step=0.1, key="fall_len")
@@ -1361,7 +1361,7 @@ with tabs[6]:
 
 with tabs[7]:
     st.subheader("🧮 Prosent")
-    st.caption("Regn ut prosent av et tall, eller finn hvor mange prosent et tall er av et annet.")
+    st.caption("Prosent brukes for å vise en del av en helhet. I bygg brukes prosent blant annet til svinn, rabatt, påslag og MVA. Regn ut prosent av et tall, eller finn hvor mange prosent et tall er av et annet.")
 
     mode = st.radio(
         "Velg type",
@@ -1414,7 +1414,7 @@ with tabs[7]:
 # ---- Diagonal (Pytagoras) ----
 with tabs[8]:
     if is_school_mode():
-        st.caption("Pytagoras brukes i rettvinklede trekanter: c = √(a² + b²).")
+        st.caption("Pytagoras brukes når du skal finne diagonal eller kontrollere om noe er i vinkel (90°), for eksempel ved oppsetting av vegger. Pytagoras brukes i rettvinklede trekanter: c = √(a² + b²).")
 
     st.subheader("Diagonal (Pytagoras)")
     a = st.number_input("Side a (m)", min_value=0.0, value=3.0, step=0.1, key="pyt_a")
@@ -1427,7 +1427,7 @@ with tabs[8]:
 with tabs[9]:
     st.subheader('💰 Økonomi')
     if is_school_mode():
-        st.caption('Brukes til enkel prisregning: rabatt, påslag og MVA. Pass på prosent og rekkefølge.')
+        st.caption('I byggfag må du kunne regne ut priser, rabatter, påslag og merverdiavgift (MVA). Brukes til enkel prisregning: rabatt, påslag og MVA. Pass på prosent og rekkefølge.')
 
     st.markdown('### Pris (rabatt / påslag / MVA)')
     base = st.number_input('Grunnpris', min_value=0.0, value=1000.0, step=10.0, key='price_base')
