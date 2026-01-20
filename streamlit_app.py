@@ -93,7 +93,7 @@ with header_left:
     try:
         img = Image.open(LOGO_PATH)
         # Skaler ned slik at alt synes (logoen var for høy i tidligere versjoner)
-        st.image(img, width=120)
+        st.image(img, width=360)
     except Exception:
         # Hvis logo mangler i deploy, ikke knekk appen
         st.write("")
