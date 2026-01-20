@@ -103,7 +103,7 @@ with header_right:
         """
         <div class="bk-header-tight">
           <div class="bk-title-row">
-            <div class="bk-title">Bygg-kalkulatoren</div>
+            <div class="bk-title"></div>
             <div class="bk-sub">– din hjelper i farta</div>
           </div>
         </div>
