@@ -8,6 +8,12 @@ from pathlib import Path
 
 import pandas as pd
 import streamlit as st
+
+# Valgfri persistering (Streamlit Cloud): Supabase
+try:
+    from supabase import create_client  # type: ignore
+except Exception:  # pragma: no cover
+    create_client = None
 from PIL import Image
 
 import re
@@ -1046,6 +1052,85 @@ if st.session_state.get("show_pro", False):
 # Lek og lær (nivåbasert trening i skolemodus)
 # ============================================================
 
+# --- Persistens av progresjon (Streamlit Cloud) ---
+# Denne løsningen bruker Supabase (Postgres) via st.secrets.
+# Hvis secrets/avhengighet mangler, faller appen tilbake til vanlig session_state.
+
+@st.cache_resource
+def _get_supabase_client():
+    if create_client is None:
+        return None
+    try:
+        url = st.secrets.get("SUPABASE_URL")
+        key = st.secrets.get("SUPABASE_SERVICE_ROLE_KEY")
+    except Exception:
+        url, key = None, None
+    if not url or not key:
+        return None
+    try:
+        return create_client(url, key)
+    except Exception:
+        return None
+
+
+def _sb_enabled() -> bool:
+    return _get_supabase_client() is not None
+
+
+def _serialize_play_progress(play_progress: dict) -> dict:
+    # Gjør om set() til list() slik at det kan lagres som JSON
+    out = {}
+    for k, v in (play_progress or {}).items():
+        if isinstance(v, dict):
+            vv = dict(v)
+            comp = vv.get("completed")
+            if isinstance(comp, set):
+                vv["completed"] = sorted(list(comp))
+            out[k] = vv
+        else:
+            out[k] = v
+    return out
+
+
+def _deserialize_play_progress(saved: dict) -> dict:
+    out = {}
+    for k, v in (saved or {}).items():
+        if isinstance(v, dict):
+            vv = dict(v)
+            comp = vv.get("completed")
+            if isinstance(comp, list):
+                vv["completed"] = set(comp)
+            out[k] = vv
+        else:
+            out[k] = v
+    return out
+
+
+def load_progress_from_db(user_id: str) -> dict:
+    sb = _get_supabase_client()
+    if sb is None or not user_id:
+        return {}
+    try:
+        res = sb.table("progress").select("data").eq("user_id", user_id).limit(1).execute()
+        if res and getattr(res, 'data', None):
+            row = res.data[0]
+            return row.get("data") or {}
+    except Exception:
+        return {}
+    return {}
+
+
+def save_progress_to_db(user_id: str, data: dict) -> None:
+    sb = _get_supabase_client()
+    if sb is None or not user_id:
+        return
+    try:
+        sb.table("progress").upsert({"user_id": user_id, "data": data}, on_conflict="user_id").execute()
+    except Exception:
+        # Ikke knekk appen hvis nett/db feiler
+        pass
+
+
 _PLAY_CORRECT_TO_PASS = 3  # antall riktige i hvert nivå for å låse opp neste
 
 
@@ -1307,6 +1392,22 @@ def show_play_screen():
     st.subheader("🎯 Lek og lær")
     st.caption("Nivåbaserte oppgaver i praktisk matematikk. For å gå videre må du få nok riktige svar på hvert nivå.")
 
+    # --- Elev-ID for å kunne lagre progresjon mellom økter (Streamlit Cloud) ---
+    # Hvis Supabase er aktivert, lagres/lastes progresjon automatisk for denne ID-en.
+    user_id = st.text_input("Elev-ID (lagrer nivå)", placeholder="F.eks. Magnus-0421", key="play_user_id").strip()
+    if _sb_enabled() and user_id:
+        # Last inn kun én gang per valgt elev-ID
+        last_loaded = st.session_state.get("_play_last_loaded_user")
+        if last_loaded != user_id:
+            saved = load_progress_from_db(user_id)
+            st.session_state.play_progress = _deserialize_play_progress(saved.get("play_progress", {}))
+            st.session_state.play_state = saved.get("play_state", {}) or {}
+            st.session_state["_play_last_loaded_user"] = user_id
+
+        st.caption("Progresjon lagres automatisk for denne Elev-ID-en.")
+    elif user_id and not _sb_enabled():
+        st.caption("Lagring mellom økter er ikke aktivert (mangler Supabase-oppsett i secrets/requirements).")
+
     topics = ["Areal", "Omkrets", "Volum", "Målestokk", "Prosent"]
 
     top_left, top_right = st.columns([2, 1])
@@ -1317,6 +1418,10 @@ def show_play_screen():
             st.session_state.play_progress = {}
             st.session_state.play_state = {}
             st.toast("Progresjon nullstilt.")
+            if _sb_enabled() and st.session_state.get("play_user_id", "").strip():
+                uid = st.session_state.get("play_user_id", "").strip()
+                save_progress_to_db(uid, {"play_progress": {}, "play_state": {}})
+
             st.rerun()
 
     prog = _get_progress(topic)
@@ -1388,6 +1493,15 @@ def show_play_screen():
                 state["last_feedback"] = (False, f"Ikke helt. Fasit er omtrent {corr:.3f} {unit}. Prøv en ny oppgave eller bruk hint.")
 
             st.session_state.play_state = state
+
+            # Lagre progresjon til database (hvis aktivert)
+            if _sb_enabled() and st.session_state.get("play_user_id", "").strip():
+                uid = st.session_state.get("play_user_id", "").strip()
+                save_progress_to_db(uid, {
+                    "play_progress": _serialize_play_progress(st.session_state.get("play_progress", {})),
+                    "play_state": st.session_state.get("play_state", {}),
+                })
+
             st.rerun()
 
     with b2:
@@ -1395,12 +1509,28 @@ def show_play_screen():
             state["q_index"] = int(state.get("q_index", 1)) + 1
             state["current"] = _make_question(topic, level, int(state["q_index"]))
             st.session_state.play_state = state
+
+            # Lagre progresjon
+            if _sb_enabled() and st.session_state.get("play_user_id", "").strip():
+                uid = st.session_state.get("play_user_id", "").strip()
+                save_progress_to_db(uid, {
+                    "play_progress": _serialize_play_progress(st.session_state.get("play_progress", {})),
+                    "play_state": st.session_state.get("play_state", {}),
+                })
             st.rerun()
 
     with b3:
         if st.button("🏠 Tilbake til hovedsiden", key="play_back", use_container_width=True):
             st.session_state.show_play = False
             st.session_state.play_state = {}
+
+            # Lagre (inkl. at vi lukker Lek og lær)
+            if _sb_enabled() and st.session_state.get("play_user_id", "").strip():
+                uid = st.session_state.get("play_user_id", "").strip()
+                save_progress_to_db(uid, {
+                    "play_progress": _serialize_play_progress(st.session_state.get("play_progress", {})),
+                    "play_state": st.session_state.get("play_state", {}),
+                })
             st.rerun()
 
     fb = state.get("last_feedback")
