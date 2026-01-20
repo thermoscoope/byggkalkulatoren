@@ -2186,7 +2186,7 @@ with tabs[4]:
 
 # ---- Kledning ----
 with tabs[5]:
-    st.subheader("Tømmermannskledning (kun bredde)")
+    st.subheader("Tømmermannskledning")
     st.caption("Når du kler en vegg, må du vite hvor mange bord som trengs, og om bordene dekker hele bredden riktig. Fritt innskrive: mål fra–til (cm), omlegg (cm) og bordbredder (mm).")
 
     c1, c2, c3, c4 = st.columns([2, 2, 2, 2])
