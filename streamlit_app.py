@@ -58,62 +58,54 @@ def is_school_mode() -> bool:
     return st.session_state.get("app_mode", "Skole") == "Skole"
 
 
-# ============================================================
-# Komprimert header (logo + tekst på én linje)
-# ============================================================
+# ============================
+# Header (logo venstre, tekst høyre – justert ned)
+# ============================
 
-LOGO_PATH = Path(__file__).parent / "logo1.png"
+header_left, header_right = st.columns([4, 3], gap="small")
 
-def load_logo_base64(path):
-    with open(path, "rb") as f:
-        return base64.b64encode(f.read()).decode()
+with header_left:
+    # Strammere header slik at logo ligger tettere på toppmenyen
+    st.markdown("<div style='margin-bottom:-45px;'>", unsafe_allow_html=True)
+    from PIL import Image
 
-logo_base64 = load_logo_base64(LOGO_PATH)
+def trim_transparent(img: Image.Image) -> Image.Image:
+    # Fungerer best på PNG med alpha (RGBA)
+    if img.mode != "RGBA":
+        img = img.convert("RGBA")
+    alpha = img.split()[-1]
+    bbox = alpha.getbbox()
+    return img.crop(bbox) if bbox else img
 
-st.markdown(
-    f"""
-    <style>
-    .header-container {{
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        height: 72px;
-        margin-bottom: -18px;
-    }}
-    .header-logo {{
-        height: 48px;   /* 👈 LOGO SKALERT NED */
-        width: auto;
-    }}
-    .header-title {{
-        font-size: 34px;
-        font-weight: 700;
-        color: #ff7a00;
-        line-height: 1;
-        margin: 0;
-        padding: 0;
-    }}
-    .header-sub {{
-        font-size: 16px;
-        color: #9aa4ad;
-        margin-left: 6px;
-        line-height: 1;
-        white-space: nowrap;
-    }}
-    </style>
+with header_left:
+    img = Image.open(LOGO_PATH)
+    img_trim = trim_transparent(img)
+    st.image(img_trim, use_container_width=True)
 
-    <div class="header-container">
-        <img src="data:image/png;base64,{logo_base64}" class="header-logo"/>
-        <div>
-            <span class="header-title">Bygg-kalkulatoren</span>
-            <span class="header-sub">– din hjelper i farta</span>
+    st.markdown("</div>", unsafe_allow_html=True)
+
+with header_right:
+    st.markdown(
+        """
+        <div style="
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            align-items: flex-start;
+            text-align: left;
+            height: 100%;
+            padding-bottom: 0px;
+        ">
+            <div style="font-size:24px; line-height:1.0; margin:0; color:gray;">
+                - Din hjelp på farten!
+            </div>
         </div>
-    </div>
-    """,
-    unsafe_allow_html=True
-)
+        """,
+        unsafe_allow_html=True,
+    )
 
 # Dra Hjem/innstillinger/pro helt opp mot logo
-st.markdown("<div style='margin-top:-12px;'></div>", unsafe_allow_html=True)
+st.markdown("<div style='margin-top:-35px;'></div>", unsafe_allow_html=True)
 
 
 
