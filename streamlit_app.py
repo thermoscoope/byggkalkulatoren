@@ -66,7 +66,7 @@ header_left, header_right = st.columns([4, 3], gap="small")
 
 with header_left:
     # Strammere header slik at logo ligger tettere på toppmenyen
-    st.markdown("<div style='margin-bottom:-45px;'>", unsafe_allow_html=True)
+    st.markdown("<div style='margin-bottom:-80px;'>", unsafe_allow_html=True)
     from PIL import Image
 
 def trim_transparent(img: Image.Image) -> Image.Image:
