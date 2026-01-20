@@ -61,61 +61,60 @@ def is_school_mode() -> bool:
 
 
 # ============================
-# Komprimert header (logo + undertittel)
+# Komprimert header (logo + tittel + undertittel på én linje)
 # ============================
 
-# Stram inn luft rundt logo/header slik at topplinjen kan ligge tett på.
+LOGO_PATH = Path(__file__).parent / "logo1.png"
+
+# Strammere CSS rundt bilder/kolonner slik at logoen faktisk kan ligge tett på topmenyen.
 st.markdown(
     """
     <style>
       /* Fjern unødvendig luft rundt Streamlit-bilder */
       div[data-testid="stImage"] { margin-top: 0rem !important; margin-bottom: 0rem !important; }
-      div[data-testid="stImage"] > img { display:block; max-height: 96px; width: auto; }
+      div[data-testid="stImage"] > img { display:block; }
 
-      /* Undertittel plassert nederst til venstre i sin kolonne */
-      .bk-sub {
-        font-size: 16px;
-        color: #9aa4ad;
-        line-height: 1;
-        margin: 0;
-        padding: 0;
-        white-space: nowrap;
-      }
-      .bk-sub-wrap {
-        display: flex;
-        align-items: flex-end;
-        height: 100%;
-        padding-bottom: 6px;
-        margin: 0;
-      }
+      /* Header-tekst: tittel + undertittel på én linje */
+      .bk-title-row { display:flex; align-items: baseline; gap: 8px; line-height: 1; margin: 0; padding: 0; }
+      .bk-title { font-size: 32px; font-weight: 800; color: #ff7a00; line-height: 1; }
+      .bk-sub { font-size: 15px; color: #9aa4ad; line-height: 1; white-space: nowrap; }
+
+      /* Trekk litt opp, men uten å overlappe */
+      .bk-header-tight { margin-bottom: -6px; }
     </style>
     """,
     unsafe_allow_html=True,
 )
 
-# Header: logo (som allerede inneholder "Bygg-kalkulatoren") + undertittel ved siden av.
-header_left, header_right = st.columns([6, 2], gap="small")
+# Header rad: logo til venstre, tittel+undertittel rett etter.
+header_left, header_right = st.columns([1.1, 5], gap="small")
 
 with header_left:
     try:
         img = Image.open(LOGO_PATH)
-        # Bruk containerbredde, men hold høyden kontrollert via CSS max-height.
-        st.image(img, use_container_width=True)
+        # Skaler ned slik at alt synes (logoen var for høy i tidligere versjoner)
+        st.image(img, width=120)
     except Exception:
+        # Hvis logo mangler i deploy, ikke knekk appen
         st.write("")
 
 with header_right:
     st.markdown(
         """
-        <div class="bk-sub-wrap">
-          <div class="bk-sub">– Din hjelper på farta</div>
+        <div class="bk-header-tight">
+          <div class="bk-title-row">
+            <div class="bk-title">Bygg-kalkulatoren</div>
+            <div class="bk-sub">– din hjelper i farta</div>
+          </div>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-# Trekk neste rad (topmeny) opp, men uten overlapp.
-st.markdown("<div style='margin-top:-30px;'></div>", unsafe_allow_html=True)
+# Trekker toppmenyen litt opp mot headeren (uten overlapp)
+st.markdown("<div style='margin-top:-10px;'></div>", unsafe_allow_html=True)
+
+
 
 
 # ============================================================
@@ -834,7 +833,7 @@ if "history" not in st.session_state:
 # ============================================================
 
 # Trekker topmenyen tett opp mot headeren (komprimert, men uten å skjule logo/tekst)
-st.markdown("<div style='margin-top:-6px;'></div>", unsafe_allow_html=True)
+st.markdown("<div style='margin-top:-18px;'></div>", unsafe_allow_html=True)
 
 bar1, bar2, bar3 = st.columns([1.2, 1.6, 1.6])
 
@@ -886,7 +885,7 @@ if st.session_state.show_pro:
     show_pro_screen()
     st.stop()
 
-st.markdown("<div style='margin-top:-6px;'></div>", unsafe_allow_html=True)
+st.markdown("<div style='margin-top:-10px;'></div>", unsafe_allow_html=True)
 
 # ============================================================
 # Tabs
