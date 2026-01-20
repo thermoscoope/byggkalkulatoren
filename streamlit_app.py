@@ -9,6 +9,10 @@ import pandas as pd
 import streamlit as st
 from PIL import Image
 
+import re
+import ast
+import operator as op
+
 
 # ============================================================
 # Streamlit side-oppsett (må komme før annen Streamlit-bruk)
@@ -630,6 +634,163 @@ def calc_tommermannskledning_width(
         timestamp=make_timestamp(),
     )
 
+# ============================================================
+# Offline AI-robot (tekst + regnestykker, uten internett)
+# ============================================================
+
+_ALLOWED_BINOPS = {
+    ast.Add: op.add,
+    ast.Sub: op.sub,
+    ast.Mult: op.mul,
+    ast.Div: op.truediv,
+    ast.Pow: op.pow,
+    ast.Mod: op.mod,
+}
+_ALLOWED_UNARYOPS = {
+    ast.UAdd: op.pos,
+    ast.USub: op.neg,
+}
+
+# Whitelist math-funksjoner/konstanter
+_ALLOWED_NAMES = {
+    "pi": math.pi,
+    "e": math.e,
+    "sqrt": math.sqrt,
+    "sin": math.sin,
+    "cos": math.cos,
+    "tan": math.tan,
+    "log": math.log,
+    "log10": math.log10,
+    "abs": abs,
+    "round": round,
+}
+
+def _safe_eval_expr(expr: str) -> float:
+    """Trygg evaluering av regneuttrykk (ingen eval())."""
+    expr = expr.strip()
+    node = ast.parse(expr, mode="eval")
+
+    def _eval(n):
+        if isinstance(n, ast.Expression):
+            return _eval(n.body)
+
+        if isinstance(n, ast.Constant):
+            if isinstance(n.value, (int, float)):
+                return float(n.value)
+            raise ValueError("Ugyldig konstant")
+
+        if isinstance(n, ast.BinOp):
+            if type(n.op) not in _ALLOWED_BINOPS:
+                raise ValueError("Ugyldig operator")
+            return _ALLOWED_BINOPS[type(n.op)](_eval(n.left), _eval(n.right))
+
+        if isinstance(n, ast.UnaryOp):
+            if type(n.op) not in _ALLOWED_UNARYOPS:
+                raise ValueError("Ugyldig unary-operator")
+            return _ALLOWED_UNARYOPS[type(n.op)](_eval(n.operand))
+
+        if isinstance(n, ast.Call):
+            if not isinstance(n.func, ast.Name):
+                raise ValueError("Ugyldig funksjonskall")
+            fname = n.func.id
+            if fname not in _ALLOWED_NAMES:
+                raise ValueError("Ukjent funksjon")
+            args = [_eval(a) for a in n.args]
+            return float(_ALLOWED_NAMES[fname](*args))
+
+        if isinstance(n, ast.Name):
+            if n.id in _ALLOWED_NAMES:
+                return float(_ALLOWED_NAMES[n.id])
+            raise ValueError("Ukjent navn")
+
+        raise ValueError("Ugyldig uttrykk")
+
+    return _eval(node)
+
+def _norm(s: str) -> str:
+    s = s.strip().lower()
+    s = s.replace("×", "*").replace("x", "*")
+    s = s.replace(",", ".")
+    s = s.replace("^", "**")
+    return s
+
+def ai_math_bot(question: str) -> dict:
+    """
+    Returnerer dict: {ok, title, answer, steps, warnings}
+    """
+    q0 = question
+    q = _norm(question)
+
+    steps = []
+    warnings = []
+
+    # 1) Prosent av
+    m = re.search(r"(\d+(?:\.\d+)?)\s*%?\s*av\s*(\d+(?:\.\d+)?)", q)
+    if m:
+        pct = float(m.group(1))
+        base = float(m.group(2))
+        res = base * (pct / 100.0)
+        steps.append(f"{pct}% av {base} = {base} * ({pct}/100)")
+        return {"ok": True, "title": "Prosent", "answer": f"{res:.2f}", "steps": steps, "warnings": warnings}
+
+    # 2) Areal (rektangel): “areal 4*6” eller “areal 4 * 6”
+    if "areal" in q:
+        m = re.search(r"(\d+(?:\.\d+)?)\s*\*\s*(\d+(?:\.\d+)?)", q)
+        if m:
+            l = float(m.group(1))
+            b = float(m.group(2))
+            a = l * b
+            steps.append("Areal = lengde * bredde")
+            steps.append(f"{l} * {b} = {a}")
+            return {"ok": True, "title": "Areal", "answer": f"{a:.3f} m²", "steps": steps, "warnings": warnings}
+
+    # 3) Volum betongplate: “volum 5*4*100mm”
+    if "volum" in q or "betong" in q:
+        m = re.search(r"(\d+(?:\.\d+)?)\s*\*\s*(\d+(?:\.\d+)?)\s*\*\s*(\d+(?:\.\d+)?)\s*mm", q)
+        if m:
+            l = float(m.group(1))
+            b = float(m.group(2))
+            t_mm = float(m.group(3))
+            t_m = t_mm / 1000.0
+            v = l * b * t_m
+            steps.append("Volum = lengde * bredde * tykkelse")
+            steps.append(f"tykkelse: {t_mm} mm = {t_m} m")
+            steps.append(f"{l} * {b} * {t_m} = {v}")
+            return {"ok": True, "title": "Volum", "answer": f"{v:.3f} m³", "steps": steps, "warnings": warnings}
+
+    # 4) Pytagoras: “diagonal 3 og 4”
+    if "diagonal" in q or "pytagoras" in q:
+        m = re.search(r"(\d+(?:\.\d+)?)\s*(?:og|,)\s*(\d+(?:\.\d+)?)", q)
+        if m:
+            a = float(m.group(1))
+            b = float(m.group(2))
+            c = math.sqrt(a*a + b*b)
+            steps.append("c = sqrt(a^2 + b^2)")
+            steps.append(f"sqrt({a}^2 + {b}^2) = {c}")
+            return {"ok": True, "title": "Diagonal", "answer": f"{c:.3f} m", "steps": steps, "warnings": warnings}
+
+    # 5) Fall: “2% fall på 3m”
+    m = re.search(r"(\d+(?:\.\d+)?)\s*%\s*fall.*?(\d+(?:\.\d+)?)\s*m", q)
+    if m:
+        pct = float(m.group(1))
+        length_m = float(m.group(2))
+        mm = (pct/100.0) * length_m * 1000.0
+        steps.append(f"mm = ({pct}/100) * {length_m} * 1000")
+        return {"ok": True, "title": "Fall", "answer": f"{mm:.1f} mm", "steps": steps, "warnings": warnings}
+
+    # 6) Hvis ingen tekst-intent: forsøk regnestykke
+    try:
+        val = _safe_eval_expr(q)
+        steps.append(f"Tolket som uttrykk: {q}")
+        return {"ok": True, "title": "Uttrykk", "answer": f"{val:.6g}", "steps": steps, "warnings": warnings}
+    except Exception:
+        return {
+            "ok": False,
+            "title": "Ukjent",
+            "answer": "Jeg forstår ikke spørsmålet ennå. Prøv f.eks. 'areal 4 x 6', '25% av 1800' eller '2*(3+5)'.",
+            "steps": [],
+            "warnings": [],
+        }
 
 # ============================================================
 # Profesjonell visning (uten understreker)
