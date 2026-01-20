@@ -115,7 +115,7 @@ with header_right:
     )
 
 # Trekk neste rad (topmeny) opp, men uten overlapp.
-st.markdown("<div style='margin-top:-6px;'></div>", unsafe_allow_html=True)
+st.markdown("<div style='margin-top:-30px;'></div>", unsafe_allow_html=True)
 
 
 # ============================================================
