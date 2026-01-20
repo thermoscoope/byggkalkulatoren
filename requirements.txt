@@ -2,3 +2,7 @@ streamlit
 pandas
 pillow
 sympy
+numpy
+opencv-python
+pytesseract
+easyocr
