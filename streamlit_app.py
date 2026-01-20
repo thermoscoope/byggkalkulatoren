@@ -1131,6 +1131,66 @@ def save_progress_to_db(user_id: str, data: dict) -> None:
         pass
 
 
+def list_progress_from_db(limit: int = 300) -> list:
+    """Henter progresjon for flere elever (for læreroversikt)."""
+    sb = _get_supabase_client()
+    if sb is None:
+        return []
+    try:
+        res = (
+            sb.table("progress")
+            .select("user_id,data,updated_at")
+            .order("updated_at", desc=True)
+            .limit(int(limit))
+            .execute()
+        )
+        return getattr(res, "data", []) or []
+    except Exception:
+        return []
+
+
+def reset_progress_in_db(user_id: str) -> None:
+    """Nullstiller progresjon for en elev (for lærer)."""
+    sb = _get_supabase_client()
+    if sb is None or not user_id:
+        return
+    try:
+        sb.table("progress").upsert({"user_id": user_id, "data": {"play_progress": {}, "play_state": {}}}, on_conflict="user_id").execute()
+    except Exception:
+        pass
+
+
+def _summarize_student_row(row: dict) -> dict:
+    """Gjør Supabase-rad om til en flat oversikt som er lett å vise i en tabell."""
+    user_id = row.get("user_id", "")
+    updated_at = row.get("updated_at", "")
+    data = row.get("data") or {}
+    pp = _deserialize_play_progress((data.get("play_progress") or {}))
+
+    topics = ["areal", "omkrets", "volum", "målestokk", "prosent"]
+    unlocked = {}
+    completed_total = 0
+    for t in topics:
+        p = pp.get(t, {}) if isinstance(pp, dict) else {}
+        unlocked[t] = int(p.get("unlocked", 1)) if isinstance(p, dict) else 1
+        comp = p.get("completed", set()) if isinstance(p, dict) else set()
+        if isinstance(comp, list):
+            comp = set(comp)
+        if isinstance(comp, set):
+            completed_total += len(comp)
+
+    return {
+        "Elev-ID": user_id,
+        "Sist oppdatert": updated_at,
+        "Areal (låst opp)": unlocked.get("areal", 1),
+        "Omkrets (låst opp)": unlocked.get("omkrets", 1),
+        "Volum (låst opp)": unlocked.get("volum", 1),
+        "Målestokk (låst opp)": unlocked.get("målestokk", 1),
+        "Prosent (låst opp)": unlocked.get("prosent", 1),
+        "Fullførte nivå (sum)": completed_total,
+    }
+
+
 _PLAY_CORRECT_TO_PASS = 3  # antall riktige i hvert nivå for å låse opp neste
 
 
@@ -1407,6 +1467,85 @@ def show_play_screen():
         st.caption("Progresjon lagres automatisk for denne Elev-ID-en.")
     elif user_id and not _sb_enabled():
         st.caption("Lagring mellom økter er ikke aktivert (mangler Supabase-oppsett i secrets/requirements).")
+
+    # --- Læreroversikt (krever Supabase + lærer-kode i secrets) ---
+    # Legg inn i Streamlit Cloud Secrets:
+    # TEACHER_CODE="valgfri-kode"
+    teacher_code_secret = None
+    try:
+        teacher_code_secret = st.secrets.get("TEACHER_CODE")
+    except Exception:
+        teacher_code_secret = None
+
+    if _sb_enabled() and teacher_code_secret:
+        with st.expander("👩‍🏫 Læreroversikt", expanded=False):
+            teacher_code = st.text_input("Lærer-kode", type="password", key="teacher_code_input").strip()
+            if teacher_code != str(teacher_code_secret).strip():
+                st.info("Skriv riktig lærer-kode for å se elevprogresjon.")
+            else:
+                rows = list_progress_from_db(limit=500)
+                if not rows:
+                    st.warning("Fant ingen lagret progresjon i databasen ennå.")
+                else:
+                    # Bygg en enkel oversiktstabell
+                    def _topic_unlocked(play_prog: dict, t: str) -> int:
+                        try:
+                            v = (play_prog or {}).get(_pp_key(t), {})
+                            return int(v.get("unlocked", 1))
+                        except Exception:
+                            return 1
+
+                    def _topic_completed(play_prog: dict, t: str) -> int:
+                        try:
+                            v = (play_prog or {}).get(_pp_key(t), {})
+                            comp = v.get("completed", [])
+                            if isinstance(comp, set):
+                                return len(comp)
+                            if isinstance(comp, list):
+                                return len(comp)
+                            return 0
+                        except Exception:
+                            return 0
+
+                    overview = []
+                    for r in rows:
+                        uid = r.get("user_id", "")
+                        data = r.get("data") or {}
+                        pp = _deserialize_play_progress((data or {}).get("play_progress", {}))
+                        overview.append(
+                            {
+                                "Elev-ID": uid,
+                                "Sist oppdatert": str(r.get("updated_at", "")),
+                                "Areal (låst opp)": _topic_unlocked(pp, "Areal"),
+                                "Omkrets (låst opp)": _topic_unlocked(pp, "Omkrets"),
+                                "Volum (låst opp)": _topic_unlocked(pp, "Volum"),
+                                "Målestokk (låst opp)": _topic_unlocked(pp, "Målestokk"),
+                                "Prosent (låst opp)": _topic_unlocked(pp, "Prosent"),
+                                "Fullførte nivå (sum)": sum(_topic_completed(pp, t) for t in ["Areal", "Omkrets", "Volum", "Målestokk", "Prosent"]),
+                            }
+                        )
+
+                    df = pd.DataFrame(overview)
+                    # Enkel filtrering
+                    f = st.text_input("Filtrer (Elev-ID)", key="teacher_filter").strip().lower()
+                    if f:
+                        df = df[df["Elev-ID"].astype(str).str.lower().str.contains(f)]
+
+                    st.dataframe(df, use_container_width=True, hide_index=True)
+
+                    st.markdown("#### Administrasjon")
+                    selected = st.selectbox("Velg elev", options=[o["Elev-ID"] for o in overview], key="teacher_select")
+                    c1, c2 = st.columns([1, 2])
+                    with c1:
+                        if st.button("♻️ Nullstill valgt elev", key="teacher_reset"):
+                            reset_progress_in_db(selected)
+                            st.success(f"Nullstilte progresjon for {selected}.")
+                            st.rerun()
+                    with c2:
+                        if st.checkbox("Vis rådata (debug)", key="teacher_raw"):
+                            # Finn raden og vis JSON
+                            raw = next((rr for rr in rows if rr.get("user_id") == selected), None)
+                            st.json(raw or {})
 
     topics = ["Areal", "Omkrets", "Volum", "Målestokk", "Prosent"]
 
