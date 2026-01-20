@@ -1942,7 +1942,7 @@ with bar4:
         st.divider()
         st.markdown("**Oppgradering**")
         st.caption("Pro gir ekstra funksjoner for læring, dokumentasjon og eksport.")
-        if st.button("⭐ Oppgrader til Pro", key="btn_pro_settings", use_container_width=True):
+        if st.button("⭐ Oppgrader til Pro (BETA)", key="btn_pro_settings", use_container_width=True):
             st.session_state.show_pro = True
             st.session_state.show_ai = False
             st.session_state.show_play = False
