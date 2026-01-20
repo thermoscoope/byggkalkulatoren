@@ -10,13 +10,22 @@ import streamlit as st
 from PIL import Image
 
 
-# --- Ekstern modul: Tegning → materialliste (Nivå 1 prototype)
-try:
-    from tegningtilmaterialliste import render_drawing_to_materials_page
-    _MATSCAN_AVAILABLE = True
-except Exception:
-    render_drawing_to_materials_page = None
-    _MATSCAN_AVAILABLE = False
+# ============================================================
+# Beta-flagg (sett True for funksjoner under utvikling)
+# ============================================================
+FEATURE_BETA_MATERIALLISTE = False  # Tegning -> materialliste (beta)
+
+
+# --- Ekstern modul: Tegning → materialliste (Nivå 1 prototype, BETA)
+render_drawing_to_materials_page = None
+_MATSCAN_AVAILABLE = False
+if FEATURE_BETA_MATERIALLISTE:
+    try:
+        from tegningtilmaterialliste import render_drawing_to_materials_page
+        _MATSCAN_AVAILABLE = True
+    except Exception:
+        render_drawing_to_materials_page = None
+        _MATSCAN_AVAILABLE = False
 
 import re
 import ast
@@ -1083,18 +1092,21 @@ with bar2:
 
 
 with bar3:
-    label = "📷 Tegning → Materialliste"
-    if st.button(label, key="btn_matscan_top", use_container_width=True):
-        if _MATSCAN_AVAILABLE:
-            st.session_state.show_material_scan = True
-            st.session_state.show_ai = False
-            st.session_state.show_pro = False
-            st.rerun()
-        else:
-            st.session_state.show_material_scan = True  # viser feilmelding-skjerm
-            st.session_state.show_ai = False
-            st.session_state.show_pro = False
-            st.rerun()
+    if FEATURE_BETA_MATERIALLISTE:
+        label = "📷 Tegning → Materialliste (beta)"
+        if st.button(label, key="btn_matscan_top", use_container_width=True):
+            if _MATSCAN_AVAILABLE:
+                st.session_state.show_material_scan = True
+                st.session_state.show_ai = False
+                st.session_state.show_pro = False
+                st.rerun()
+            else:
+                st.session_state.show_material_scan = True  # viser feilmelding-skjerm
+                st.session_state.show_ai = False
+                st.session_state.show_pro = False
+                st.rerun()
+    else:
+        st.empty()
 
 with bar4:
     with st.popover("⚙️ Innstillinger", use_container_width=True):
@@ -1162,6 +1174,11 @@ if st.session_state.get("show_ai", False):
 # Skjerm: Tegning → materialliste (Nivå 1)
 # ------------------------------------------------------------
 if st.session_state.get("show_material_scan", False):
+    # Beta-guard: skjul funksjonen helt når beta er avslått
+    if not FEATURE_BETA_MATERIALLISTE:
+        st.session_state.show_material_scan = False
+        st.rerun()
+
     st.divider()
     st.subheader("📷 Tegning → materialliste")
 
