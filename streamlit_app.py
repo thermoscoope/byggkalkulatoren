@@ -2298,7 +2298,7 @@ with tabs[5]:
 
 # ---- Fall/vinkel ----
 with tabs[6]:
-    st.write("DEBUG: Fall/vinkel-fanen kjører.")  # skal vises uansett
+    st.write("Fall og vinkel")  # skal vises uansett
 
     if is_school_mode():
         st.caption("Fall brukes for å sikre at vann renner riktig vei, for eksempel på bad, terrasse eller tak. Fall kan angis i prosent, 1:x eller mm per meter.")
