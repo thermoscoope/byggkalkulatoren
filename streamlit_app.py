@@ -65,6 +65,17 @@ if "app_mode" not in st.session_state:
     st.session_state.app_mode = "Skole"
 
 
+if "language" not in st.session_state:
+    st.session_state.language = "NO"  # NO / EN
+
+
+def lang() -> str:
+    return st.session_state.get("language", "NO")
+
+
+def tt(no: str, en: str) -> str:
+    return en if lang() == "EN" else no
+
 
 def is_school_mode() -> bool:
     return st.session_state.get("app_mode", "Skole") == "Skole"
@@ -110,12 +121,14 @@ with header_left:
         st.write("")
 
 with header_right:
+    subtitle = tt("Fra skole til yrke – matematikk tilpasset yrkeslivet!",
+                  "From school to trade – practical math for the workplace!")
     st.markdown(
-        """
+        f"""
         <div class="bk-header-tight">
           <div class="bk-title-row">
             <div class="bk-title"></div>
-            <div class="bk-sub" style="margin-top:10px;">Fra skole til yrke – matematikk tilpasset yrkeslivet!</div>
+            <div class="bk-sub" style="margin-top:10px;">{subtitle}</div>
           </div>
         </div>
         """,
@@ -1048,7 +1061,7 @@ if "show_pro" not in st.session_state:
 if st.session_state.get("show_pro", False):
     st.divider()
     show_pro_screen()
-    if st.button("Lukk Pro-skjerm"):
+    if st.button(tt("Lukk Pro-skjerm", "Close Pro screen")):
         st.session_state.show_pro = False
     st.stop()
 
@@ -1484,7 +1497,7 @@ def show_play_screen():
         st.warning("'Lek og lær' er kun tilgjengelig i Skolemodus.")
         return
 
-    st.subheader("🎯 Lek og lær")
+    st.subheader("🎯 " + tt("Lek og lær", "Play & Learn"))
     st.caption("Nivåbaserte oppgaver i praktisk matematikk. For å gå videre må du få nok riktige svar på hvert nivå.")
 
     # --- Elev-ID for å kunne lagre progresjon mellom økter (Streamlit Cloud) ---
@@ -1787,7 +1800,7 @@ def show_result(res: CalcResult):
     col1, col2 = st.columns([1.1, 1])
 
     with col1:
-        st.subheader("Resultat")
+        st.subheader(tt("Resultat", "Result"))
 
         # I skolemodus: kort læringshint øverst
         if school:
@@ -1862,10 +1875,10 @@ def show_result(res: CalcResult):
             st.toast("Lagret.")
 
     with col2:
-        st.subheader("Utregning (valgfritt)")
+        st.subheader(tt("Utregning (valgfritt)", "Working (optional)"))
 
         # Nøkkel: mellomregning åpen i skolemodus, lukket i produksjon
-        with st.expander("Vis mellomregning", expanded=school):
+        with st.expander(tt("Vis mellomregning", "Show working"), expanded=school):
             for s in res.steps:
                 st.write(f"- {s}")
 
@@ -1908,7 +1921,7 @@ st.markdown("<div style='margin-top:-18px;'></div>", unsafe_allow_html=True)
 bar1, bar2, bar3, bar4 = st.columns([1.2, 1.4, 1.4, 1.8])
 
 with bar1:
-    if st.button("🏠 Hjem", key="btn_home_top", use_container_width=True):
+    if st.button("🏠 " + tt("Hjem", "Home"), key="btn_home_top", use_container_width=True):
         st.session_state.show_ai = False
         st.session_state.show_pro = False
         st.session_state.show_play = False
@@ -1917,37 +1930,47 @@ with bar1:
 with bar2:
     # Lek og lær er kun tilgjengelig i skolemodus
     play_disabled = not is_school_mode()
-    if st.button("🎯 Lek og lær", key="btn_play_top", use_container_width=True, disabled=play_disabled):
+    if st.button("🎯 " + tt("Lek og lær", "Play & Learn"), key="btn_play_top", use_container_width=True, disabled=play_disabled):
         st.session_state.show_play = True
         st.session_state.show_ai = False
         st.session_state.show_pro = False
         st.rerun()
 
 with bar3:
-    if st.button("🤖 Spør Robokai (BETA)", key="btn_ai_top", use_container_width=True):
+    if st.button("🤖 " + tt("Spør Robokai (BETA)", "Ask Robokai (BETA)"), key="btn_ai_top", use_container_width=True):
         st.session_state.show_ai = True
         st.session_state.show_pro = False
         st.session_state.show_play = False
         st.rerun()
 
 with bar4:
-    with st.popover("⚙️ Innstillinger", use_container_width=True):
-        st.subheader("Innstillinger")
+    with st.popover("⚙️ " + tt("Innstillinger", "Settings"), use_container_width=True):
+        st.subheader(tt("Innstillinger", "Settings"))
+        st.markdown("**" + tt("Språk", "Language") + "**")
+        st.session_state.language = st.radio(
+            tt("Velg språk", "Select language"),
+            ["NO", "EN"],
+            horizontal=True,
+            index=0 if lang() == "NO" else 1,
+            key="lang_settings",
+        )
+
         st.session_state.app_mode = st.radio(
-            "Modus",
+            tt("Modus", "Mode"),
             ["Skole", "Produksjon"],
             index=0 if st.session_state.get("app_mode", "Skole") == "Skole" else 1,
             key="app_mode_settings",
         )
         if st.session_state.app_mode == "Skole":
-            st.info("Skolemodus er aktiv.")
+            st.info(tt("Skolemodus er aktiv.", "School mode is active."))
         else:
-            st.success("Produksjonsmodus er aktiv.")
+            st.success(tt("Produksjonsmodus er aktiv.", "Production mode is active."))
 
         st.divider()
-        st.markdown("**Oppgradering**")
-        st.caption("Pro gir ekstra funksjoner for læring, dokumentasjon og eksport.")
-        if st.button("⭐ Oppgrader til Pro (BETA)", key="btn_pro_settings", use_container_width=True):
+        st.markdown("**" + tt("Oppgradering", "Upgrade") + "**")
+        st.caption(tt("Pro gir ekstra funksjoner for læring, dokumentasjon og eksport.",
+              "Pro adds extra features for learning, documentation, and export."))
+        if st.button(tt("⭐ Oppgrader til Pro (BETA)", "⭐ Upgrade to Pro (BETA)"), key="btn_pro_settings", use_container_width=True):
             st.session_state.show_pro = True
             st.session_state.show_ai = False
             st.session_state.show_play = False
@@ -1963,7 +1986,7 @@ st.divider()
 if st.session_state.show_pro:
     st.divider()
 
-    if st.button("🏠 Tilbake til hovedsiden", key="btn_home_from_pro"):
+    if st.button("🏠 " + tt("Tilbake til hovedsiden", "Back to home"), key="btn_home_from_pro"):
         st.session_state.show_pro = False
         st.session_state.show_play = False
         st.rerun()
@@ -1973,21 +1996,22 @@ if st.session_state.show_pro:
 
 if st.session_state.get("show_ai", False):
     st.divider()
-    st.subheader("🤖 Spør din verksmester!")
-    st.caption("Skriv både tekst og regnestykker. Eksempel: 'areal 4 x 6' eller '2*(3+5)'.")
+    st.subheader("🤖 " + tt("Spør din verksmester!", "Ask your foreman!"))
+    st.caption(tt("Skriv både tekst og regnestykker. Eksempel: 'areal 4 x 6' eller '2*(3+5)'.",
+              "Type both text and calculations. Example: 'area 4 x 6' or '2*(3+5)'."))
 
-    q = st.text_input("Spør AI-roboten", key="ai_input_top")
+    q = st.text_input(tt("Spør AI-roboten", "Ask the AI bot"), key="ai_input_top")
     if q:
         res = ai_math_bot(q)
         if res["ok"]:
             st.success(res["answer"])
-            with st.expander("Vis forklaring", expanded=is_school_mode()):
+            with st.expander(tt("Vis forklaring", "Show explanation"), expanded=is_school_mode()):
                 for s in res["steps"]:
                     st.write(f"- {s}")
         else:
             st.warning(res["answer"])
 
-    if st.button("Lukk AI-robot"):
+    if st.button(tt("Lukk AI-robot", "Close AI bot")):
         st.session_state.show_ai = False
         st.session_state.show_play = False
         st.rerun()
@@ -2006,23 +2030,23 @@ st.markdown("<div style='margin-top:-10px;'></div>", unsafe_allow_html=True)
 # ============================================================
 tabs = st.tabs(
     [
-        "📏 Enhetomregner",
-        "⬛ Areal",
-        "🧵 Omkrets",
-        "🧱 Volum",
-        "📐 Målestokk",
-        "🪵 Beregninger",
-        "📉 Fall",
-        "🧮 Prosent",
-        "📐 Diagonal (Pytagoras)",
-        "💰 Økonomi",
-        "📊 Historikk",
+        "📏 " + tt("Enhetomregner", "Unit converter"),
+        "⬛ " + tt("Areal", "Area"),
+        "🧵 " + tt("Omkrets", "Perimeter"),
+        "🧱 " + tt("Volum", "Volume"),
+        "📐 " + tt("Målestokk", "Scale"),
+        "🪵 " + tt("Beregninger", "Calculations"),
+        "📉 " + tt("Fall", "Slope"),
+        "🧮 " + tt("Prosent", "Percent"),
+        "📐 " + tt("Diagonal (Pytagoras)", "Diagonal (Pythagoras)"),
+        "💰 " + tt("Økonomi", "Economy"),
+        "📊 " + tt("Historikk", "History"),
     ]
 )
 
 # ---- Enhetsomregner ----
 with tabs[0]:
-    st.subheader("Enhetsomregner")
+    st.subheader(tt("Enhetsomregner", "Unit converter"))
     st.caption("I byggfag brukes måleenheter som millimeter (mm), centimeter (cm) og meter (m). For å regne riktig må alle mål ofte være i samme enhet. Skriv inn et tall, velg enhet, og få omregning til mm, cm og m i tabell.")
 
     c1, c2 = st.columns([2, 1])
@@ -2060,21 +2084,21 @@ with tabs[1]:
     if is_school_mode():
         st.caption("Areal forteller hvor stor en flate er. I bygg brukes areal for å finne hvor mye gulv, vegg, isolasjon eller kledning som trengs. Tenk: areal = lengde × bredde. Sjekk alltid at begge mål er i meter.")
 
-    st.subheader("Areal (rektangel)")
+    st.subheader(tt("Areal (rektangel)", "Area (rectangle)"))
     l = st.number_input("Lengde (m)", min_value=0.0, value=5.0, step=0.1, key="areal_l")
     w = st.number_input("Bredde (m)", min_value=0.0, value=4.0, step=0.1, key="areal_w")
-    if st.button("Beregn areal", key="btn_areal"):
+    if st.button(tt("Beregn areal", "Calculate area"), key="btn_areal"):
         show_result(calc_area_rectangle(l, w))
 
     st.divider()
-    st.subheader("Areal + svinn")
+    st.subheader(tt("Areal + svinn", "Area + waste"))
     area = st.number_input("Areal (m²)", min_value=0.0, value=20.0, step=0.1, key="svinn_area")
     waste = st.number_input("Svinn (%)", min_value=0.0, value=10.0, step=1.0, key="svinn_pct")
-    if st.button("Beregn bestillingsareal", key="btn_svinn"):
+    if st.button(tt("Beregn bestillingsareal", "Calculate order area"), key="btn_svinn"):
         show_result(calc_area_with_waste(area, waste))
 
     st.divider()
-    st.subheader("Areal (sammensatt av rektangler)")
+    st.subheader(tt("Areal (sammensatt av rektangler)", "Area (composite rectangles)"))
     st.caption("Legg inn delmål og summer dem.")
     n = st.number_input("Antall deler", min_value=1, max_value=20, value=3, step=1, key="comp_n")
     rects = []
@@ -2098,7 +2122,7 @@ with tabs[1]:
             )
         rects.append((li, wi))
 
-    if st.button("Beregn sammensatt areal", key="btn_comp"):
+    if st.button(tt("Beregn sammensatt areal", "Calculate composite area"), key="btn_comp"):
         show_result(calc_area_composite(rects))
 
 # ---- Omkrets ----
@@ -2106,10 +2130,10 @@ with tabs[2]:
     if is_school_mode():
         st.caption("Omkrets er lengden rundt en figur. I bygg brukes omkrets blant annet for å finne lengde på lister, sviller eller fundament. Rektangel: 2(a+b). Sirkel: 2πr.")
 
-    st.subheader("🧵 Omkrets")
-    shape = st.selectbox("Velg figur", ["Rektangel", "Sirkel"], key="per_shape")
+    st.subheader("🧵 " + tt("Omkrets", "Perimeter"))
+    shape = st.selectbox(tt("Velg figur", "Select shape"), ["Rektangel", "Sirkel"], key="per_shape")
 
-    unit = st.selectbox("Enhet for inndata", ["mm", "cm", "m"], index=2, key="per_unit")
+    unit = st.selectbox(tt("Enhet for inndata", "Input unit"), ["mm", "cm", "m"], index=2, key="per_unit")
 
     if shape == "Rektangel":
         c1, c2 = st.columns(2)
@@ -2121,14 +2145,14 @@ with tabs[2]:
         a_m = to_mm(float(a), unit) / 1000.0
         b_m = to_mm(float(b), unit) / 1000.0
 
-        if st.button("Beregn omkrets", key="btn_per_rect"):
+        if st.button(tt("Beregn omkrets", "Calculate perimeter"), key="btn_per_rect"):
             show_result(calc_perimeter("Rektangel", a_m=a_m, b_m=b_m))
 
     else:
         r = st.number_input("Radius", min_value=0.0, value=0.5, step=0.1, key="per_r")
         r_m = to_mm(float(r), unit) / 1000.0
 
-        if st.button("Beregn omkrets", key="btn_per_circ"):
+        if st.button(tt("Beregn omkrets", "Calculate perimeter"), key="btn_per_circ"):
             show_result(calc_perimeter("Sirkel", r_m=r_m))
 
 
@@ -2137,26 +2161,26 @@ with tabs[3]:
     if is_school_mode():
         st.caption("Volum sier hvor mye noe rommer. I bygg brukes volum særlig når man skal beregne mengde betong, masser eller fyll. Volum beregnes i m³. Tykkelser oppgis ofte i mm og må konverteres til meter.")
 
-    st.subheader("Betongplate")
+    st.subheader(tt("Betongplate", "Concrete slab"))
     l = st.number_input("Lengde (m)", min_value=0.0, value=6.0, step=0.1, key="slab_l")
     w = st.number_input("Bredde (m)", min_value=0.0, value=4.0, step=0.1, key="slab_w")
     t = st.number_input("Tykkelse (mm)", min_value=0.0, value=100.0, step=5.0, key="slab_t")
-    if st.button("Beregn volum (plate)", key="btn_slab"):
+    if st.button(tt("Beregn volum (plate)", "Calculate volume (slab)"), key="btn_slab"):
         show_result(calc_concrete_slab(l, w, t))
 
     st.divider()
-    st.subheader("Stripefundament")
+    st.subheader(tt("Stripefundament", "Strip foundation"))
     l = st.number_input("Lengde (m)", min_value=0.0, value=20.0, step=0.1, key="strip_l")
     w = st.number_input("Bredde (m)", min_value=0.0, value=0.4, step=0.05, key="strip_w")
     h = st.number_input("Høyde (mm)", min_value=0.0, value=400.0, step=10.0, key="strip_h")
-    if st.button("Beregn volum (stripefundament)", key="btn_strip"):
+    if st.button(tt("Beregn volum (stripefundament)", "Calculate volume (strip foundation)"), key="btn_strip"):
         show_result(calc_strip_foundation(l, w, h))
 
     st.divider()
-    st.subheader("Søyle (sylinder)")
+    st.subheader(tt("Søyle (sylinder)", "Column (cylinder)"))
     d = st.number_input("Diameter (mm)", min_value=0.0, value=300.0, step=10.0, key="col_d")
     hm = st.number_input("Høyde (m)", min_value=0.0, value=3.0, step=0.1, key="col_h")
-    if st.button("Beregn volum (søyle)", key="btn_col"):
+    if st.button(tt("Beregn volum (søyle)", "Calculate volume (column)"), key="btn_col"):
         show_result(calc_column_cylinder(d, hm))
 
 # ---- Målestokk (begge veier + 1–100) ----
@@ -2164,10 +2188,10 @@ with tabs[4]:
     if is_school_mode():
         st.caption("Målestokk viser forholdet mellom en tegning og virkeligheten. En målestokk på 1:50 betyr at 1 cm på tegningen er 50 cm i virkeligheten.")
 
-    st.subheader("Målestokk")
+    st.subheader(tt("Målestokk", "Scale"))
 
     direction = st.radio(
-        "Velg retning",
+        tt("Velg retning", "Choose direction"),
         options=["Tegning → virkelighet", "Virkelighet → tegning"],
         horizontal=True,
         key="scale_direction",
@@ -2186,12 +2210,12 @@ with tabs[4]:
     with c3:
         scale_n = st.number_input("Målestokk (1:n)", min_value=1, max_value=100, value=50, step=1, key="scale_n")
 
-    if st.button("Beregn målestokk", key="btn_scale_bidir"):
+    if st.button(tt("Beregn målestokk", "Calculate scale"), key="btn_scale_bidir"):
         show_result(calc_scale_bidir(float(val), str(unit), int(scale_n), str(direction)))
 
 # ---- Kledning ----
 with tabs[5]:
-    st.subheader("Tømmermannskledning")
+    st.subheader(tt("Tømmermannskledning", "Wood cladding"))
     st.caption("Når du kler en vegg, må du vite hvor mange bord som trengs, og om bordene dekker hele bredden riktig. Fritt innskrive: mål fra–til (cm), omlegg (cm) og bordbredder (mm).")
 
     c1, c2, c3, c4 = st.columns([2, 2, 2, 2])
@@ -2204,11 +2228,11 @@ with tabs[5]:
     with c4:
         over_w = st.number_input("Overligger bredde (mm)", min_value=1.0, value=58.0, step=1.0, key="tk_over_w")
 
-    if st.button("Beregn kledning", key="btn_tk"):
+    if st.button(tt("Beregn kledning", "Calculate cladding"), key="btn_tk"):
         show_result(calc_tommermannskledning_width(float(measure_cm), float(overlap_cm), float(under_w), float(over_w)))
 
     st.divider()
-    st.subheader("Fliser")
+    st.subheader(tt("Fliser", "Tiles"))
     if is_school_mode():
         st.caption("Du regner antall fliser ved å bruke modulmål: (flis + fuge). Antall = ceil(vegg / modul).")
 
@@ -2256,7 +2280,7 @@ with tabs[5]:
         with c12:
             st.write("NOK")
 
-        calc_now = st.button("Beregn fliser", key="btn_tiles", use_container_width=True)
+        calc_now = st.button(tt("Beregn fliser", "Calculate tiles"), key="btn_tiles", use_container_width=True)
 
     with right:
         st.markdown("### Resultat")
@@ -2303,7 +2327,7 @@ with tabs[6]:
     if is_school_mode():
         st.caption("Fall brukes for å sikre at vann renner riktig vei, for eksempel på bad, terrasse eller tak. Fall kan angis i prosent, 1:x eller mm per meter.")
 
-    st.subheader("Fallberegning")
+    st.subheader(tt("Fallberegning", "Slope calculation"))
     length = st.number_input("Lengde (m)", min_value=0.0, value=2.0, step=0.1, key="fall_len")
     mode = st.selectbox("Angi fall som", options=["prosent", "1:x", "mm_per_m"], index=0, key="fall_mode")
 
@@ -2314,7 +2338,7 @@ with tabs[6]:
     else:
         val = st.number_input("mm per meter", min_value=0.0, value=20.0, step=1.0, key="fall_val_mm")
 
-    if st.button("Beregn fall", key="btn_fall"):
+    if st.button(tt("Beregn fall", "Calculate slope"), key="btn_fall"):
         show_result(calc_fall(length, mode, float(val)))
 
 
@@ -2378,7 +2402,7 @@ with tabs[8]:
     if is_school_mode():
         st.caption("Pytagoras brukes i rettvinklede trekanter: c = √(a² + b²). Sjekk alltid enhet før du regner.")
 
-    st.subheader("Diagonal (Pytagoras)")
+    st.subheader(tt("Diagonal (Pytagoras)", "Diagonal (Pythagoras)"))
 
     unit = st.selectbox("Enhet for inndata", ["mm", "cm", "m"], index=2, key="pyt_unit")
 
@@ -2394,12 +2418,12 @@ with tabs[8]:
     a_m = to_mm(float(a), unit) / 1000.0
     b_m = to_mm(float(b), unit) / 1000.0
 
-    if st.button("Beregn diagonal", key="btn_pyt_any"):
+    if st.button(tt("Beregn diagonal", "Calculate diagonal"), key="btn_pyt_any"):
         show_result(calc_pythagoras(a_m, b_m))
 
 # ---- Økonomi ----
 with tabs[9]:
-    st.subheader('💰 Økonomi')
+    st.subheader("💰 " + tt("Økonomi", "Economy"))
     if is_school_mode():
         st.caption('I byggfag må du kunne regne ut priser, rabatter, påslag og merverdiavgift (MVA). Brukes til enkel prisregning: rabatt, påslag og MVA. Pass på prosent og rekkefølge.')
 
@@ -2408,22 +2432,22 @@ with tabs[9]:
     rabatt = st.number_input('Rabatt (%)', min_value=0.0, value=0.0, step=1.0, key='price_rabatt')
     paslag = st.number_input('Påslag (%)', min_value=0.0, value=0.0, step=1.0, key='price_paslag')
     mva = st.number_input('MVA (%)', min_value=0.0, value=25.0, step=1.0, key='price_mva')
-    if st.button('Beregn pris', key='btn_price'):
+    if st.button(tt('Beregn pris', 'Calculate price'), key='btn_price'):
         show_result(calc_price(base, rabatt, paslag, mva))
 
     st.divider()
     st.markdown('### Tidsestimat')
     q = st.number_input('Mengde', min_value=0.0, value=10.0, step=1.0, key='time_qty')
     prod = st.number_input('Produksjon per time', min_value=0.0, value=2.0, step=0.1, key='time_prod')
-    if st.button('Beregn tid', key='btn_time'):
+    if st.button(tt('Beregn tid', 'Calculate time'), key='btn_time'):
         show_result(calc_time_estimate(q, prod))
         
 # ---- Historikk ----
 with tabs[10]:
-    st.subheader("Historikk")
+    st.subheader(tt("Historikk", "History"))
 
     if not st.session_state.history:
-        st.info("Ingen beregninger lagret ennå.")
+        st.info(tt("Ingen beregninger lagret ennå.", "No saved calculations yet."))
     else:
         rows = []
         for item in st.session_state.history:
@@ -2442,12 +2466,12 @@ with tabs[10]:
 
         csv = df.to_csv(index=False).encode("utf-8")
         st.download_button(
-            "Last ned historikk (CSV)",
+            tt("Last ned historikk (CSV)", "Download history (CSV)"),
             data=csv,
             file_name="bygg_kalkulator_historikk.csv",
             mime="text/csv",
         )
 
-        if st.button("Tøm historikk"):
+        if st.button(tt("Tøm historikk", "Clear history")):
             st.session_state.history = []
-            st.success("Historikk tømt.")
+            st.success(tt("Historikk tømt.", "History cleared."))
