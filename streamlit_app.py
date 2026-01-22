@@ -1581,10 +1581,10 @@ def _check_answer(user_answer: float, correct: float, tol: float) -> bool:
 
 def show_play_screen():
     if not is_school_mode():
-        st.warning("'Lek og lær' er kun tilgjengelig i Skolemodus.")
+        st.warning("'Test deg selv' er kun tilgjengelig i Skolemodus.")
         return
 
-    st.subheader("🎯 " + tt("Lek og lær", "Learn & Play"))
+    st.subheader("🎯 " + tt("Test deg selv", "Test yourself"))
     st.caption(
         "Velg tema, jobb deg gjennom nivåene, og knytt matematikk til praktiske verkstedoppgaver. "
         f"For å låse opp neste nivå må du få {_PLAY_CORRECT_TO_PASS} riktige i nivået."
