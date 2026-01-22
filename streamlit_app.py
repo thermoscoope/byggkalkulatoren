@@ -2170,6 +2170,180 @@ if st.session_state.get("show_play", False):
 
 st.markdown("<div style='margin-top:-10px;'></div>", unsafe_allow_html=True)
 
+
+# ============================================================
+
+# ============================================================
+# Startside (Etappe 1): Velg arbeidsoppgave -> anbefalt løype
+# ============================================================
+
+if "today_task" not in st.session_state:
+    st.session_state.today_task = "Ingen valgt"  # intern nøkkel (NO)
+
+# Intern nøkkel -> visningsnavn
+TASK_LABELS = {
+    "Ingen valgt": ( "Ingen valgt", "Not selected"),
+    "Veggreis / bindingsverk": ("Veggreis / bindingsverk", "Wall framing"),
+    "Gulv (plate/undergulv)": ("Gulv (plate/undergulv)", "Flooring (sheet/subfloor)"),
+    "Tak / sperrer": ("Tak / sperrer", "Roof / rafters"),
+    "Kledning / utvendig": ("Kledning / utvendig", "Cladding / exterior"),
+    "Flis på vegg eller gulv": ("Flis på vegg eller gulv", "Tiling wall or floor"),
+    "Betong / fundament": ("Betong / fundament", "Concrete / foundations"),
+    "Tegning og målestokk": ("Tegning og målestokk", "Drawings & scale"),
+    "Bestilling og kostnad": ("Bestilling og kostnad", "Ordering & cost"),
+}
+
+TOPIC_LABELS = {
+    "Areal": ("Areal", "Area"),
+    "Omkrets": ("Omkrets", "Perimeter"),
+    "Volum": ("Volum", "Volume"),
+    "Målestokk": ("Målestokk", "Scale"),
+    "Prosent": ("Prosent", "Percent"),
+    "Enhetsomregning": ("Enhetsomregning", "Unit conversions"),
+}
+
+CALC_LABELS = {
+    "Enhetomregner": ("Enhetomregner", "Unit converter"),
+    "Areal": ("Areal", "Area"),
+    "Omkrets": ("Omkrets", "Perimeter"),
+    "Volum": ("Volum", "Volume"),
+    "Målestokk": ("Målestokk", "Scale"),
+    "Beregninger": ("Beregninger", "Calculations"),
+    "Fall": ("Fall", "Slope"),
+    "Prosent": ("Prosent", "Percent"),
+    "Diagonal (Pytagoras)": ("Diagonal (Pytagoras)", "Diagonal (Pythagoras)"),
+    "Økonomi": ("Økonomi", "Economy"),
+}
+
+TASK_KEYS = list(TASK_LABELS.keys())
+
+TASK_TO_RECOMMEND = {
+    "Veggreis / bindingsverk": {
+        "calc": ["Enhetomregner", "Areal", "Omkrets", "Diagonal (Pytagoras)"],
+        "play": ["Enhetsomregning", "Areal", "Målestokk"],
+        "tips": (
+            "Typisk: høyder i mm, lengder i m. Sjekk alltid enheter før du regner mengde.",
+            "Typical: heights in mm, lengths in m. Always verify units before quantity takeoff.",
+        ),
+    },
+    "Gulv (plate/undergulv)": {
+        "calc": ["Areal", "Beregninger", "Økonomi"],
+        "play": ["Areal", "Prosent", "Enhetsomregning"],
+        "tips": (
+            "Legg inn svinn (5–10 %) ved platevarer og gulvbelegg.",
+            "Add waste (5–10%) for sheet goods and floor covering.",
+        ),
+    },
+    "Tak / sperrer": {
+        "calc": ["Diagonal (Pytagoras)", "Fall", "Enhetomregner"],
+        "play": ["Omkrets", "Enhetsomregning", "Målestokk"],
+        "tips": (
+            "Bruk Pytagoras for lengder, og fall for avrenning. Kontroller alltid med måling.",
+            "Use Pythagoras for lengths and slope for runoff. Always verify with measurement.",
+        ),
+    },
+    "Kledning / utvendig": {
+        "calc": ["Areal", "Omkrets", "Prosent"],
+        "play": ["Areal", "Omkrets", "Prosent"],
+        "tips": (
+            "Kledning: sjekk både areal og løpemeter (spikerslag/lekter).",
+            "Cladding: check both area and running meters (battens/strapping).",
+        ),
+    },
+    "Flis på vegg eller gulv": {
+        "calc": ["Areal", "Beregninger", "Økonomi"],
+        "play": ["Areal", "Prosent", "Enhetsomregning"],
+        "tips": (
+            "Flis: regn med kapp/svinn og sjekk fuger/tilpasning. Dokumenter antall pakker.",
+            "Tiles: include cuts/waste and consider grout/fit. Document number of boxes.",
+        ),
+    },
+    "Betong / fundament": {
+        "calc": ["Volum", "Enhetomregner", "Økonomi"],
+        "play": ["Volum", "Enhetsomregning", "Prosent"],
+        "tips": (
+            "Betong: tykkelse i mm må omregnes til m før m³. Sjekk armering og overdekning.",
+            "Concrete: thickness in mm must be converted to m before m³. Check reinforcement and cover.",
+        ),
+    },
+    "Tegning og målestokk": {
+        "calc": ["Målestokk", "Enhetomregner", "Diagonal (Pytagoras)"],
+        "play": ["Målestokk", "Enhetsomregning"],
+        "tips": (
+            "Start med å avklare målestokk og enheter på tegningen (mm/cm).",
+            "Start by confirming drawing scale and units (mm/cm).",
+        ),
+    },
+    "Bestilling og kostnad": {
+        "calc": ["Økonomi", "Prosent", "Areal"],
+        "play": ["Prosent", "Areal", "Enhetsomregning"],
+        "tips": (
+            "Dokumenter antakelser: svinn, pakningsstørrelser, rabatt/påslag og mva.",
+            "Document assumptions: waste, package sizes, discounts/markup and VAT.",
+        ),
+    },
+}
+
+def _lab(d: dict, key: str) -> str:
+    no, en = d.get(key, (key, key))
+    return tt(no, en)
+
+st.divider()
+st.subheader("🧭 " + tt("Velg arbeidsoppgave i dag", "Choose today's workshop task"))
+st.caption(tt(
+    "Velg hva du jobber med i verksted. Appen foreslår relevante faner og en kort øvingsløype.",
+    "Select what you're working on. The app suggests relevant tabs and a short practice path."
+))
+
+# Visningsliste (lokalisert), men lagre intern nøkkel (NO)
+task_display = [_lab(TASK_LABELS, k) for k in TASK_KEYS]
+current_key = st.session_state.today_task if st.session_state.today_task in TASK_KEYS else "Ingen valgt"
+current_index = TASK_KEYS.index(current_key)
+
+picked_display = st.selectbox(
+    tt("Arbeidsoppgave", "Workshop task"),
+    task_display,
+    index=current_index,
+    key="today_task_select",
+)
+
+picked_key = TASK_KEYS[task_display.index(picked_display)]
+st.session_state.today_task = picked_key
+
+rec = TASK_TO_RECOMMEND.get(picked_key)
+
+if rec:
+    c1, c2 = st.columns([1.1, 1.2])
+    with c1:
+        with st.container(border=True):
+            st.markdown("**" + tt("Anbefalte faner", "Recommended tabs") + "**")
+            st.write("• " + "\n• ".join([_lab(CALC_LABELS, x) for x in rec["calc"]]))
+            st.caption(tt(*rec["tips"]))
+    with c2:
+        with st.container(border=True):
+            st.markdown("**" + tt("Anbefalt øvingsløype", "Recommended practice path") + "**")
+            st.write("• " + "\n• ".join([_lab(TOPIC_LABELS, x) for x in rec["play"]]))
+            st.caption(tt(
+                "Trykk for å starte direkte i *Lek og lær* med anbefalt tema.",
+                "Click to start directly in *Learn & Play* with a recommended topic."
+            ))
+            btn_cols = st.columns(len(rec["play"]))
+            for i, topic_key in enumerate(rec["play"]):
+                with btn_cols[i]:
+                    if st.button("🎯 " + _lab(TOPIC_LABELS, topic_key), key=f"start_play_{picked_key}_{topic_key}", use_container_width=True):
+                        st.session_state.play_selected_topic = topic_key  # intern nøkkel (NO)
+                        st.session_state.show_play = True
+                        st.session_state.show_ai = False
+                        st.session_state.show_pro = False
+                        st.rerun()
+else:
+    st.info(tt(
+        "Tips: Velg en arbeidsoppgave for å få forslag til faner og øving.",
+        "Tip: Choose a task to get suggested tabs and practice."
+    ))
+
+
+
 # ============================================================
 # Tabs
 # ============================================================
