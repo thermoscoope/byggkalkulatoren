@@ -1472,6 +1472,93 @@ def _make_question(topic: str, level: int, q_index: int) -> dict:
     }
 
 
+
+# ============================================================
+# Didaktisk progresjon (Lek og lær)
+# ============================================================
+
+TOPIC_META = {
+    "Areal": {
+        "subtitle": "Gulv, vegg, plater og bestilling",
+    },
+    "Omkrets": {
+        "subtitle": "Lister, sviller og lengder rundt",
+    },
+    "Volum": {
+        "subtitle": "Betong, masser og fyll",
+    },
+    "Målestokk": {
+        "subtitle": "Fra tegning til virkelighet (og tilbake)",
+    },
+    "Prosent": {
+        "subtitle": "Svinn, rabatt, påslag og MVA",
+    },
+}
+
+# Nivåbeskrivelser: læringsmål + forslag til verkstedkobling
+LEVEL_META = {
+    "Areal": {
+        1: {"mål": "Regne areal av rektangel (m²).", "verksted": ["Mål opp et gulvareal i verksted og regn m²."]},
+        2: {"mål": "Konvertere cm → m før arealberegning.", "verksted": ["Mål vegg i cm, konverter til meter og regn m² for gips."]},
+        3: {"mål": "Legge til svinn i prosent på areal.", "verksted": ["Beregn bestilling av plater med 10–15% svinn."]},
+        4: {"mål": "Beregne sammensatte flater (sum av delareal).", "verksted": ["Del opp en vegg med åpning (dør/vindu) og regn nettoareal."]},
+        5: {"mål": "Koble areal til mengde og pris (enkelt overslag).", "verksted": ["Regn materialkost for gulvbelegg per m² med svinn."]},
+        6: {"mål": "Egenkontroll: grovsjekk, enheter og realisme.", "verksted": ["Kontroller en medelevers måling og forklar avvik (mm/cm/m)."]},
+    },
+    "Omkrets": {
+        1: {"mål": "Regne omkrets av rektangel (m).", "verksted": ["Finn lengde svill rundt en ramme (2(a+b))."]},
+        2: {"mål": "Regne sirkelomkrets (2πr) og avrunding.", "verksted": ["Mål rundt et rør/søyle og sammenlign med beregning."]},
+        3: {"mål": "Konvertere enheter (cm/mm → m) før omkrets.", "verksted": ["Regn listelengde der målene står i cm på skisse."]},
+        4: {"mål": "Kombinere omkrets for flere deler (praktisk sum).", "verksted": ["Lag kapp-/bestillingsliste for lister rundt flere flater."]},
+        5: {"mål": "Omkrets → mengde (antall lengder) og svinn.", "verksted": ["Beregn hvor mange 4,8 m lengder du må bestille."]},
+        6: {"mål": "Toleranser og avvik (kontrollmåling).", "verksted": ["Mål diagonaler/omkrets og vurder om det er innen toleranse."]},
+    },
+    "Volum": {
+        1: {"mål": "Volum av plate: l × b × tykkelse (mm→m).", "verksted": ["Beregne betongvolum for liten plate i verkstedcase."]},
+        2: {"mål": "Volum av sylinder: πr²h.", "verksted": ["Regn volum av søyle og diskuter hvilke mål som måles i mm/m."]},
+        3: {"mål": "Volum av stripefundament: l × b × h.", "verksted": ["Regn betong for stripefundament, sammenlign med bestilling."]},
+        4: {"mål": "Enhetskontroll: mm ↔ m og realistiske størrelser.", "verksted": ["Forklar hvorfor 100 mm = 0,1 m og konsekvens for volum."]},
+        5: {"mål": "Volum → transport/leveranse (enkelt overslag).", "verksted": ["Diskuter hvor mange m³ per lass og planlegg levering."]},
+        6: {"mål": "Egenkontroll og feilkilder i volum.", "verksted": ["Finn typiske feil (diameter vs radius, mm vs m)."]},
+    },
+    "Målestokk": {
+        1: {"mål": "Tegning → virkelighet (1:n) med cm → m.", "verksted": ["Finn virkelig lengde fra plantegning og mål opp på gulv."]},
+        2: {"mål": "Virkelighet → tegning (1:n) og m → mm.", "verksted": ["Mål et objekt i verksted og tegn det i valgt målestokk."]},
+        3: {"mål": "Bruke mm/cm/m riktig i målestokkoppgaver.", "verksted": ["Kontroller at enhetsvalg gir realistisk tegning."]},
+        4: {"mål": "Detaljmål og kombinerte målinger (praktisk).", "verksted": ["Les av flere mål fra tegning og kontroller sum/helhet."]},
+        5: {"mål": "Feilkilder: avlesning, avrunding og skala.", "verksted": ["Diskuter avvik mellom tegning og oppmålt virkelighet."]},
+        6: {"mål": "Egenkontroll: dobbeltsjekk retning og skala.", "verksted": ["Lag sjekkliste: retning, enhet, faktor, realisme."]},
+    },
+    "Prosent": {
+        1: {"mål": "Finne prosent av et tall.", "verksted": ["Regn svinn (10%) på materialmengde."]},
+        2: {"mål": "Finne hvor mange prosent en del er av helhet.", "verksted": ["Regn avvik i %: (avvik/plan)×100."]},
+        3: {"mål": "Rabatt: pris × (1 - r/100).", "verksted": ["Sammenlign leverandørpriser med rabatt."]},
+        4: {"mål": "Påslag: pris × (1 + p/100).", "verksted": ["Lag enkel kalkyle med påslag for drift."]},
+        5: {"mål": "MVA: pris × (1 + mva/100).", "verksted": ["Les faktura og forklar MVA-beregning."]},
+        6: {"mål": "Kombinert: rabatt + MVA (rekkefølge).", "verksted": ["Regn sluttpris fra tilbud med rabatt, påslag og MVA."]},
+    },
+}
+
+def get_level_meta(topic: str, level: int) -> dict:
+    t = str(topic)
+    lvl = int(level)
+    return (LEVEL_META.get(t, {}) or {}).get(lvl, {"mål": "", "verksted": []})
+
+def render_level_box(topic: str, level: int):
+    meta = get_level_meta(topic, level)
+    if not meta:
+        return
+    with st.container(border=True):
+        st.markdown(f"**{topic} – Nivå {int(level)}**")
+        if meta.get("mål"):
+            st.write(f"**Læringsmål:** {meta.get('mål')}")
+        verk = meta.get("verksted") or []
+        if verk:
+            st.write("**Kobling til verksted (forslag):**")
+            for v in verk:
+                st.write(f"- {v}")
+
+
 def _start_level(topic: str, level: int):
     st.session_state.play_state = {
         "topic": topic,
@@ -1497,32 +1584,39 @@ def show_play_screen():
         st.warning("'Lek og lær' er kun tilgjengelig i Skolemodus.")
         return
 
-    st.subheader("🎯 " + tt("Test deg selv", "Test yourself"))
-    st.caption("Nivåbaserte oppgaver i praktisk matematikk. For å gå videre må du få nok riktige svar på hvert nivå.")
+    st.subheader("🎯 " + tt("Lek og lær", "Learn & Play"))
+    st.caption(
+        "Velg tema, jobb deg gjennom nivåene, og knytt matematikk til praktiske verkstedoppgaver. "
+        f"For å låse opp neste nivå må du få {_PLAY_CORRECT_TO_PASS} riktige i nivået."
+    )
 
-    # --- Elev-ID for å kunne lagre progresjon mellom økter (Streamlit Cloud) ---
-    # Hvis Supabase er aktivert, lagres/lastes progresjon automatisk for denne ID-en.
-    user_id = st.text_input("Elev-ID (lagrer nivå)", placeholder="F.eks. Magnus-0421", key="play_user_id").strip()
-    class_code = st.text_input("Klassekode (lagrer gruppe/klasse)", placeholder="F.eks. BA1A", key="play_class_code").strip()
-    if _sb_enabled() and user_id:
-        # Last inn kun én gang per valgt elev-ID
-        last_loaded = st.session_state.get("_play_last_loaded_user")
-        if last_loaded != user_id:
-            saved = load_progress_from_db(user_id)
-            # Klassekode kan ligge i databasen og brukes for filtrering i læreroversikten
-            if not st.session_state.get("play_class_code") and saved.get("class_code"):
-                st.session_state["play_class_code"] = str(saved.get("class_code") or "").strip()
-            st.session_state.play_progress = _deserialize_play_progress(saved.get("play_progress", {}))
-            st.session_state.play_state = saved.get("play_state", {}) or {}
-            st.session_state["_play_last_loaded_user"] = user_id
+    # =========================================================
+    # Identitet for lagring (Elev-ID + Klassekode)
+    # =========================================================
+    with st.container(border=True):
+        st.markdown("### Elevinfo (for lagring)")
+        c1, c2 = st.columns([1.3, 1.0])
+        with c1:
+            user_id = st.text_input("Elev-ID (lagrer progresjon)", placeholder="F.eks. Magnus-0421", key="play_user_id").strip()
+        with c2:
+            class_code = st.text_input("Klassekode", placeholder="F.eks. BA1A", key="play_class_code").strip()
 
-        st.caption("Progresjon lagres automatisk for denne Elev-ID-en.")
-    elif user_id and not _sb_enabled():
-        st.caption("Lagring mellom økter er ikke aktivert (mangler Supabase-oppsett i secrets/requirements).")
+        if _sb_enabled() and user_id:
+            last_loaded = st.session_state.get("_play_last_loaded_user")
+            if last_loaded != user_id:
+                saved = load_progress_from_db(user_id)
+                if not st.session_state.get("play_class_code") and saved.get("class_code"):
+                    st.session_state["play_class_code"] = str(saved.get("class_code") or "").strip()
+                st.session_state.play_progress = _deserialize_play_progress(saved.get("play_progress", {}))
+                st.session_state.play_state = saved.get("play_state", {}) or {}
+                st.session_state["_play_last_loaded_user"] = user_id
+            st.caption("Progresjon lagres automatisk (Streamlit Cloud).")
+        elif user_id and not _sb_enabled():
+            st.caption("Lagring mellom økter er ikke aktivert (mangler Supabase-oppsett i secrets/requirements).")
 
-    # --- Læreroversikt (krever Supabase + lærer-kode i secrets) ---
-    # Legg inn i Streamlit Cloud Secrets:
-    # TEACHER_CODE="valgfri-kode"
+    # =========================================================
+    # Læreroversikt (som før)
+    # =========================================================
     teacher_code_secret = None
     try:
         teacher_code_secret = st.secrets.get("TEACHER_CODE")
@@ -1539,252 +1633,201 @@ def show_play_screen():
                 if not rows:
                     st.warning("Fant ingen lagret progresjon i databasen ennå.")
                 else:
-                    # Bygg en enkel oversiktstabell
-                    def _topic_unlocked(play_prog: dict, t: str) -> int:
-                        try:
-                            v = (play_prog or {}).get(_pp_key(t), {})
-                            return int(v.get("unlocked", 1))
-                        except Exception:
-                            return 1
-
-                    def _topic_completed(play_prog: dict, t: str) -> int:
-                        try:
-                            v = (play_prog or {}).get(_pp_key(t), {})
-                            comp = v.get("completed", [])
-                            if isinstance(comp, set):
-                                return len(comp)
-                            if isinstance(comp, list):
-                                return len(comp)
-                            return 0
-                        except Exception:
-                            return 0
-
                     overview = []
                     for r in rows:
                         uid = r.get("user_id", "")
                         data = r.get("data") or {}
                         pp = _deserialize_play_progress((data or {}).get("play_progress", {}))
                         overview.append(
-                            {"Elev-ID": uid,
+                            {
+                                "Elev-ID": uid,
                                 "Klasse": str((data or {}).get("class_code", "") or ""),
                                 "Sist oppdatert": str(r.get("updated_at", "")),
-                                "Areal (låst opp)": _topic_unlocked(pp, "Areal"),
-                                "Omkrets (låst opp)": _topic_unlocked(pp, "Omkrets"),
-                                "Volum (låst opp)": _topic_unlocked(pp, "Volum"),
-                                "Målestokk (låst opp)": _topic_unlocked(pp, "Målestokk"),
-                                "Prosent (låst opp)": _topic_unlocked(pp, "Prosent"),
-                                "Fullførte nivå (sum)": sum(_topic_completed(pp, t) for t in ["Areal", "Omkrets", "Volum", "Målestokk", "Prosent"]),
+                                "Areal (låst opp)": int(((pp or {}).get("areal", {}) or {}).get("unlocked", 1)),
+                                "Omkrets (låst opp)": int(((pp or {}).get("omkrets", {}) or {}).get("unlocked", 1)),
+                                "Volum (låst opp)": int(((pp or {}).get("volum", {}) or {}).get("unlocked", 1)),
+                                "Målestokk (låst opp)": int(((pp or {}).get("målestokk", {}) or {}).get("unlocked", 1)),
+                                "Prosent (låst opp)": int(((pp or {}).get("prosent", {}) or {}).get("unlocked", 1)),
                             }
                         )
-
                     df = pd.DataFrame(overview)
 
-                    # Filtrer på klasse
                     classes = sorted([c for c in df.get("Klasse", pd.Series(dtype=str)).astype(str).unique().tolist() if c and c != "nan"])
                     class_sel = st.selectbox("Filtrer (Klasse)", options=["Alle"] + classes, key="teacher_class_filter")
                     if class_sel != "Alle":
                         df = df[df["Klasse"].astype(str) == class_sel]
-                    # Enkel filtrering
+
                     f = st.text_input("Filtrer (Elev-ID)", key="teacher_filter").strip().lower()
                     if f:
                         df = df[df["Elev-ID"].astype(str).str.lower().str.contains(f)]
 
                     st.dataframe(df, use_container_width=True, hide_index=True)
 
-                    st.markdown("#### Progresjonsrapport")
-                    # Bygg detaljrapport fra lagret statistikk
-                    def _build_report(play_prog: dict) -> pd.DataFrame:
-                        rows2 = []
-                        topics2 = ["Areal", "Omkrets", "Volum", "Målestokk", "Prosent"]
-                        for t in topics2:
-                            p = (play_prog or {}).get(_pp_key(t), {})
-                            stats = p.get("stats", {}) if isinstance(p, dict) else {}
-                            if not isinstance(stats, dict):
-                                stats = {}
-                            for lvl_str, s in stats.items():
-                                if not isinstance(s, dict):
-                                    continue
-                                attempts = int(s.get("attempts", 0))
-                                correct = int(s.get("correct", 0))
-                                wrong = int(s.get("wrong", 0))
-                                if attempts <= 0:
-                                    continue
-                                acc = (correct / attempts) * 100.0 if attempts else 0.0
-                                rows2.append({
-                                    "Tema": t,
-                                    "Nivå": int(lvl_str),
-                                    "Forsøk": attempts,
-                                    "Riktig": correct,
-                                    "Feil": wrong,
-                                    "Treff %": round(acc, 1),
-                                })
-                        if not rows2:
-                            return pd.DataFrame(columns=["Tema", "Nivå", "Forsøk", "Riktig", "Feil", "Treff %"])
-                        df2 = pd.DataFrame(rows2)
-                        df2 = df2.sort_values(["Treff %", "Feil", "Forsøk"], ascending=[True, False, False])
-                        return df2
-
-                    st.markdown("#### Administrasjon")
-                    selected = st.selectbox("Velg elev", options=[o["Elev-ID"] for o in overview], key="teacher_select")
-
-                    # Hent valgt elev sin progresjon og vis rapport
-                    chosen_row = next((rr for rr in rows if rr.get("user_id") == selected), None)
-                    chosen_data = (chosen_row or {}).get("data") or {}
-                    chosen_pp = _deserialize_play_progress((chosen_data or {}).get("play_progress", {}))
-                    report_df = _build_report(chosen_pp)
-                    if report_df.empty:
-                        st.caption("Ingen statistikk registrert ennå for valgt elev. (Statistikk bygges når eleven sjekker svar.)")
-                    else:
-                        st.dataframe(report_df, use_container_width=True, hide_index=True)
-                        # Kort oppsummering
-                        total_attempts = int(report_df["Forsøk"].sum())
-                        total_correct = int(report_df["Riktig"].sum())
-                        total_acc = (total_correct / total_attempts) * 100.0 if total_attempts else 0.0
-                        toughest = report_df.head(3)
-                        tough_txt = ", ".join([f"{r.Tema} nivå {int(r.Nivå)}" for r in toughest.itertuples(index=False)])
-                        st.info(f"Totalt: {total_attempts} forsøk, {total_correct} riktige (treff {total_acc:.1f}%). Mest krevende nå: {tough_txt}.")
-
-                    c1, c2 = st.columns([1, 2])
-                    with c1:
-                        if st.button("♻️ Nullstill valgt elev", key="teacher_reset"):
-                            reset_progress_in_db(selected)
-                            st.success(f"Nullstilte progresjon for {selected}.")
-                            st.rerun()
-                    with c2:
-                        if st.checkbox("Vis rådata (debug)", key="teacher_raw"):
-                            # Finn raden og vis JSON
-                            raw = next((rr for rr in rows if rr.get("user_id") == selected), None)
-                            st.json(raw or {})
-
+    # =========================================================
+    # Profesjonell flyt: Temakort (dashboard) → Nivåvalg → Oppgave
+    # =========================================================
     topics = ["Areal", "Omkrets", "Volum", "Målestokk", "Prosent"]
-
-    top_left, top_right = st.columns([2, 1])
-    with top_left:
-        topic = st.selectbox("Velg tema", topics, key="play_topic")
-    with top_right:
-        if st.button("🔄 Nullstill progresjon", key="play_reset"):
-            st.session_state.play_progress = {}
-            st.session_state.play_state = {}
-            st.toast("Progresjon nullstilt.")
-            if _sb_enabled() and st.session_state.get("play_user_id", "").strip():
-                uid = st.session_state.get("play_user_id", "").strip()
-                save_progress_to_db(uid, {"class_code": st.session_state.get("play_class_code", "").strip(), "play_progress": {}, "play_state": {}})
-
-            st.rerun()
-
-    prog = _get_progress(topic)
-    unlocked = int(prog.get("unlocked", 1))
-
-    st.markdown("### Velg nivå")
-    level_cols = st.columns(6)
     max_levels = 6
 
-    chosen_level = None
-    for lvl in range(1, max_levels + 1):
-        is_locked = lvl > unlocked
-        label = f"Nivå {lvl}" if not is_locked else f"🔒 Nivå {lvl}"
-        with level_cols[(lvl - 1) % 6]:
-            if st.button(label, key=f"play_lvl_{topic}_{lvl}", disabled=is_locked, use_container_width=True):
-                chosen_level = lvl
+    if "play_selected_topic" not in st.session_state:
+        st.session_state.play_selected_topic = None  # type: ignore
 
-    # Start nivå ved klikk
-    if chosen_level is not None:
-        _start_level(topic, chosen_level)
+    # Dersom vi allerede har aktiv oppgave, styr tema fra state
+    state = st.session_state.get("play_state", {}) or {}
+    if state.get("topic") in topics:
+        st.session_state.play_selected_topic = state.get("topic")
+
+    # ---------------------------------------------------------
+    # Dashboard (vises når det ikke er aktiv oppgave)
+    # ---------------------------------------------------------
+    if not state:
+        st.markdown("### Temaoversikt")
+        st.caption("Velg et tema. Appen foreslår neste nivå basert på progresjonen din.")
+
+        # Temakort i grid
+        cols = st.columns(3)
+        for i, t in enumerate(topics):
+            prog = _get_progress(t)
+            unlocked = int(prog.get("unlocked", 1))
+            unlocked = max(1, min(unlocked, max_levels))
+            subtitle = (TOPIC_META.get(t, {}) or {}).get("subtitle", "")
+
+            with cols[i % 3]:
+                with st.container(border=True):
+                    st.markdown(f"**{t}**")
+                    if subtitle:
+                        st.caption(subtitle)
+                    st.progress(unlocked / max_levels)
+                    st.write(f"**Nivå låst opp:** {unlocked}/{max_levels}")
+
+                    c1, c2 = st.columns(2)
+                    with c1:
+                        if st.button("Fortsett", key=f"play_continue_{t}", use_container_width=True):
+                            st.session_state.play_selected_topic = t
+                            _start_level(t, unlocked)
+                            st.rerun()
+                    with c2:
+                        if st.button("Velg nivå", key=f"play_choose_{t}", use_container_width=True):
+                            st.session_state.play_selected_topic = t
+                            st.rerun()
+
+        st.divider()
+        st.info("Tips: Start med nivå 1 i hvert tema. Når du mestrer det, går du videre til neste nivå.")
+        return
+
+    # ---------------------------------------------------------
+    # Aktivt tema / nivåvalg (når state finnes)
+    # ---------------------------------------------------------
+    topic = st.session_state.get("play_selected_topic") or state.get("topic")
+    if topic not in topics:
+        st.session_state.play_state = {}
         st.rerun()
 
-    state = st.session_state.get("play_state", {})
-    if state.get("topic") != topic:
-        # Bytte tema: ikke vis "gammel" oppgave
-        return
+    # Header + navigasjon
+    top_l, top_r = st.columns([3, 1.2])
+    with top_l:
+        st.markdown(f"### {topic}")
+        subtitle = (TOPIC_META.get(topic, {}) or {}).get("subtitle", "")
+        if subtitle:
+            st.caption(subtitle)
+    with top_r:
+        if st.button("⬅️ Tilbake til temaoversikt", key="play_back_to_topics", use_container_width=True):
+            st.session_state.play_state = {}
+            st.session_state.play_selected_topic = None
+            st.rerun()
 
-    if not state:
-        st.info("Velg et nivå for å starte.")
-        return
-
+    # Nivåbeskrivelse (didaktikk)
     level = int(state.get("level", 1))
-    q = state.get("current") or _make_question(topic, level, int(state.get("q_index", 1)))
+    render_level_box(topic, level)
 
     # Progresjon i nivå
     correct_now = int(state.get("correct_in_level", 0))
     st.progress(min(correct_now / _PLAY_CORRECT_TO_PASS, 1.0))
     st.caption(f"Riktige i dette nivået: {correct_now}/{_PLAY_CORRECT_TO_PASS}")
 
-    st.markdown("### Oppgave")
-    st.write(q.get("prompt", ""))
+    # Oppgave
+    q = state.get("current") or _make_question(topic, level, int(state.get("q_index", 1)))
 
-    with st.expander("Hint", expanded=False):
-        st.write(q.get("hint", ""))
+    st.markdown("### Oppgave")
+    with st.container(border=True):
+        st.write(q.get("prompt", ""))
+        with st.expander("Hint", expanded=False):
+            st.write(q.get("hint", ""))
 
     ans_label = "Svar" + (f" ({q.get('unit')})" if q.get("unit") else "")
     user_ans = st.number_input(ans_label, value=0.0, step=0.1, key=f"play_answer_{topic}_{level}")
 
-    b1, b2, b3 = st.columns([1.2, 1.2, 2])
-    with b1:
-        if st.button("✅ Sjekk svar", key="play_check", use_container_width=True):
-            ok = _check_answer(user_ans, q.get("answer", 0.0), q.get("tolerance", 0.01))
-            _update_stats(topic, level, ok)
-            if ok:
-                state["correct_in_level"] = correct_now + 1
-                state["last_feedback"] = (True, f"Riktig. God kontroll.")
+    # Primærflyt: Sjekk → feedback → Ny oppgave
+    btn_c1, btn_c2, btn_c3 = st.columns([1.2, 1.2, 1.8])
 
-                # Ferdig med nivå?
-                if state["correct_in_level"] >= _PLAY_CORRECT_TO_PASS:
-                    _set_completed(topic, level)
-                    state["last_feedback"] = (True, f"Nivå {level} bestått. Neste nivå er låst opp.")
-                else:
-                    # Neste oppgave i samme nivå
-                    state["q_index"] = int(state.get("q_index", 1)) + 1
-                    state["current"] = _make_question(topic, level, int(state["q_index"]))
+    with btn_c1:
+        check = st.button("✅ Sjekk svar", key="play_check", use_container_width=True)
+    with btn_c2:
+        new_q = st.button("➡️ Ny oppgave", key="play_new", use_container_width=True)
+    with btn_c3:
+        reset = st.button("🔄 Nullstill progresjon", key="play_reset", use_container_width=True)
 
+    if reset:
+        st.session_state.play_progress = {}
+        st.session_state.play_state = {}
+        st.toast("Progresjon nullstilt.")
+        if _sb_enabled() and st.session_state.get("play_user_id", "").strip():
+            uid = st.session_state.get("play_user_id", "").strip()
+            save_progress_to_db(uid, {"class_code": st.session_state.get("play_class_code", "").strip(), "play_progress": {}, "play_state": {}})
+        st.rerun()
+
+    if new_q:
+        state["q_index"] = int(state.get("q_index", 1)) + 1
+        state["current"] = _make_question(topic, level, int(state["q_index"]))
+        st.session_state.play_state = state
+
+        if _sb_enabled() and st.session_state.get("play_user_id", "").strip():
+            uid = st.session_state.get("play_user_id", "").strip()
+            save_progress_to_db(
+                uid,
+                {
+                    "class_code": st.session_state.get("play_class_code", "").strip(),
+                    "play_progress": _serialize_play_progress(st.session_state.get("play_progress", {})),
+                    "play_state": st.session_state.get("play_state", {}),
+                },
+            )
+        st.rerun()
+
+    if check:
+        ok = _check_answer(user_ans, q.get("answer", 0.0), q.get("tolerance", 0.01))
+        _update_stats(topic, level, ok)
+
+        if ok:
+            state["correct_in_level"] = correct_now + 1
+            state["last_feedback"] = (True, "Riktig. God kontroll.")
+
+            # Ferdig med nivå?
+            if state["correct_in_level"] >= _PLAY_CORRECT_TO_PASS:
+                _set_completed(topic, level)
+                state["last_feedback"] = (True, f"Nivå {level} bestått. Neste nivå er låst opp.")
             else:
-                corr = float(q.get("answer", 0.0))
-                unit = q.get("unit", "")
-                state["last_feedback"] = (False, f"Ikke helt. Fasit er omtrent {corr:.3f} {unit}. Prøv en ny oppgave eller bruk hint.")
+                state["q_index"] = int(state.get("q_index", 1)) + 1
+                state["current"] = _make_question(topic, level, int(state["q_index"]))
+        else:
+            corr = float(q.get("answer", 0.0))
+            unit = q.get("unit", "")
+            state["last_feedback"] = (False, f"Ikke helt. Fasit er omtrent {corr:.3f} {unit}. Bruk hint og prøv igjen.")
 
-            st.session_state.play_state = state
+        st.session_state.play_state = state
 
-            # Lagre progresjon til database (hvis aktivert)
-            if _sb_enabled() and st.session_state.get("play_user_id", "").strip():
-                uid = st.session_state.get("play_user_id", "").strip()
-                save_progress_to_db(uid, {
+        if _sb_enabled() and st.session_state.get("play_user_id", "").strip():
+            uid = st.session_state.get("play_user_id", "").strip()
+            save_progress_to_db(
+                uid,
+                {
                     "class_code": st.session_state.get("play_class_code", "").strip(),
                     "play_progress": _serialize_play_progress(st.session_state.get("play_progress", {})),
                     "play_state": st.session_state.get("play_state", {}),
-                })
+                },
+            )
+        st.rerun()
 
-            st.rerun()
-
-    with b2:
-        if st.button("➡️ Ny oppgave", key="play_new", use_container_width=True):
-            state["q_index"] = int(state.get("q_index", 1)) + 1
-            state["current"] = _make_question(topic, level, int(state["q_index"]))
-            st.session_state.play_state = state
-
-            # Lagre progresjon
-            if _sb_enabled() and st.session_state.get("play_user_id", "").strip():
-                uid = st.session_state.get("play_user_id", "").strip()
-                save_progress_to_db(uid, {
-                    "class_code": st.session_state.get("play_class_code", "").strip(),
-                    "play_progress": _serialize_play_progress(st.session_state.get("play_progress", {})),
-                    "play_state": st.session_state.get("play_state", {}),
-                })
-            st.rerun()
-
-    with b3:
-        if st.button("🏠 Tilbake til hovedsiden", key="play_back", use_container_width=True):
-            st.session_state.show_play = False
-            st.session_state.play_state = {}
-
-            # Lagre (inkl. at vi lukker Lek og lær)
-            if _sb_enabled() and st.session_state.get("play_user_id", "").strip():
-                uid = st.session_state.get("play_user_id", "").strip()
-                save_progress_to_db(uid, {
-                    "class_code": st.session_state.get("play_class_code", "").strip(),
-                    "play_progress": _serialize_play_progress(st.session_state.get("play_progress", {})),
-                    "play_state": st.session_state.get("play_state", {}),
-                })
-            st.rerun()
-
+    # Feedback
     fb = state.get("last_feedback")
     if fb:
         ok, msg = fb
@@ -1792,6 +1835,20 @@ def show_play_screen():
             st.success(msg)
         else:
             st.warning(msg)
+
+    # Nivåplan i oversikt (ryddig og didaktisk)
+    with st.expander("Se nivåplan for dette temaet", expanded=False):
+        rows = []
+        for lvl in range(1, max_levels + 1):
+            meta = get_level_meta(topic, lvl)
+            rows.append(
+                {
+                    "Nivå": lvl,
+                    "Læringsmål": meta.get("mål", ""),
+                    "Verkstedkobling (kort)": "; ".join((meta.get("verksted") or [])[:2]),
+                }
+            )
+        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
 
 
 def show_result(res: CalcResult):
