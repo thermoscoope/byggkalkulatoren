@@ -1952,6 +1952,24 @@ def show_play_screen():
             "Others guess. Rotate roles and keep score."
         ))
 
+        # Sørg for at vi alltid har kort tilgjengelig (robust ved endringer/merge)
+        DEFAULT_LEARNING_CARDS = [
+            {'tema': 'Areal', 'begrep': 'Areal', 'hint': 'Forklar hva vi måler i m² og når det brukes.', 'forbudt': ['m²', 'flate', 'areal']},
+            {'tema': 'Omkrets', 'begrep': 'Omkrets', 'hint': 'Forklar lengden rundt en form og et verkstedeksempel.', 'forbudt': ['rundt', 'lengde', 'omkrets']},
+            {'tema': 'Volum', 'begrep': 'Volum', 'hint': 'Forklar hvor mye noe rommer (m³) og et eksempel med betong.', 'forbudt': ['m³', 'rommer', 'volum']},
+            {'tema': 'Målestokk', 'begrep': 'Målestokk 1:50', 'hint': 'Forklar hvordan vi går fra tegning til virkelighet.', 'forbudt': ['1:50', 'målestokk', 'tegning']},
+            {'tema': 'Prosent', 'begrep': 'Svinn', 'hint': 'Forklar hvorfor vi legger til prosent ved bestilling.', 'forbudt': ['prosent', 'ekstra', 'svinn']},
+            {'tema': 'Enhetsomregning', 'begrep': 'mm til m', 'hint': 'Forklar hvordan du gjør om millimeter til meter.', 'forbudt': ['mm', 'meter', 'dele på']},
+            {'tema': 'Areal', 'begrep': 'Nettoareal', 'hint': 'Forklar arealet etter at åpninger (dør/vindu) er trukket fra.', 'forbudt': ['dør', 'vindu', 'trekke fra']},
+            {'tema': 'Omkrets', 'begrep': 'Lister', 'hint': 'Forklar hvordan omkrets brukes for å finne meter list.', 'forbudt': ['list', 'meter', 'omkrets']},
+            {'tema': 'Volum', 'begrep': 'Betongmengde', 'hint': 'Forklar hvordan du finner m³ betong til en plate.', 'forbudt': ['betong', 'm³', 'plate']},
+            {'tema': 'Målestokk', 'begrep': 'Kontrollmål', 'hint': 'Forklar hvorfor vi kontrollerer mål før vi bygger.', 'forbudt': ['kontroll', 'måle', 'sjekke']},
+        ]
+        cards_deck = globals().get('LEARNING_CARDS')
+        if not isinstance(cards_deck, list) or len(cards_deck) == 0:
+            cards_deck = DEFAULT_LEARNING_CARDS
+        st.caption(tt(f'Kortstokk: {len(cards_deck)} kort tilgjengelig.', f'Deck: {len(cards_deck)} cards available.'))
+
         # Init state
         if "alias_scores" not in st.session_state:
             st.session_state.alias_scores = {"Lag A": 0, "Lag B": 0}
@@ -1981,7 +1999,7 @@ def show_play_screen():
         b1, b2, b3, b4 = st.columns([1,1,1,1])
         with b1:
             if st.button(tt("Start / nytt kort", "Start / new card"), use_container_width=True):
-                st.session_state.alias_active_card = random.choice(LEARNING_CARDS)
+                st.session_state.alias_active_card = random.choice(cards_deck)
                 st.session_state.alias_round_start = time.time()
                 st.session_state.alias_history.append({
                     "team": st.session_state.alias_active_team,
@@ -1998,7 +2016,7 @@ def show_play_screen():
                     if st.session_state.alias_history[i].get("result") is None:
                         st.session_state.alias_history[i]["result"] = "Riktig"
                         break
-                st.session_state.alias_active_card = random.choice(LEARNING_CARDS)
+                st.session_state.alias_active_card = random.choice(cards_deck)
                 st.session_state.alias_round_start = time.time()
                 st.session_state.alias_history.append({
                     "team": st.session_state.alias_active_team,
@@ -2012,7 +2030,7 @@ def show_play_screen():
                     if st.session_state.alias_history[i].get("result") is None:
                         st.session_state.alias_history[i]["result"] = "Pass"
                         break
-                st.session_state.alias_active_card = random.choice(LEARNING_CARDS)
+                st.session_state.alias_active_card = random.choice(cards_deck)
                 st.session_state.alias_round_start = time.time()
                 st.session_state.alias_history.append({
                     "team": st.session_state.alias_active_team,
@@ -2427,7 +2445,7 @@ if "today_task" not in st.session_state:
 # Intern nøkkel -> visningsnavn
 TASK_LABELS = {
     "Ingen valgt": ( "Ingen valgt", "Not selected"),
-    "Vegg / bindingsverk": ("Vegg / bindingsverk", "Wall framing"),
+    "Veggreis / bindingsverk": ("Veggreis / bindingsverk", "Wall framing"),
     "Gulv (plate/undergulv)": ("Gulv (plate/undergulv)", "Flooring (sheet/subfloor)"),
     "Tak / sperrer": ("Tak / sperrer", "Roof / rafters"),
     "Kledning / utvendig": ("Kledning / utvendig", "Cladding / exterior"),
@@ -2462,7 +2480,7 @@ CALC_LABELS = {
 TASK_KEYS = list(TASK_LABELS.keys())
 
 TASK_TO_RECOMMEND = {
-    "Vegg / bindingsverk": {
+    "Veggreis / bindingsverk": {
         "calc": ["Enhetomregner", "Areal", "Omkrets", "Diagonal (Pytagoras)"],
         "play": ["Enhetsomregning", "Areal", "Målestokk"],
         "tips": (
