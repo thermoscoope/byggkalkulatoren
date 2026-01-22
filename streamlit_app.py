@@ -1497,7 +1497,7 @@ def show_play_screen():
         st.warning("'Lek og lær' er kun tilgjengelig i Skolemodus.")
         return
 
-    st.subheader("🎯 " + tt("Lek og lær", "Play & Learn"))
+    st.subheader("🎯 " + tt("Test deg selv", "Test yourself"))
     st.caption("Nivåbaserte oppgaver i praktisk matematikk. For å gå videre må du få nok riktige svar på hvert nivå.")
 
     # --- Elev-ID for å kunne lagre progresjon mellom økter (Streamlit Cloud) ---
