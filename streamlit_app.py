@@ -1930,7 +1930,7 @@ with bar1:
 with bar2:
     # Lek og lær er kun tilgjengelig i skolemodus
     play_disabled = not is_school_mode()
-    if st.button("🎯 " + tt("Lek og lær", "Play & Learn"), key="btn_play_top", use_container_width=True, disabled=play_disabled):
+    if st.button("🎯 " + tt("Test deg selv", "Test yourself"), key="btn_play_top", use_container_width=True, disabled=play_disabled):
         st.session_state.show_play = True
         st.session_state.show_ai = False
         st.session_state.show_pro = False
