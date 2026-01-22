@@ -1193,7 +1193,7 @@ def _summarize_student_row(row: dict) -> dict:
     data = row.get("data") or {}
     pp = _deserialize_play_progress((data.get("play_progress") or {}))
 
-    topics = ["areal", "omkrets", "volum", "målestokk", "prosent"]
+    topics = ["areal", "omkrets", "volum", "målestokk", "prosent", "enhetsomregning"]
     unlocked = {}
     completed_total = 0
     for t in topics:
@@ -1213,6 +1213,7 @@ def _summarize_student_row(row: dict) -> dict:
         "Volum (låst opp)": unlocked.get("volum", 1),
         "Målestokk (låst opp)": unlocked.get("målestokk", 1),
         "Prosent (låst opp)": unlocked.get("prosent", 1),
+        "Enhetsomregning (låst opp)": unlocked.get("enhetsomregning", 1),
         "Fullførte nivå (sum)": completed_total,
     }
 
@@ -1460,6 +1461,82 @@ def _make_question(topic: str, level: int, q_index: int) -> dict:
             "hint": "Først rabatt, så MVA: pris × (1-r/100) × (1+m/100)",
         }
 
+
+    if topic == "Enhetsomregning":
+        # Fokus: mm, cm, m og kontroll av enheter i byggfaglige situasjoner
+        if level == 1:
+            mm = rnd.choice([50, 75, 120, 148, 200, 450, 600, 1200])
+            ans = mm / 1000.0
+            return {
+                "prompt": f"Gjør om {mm} mm til meter. Svar i m.",
+                "answer": float(ans),
+                "tolerance": 0.001,
+                "unit": "m",
+                "hint": "mm → m: del på 1000",
+            }
+        if level == 2:
+            cm = rnd.choice([15, 28, 36, 42, 75, 120, 240])
+            mm = rnd.choice([5, 10, 25, 40, 75, 120])
+            # total i meter
+            ans = (cm / 100.0) + (mm / 1000.0)
+            return {
+                "prompt": f"Du har {cm} cm og {mm} mm. Hva er total lengde i meter?",
+                "answer": float(ans),
+                "tolerance": 0.002,
+                "unit": "m",
+                "hint": "cm → m: /100. mm → m: /1000. Legg sammen.",
+            }
+        if level == 3:
+            # Areal: konverter cm til m før areal
+            l_cm = rnd.choice([120, 150, 180, 240, 300, 420])
+            w_cm = rnd.choice([60, 80, 90, 100, 120, 150])
+            ans = (l_cm/100.0) * (w_cm/100.0)
+            return {
+                "prompt": f"Et felt er {l_cm} cm × {w_cm} cm. Hva er arealet i m²?",
+                "answer": float(ans),
+                "tolerance": 0.02,
+                "unit": "m²",
+                "hint": "Konverter begge til meter først, så areal = l × b.",
+            }
+        if level == 4:
+            # Volum: tykkelse i mm
+            l = rnd.randint(2, 8)
+            w = rnd.randint(2, 6)
+            t_mm = rnd.choice([50, 80, 100, 120, 150])
+            ans = l * w * (t_mm/1000.0)
+            return {
+                "prompt": f"Betongplate: {l} m × {w} m med tykkelse {t_mm} mm. Hva er volumet i m³?",
+                "answer": float(ans),
+                "tolerance": 0.03,
+                "unit": "m³",
+                "hint": "Tykkelse i mm må til meter (del på 1000).",
+            }
+        if level == 5:
+            # Feilsøking: enhetskontroll
+            # Oppgave: velg riktig – men vi holder oss til tall-svar: hva er riktig meter-verdi
+            val = rnd.choice([2.4, 3.6, 4.8, 6.0])
+            # presentert feilaktig som cm i stedet for m
+            cm = int(val * 100)
+            ans = val
+            return {
+                "prompt": f"En medelev skrev at lengden er {cm} cm, men det skulle stå i meter. Hva er riktig lengde i meter?",
+                "answer": float(ans),
+                "tolerance": 0.01,
+                "unit": "m",
+                "hint": "Sjekk størrelsesorden: {cm} cm = {val} m.",
+            }
+        # level 6
+        a_mm = rnd.choice([3000, 4200, 5600])
+        b_m = rnd.choice([1.8, 2.4, 3.0])
+        ans = (a_mm/1000.0) + b_m
+        return {
+            "prompt": f"Kombiner og dokumenter: {a_mm} mm + {b_m} m. Hva er summen i meter?",
+            "answer": float(ans),
+            "tolerance": 0.01,
+            "unit": "m",
+            "hint": "Konverter mm → m først, så legg sammen.",
+        }
+
     # fallback
     a = rnd.randint(2, 10)
     b = rnd.randint(2, 10)
@@ -1492,6 +1569,9 @@ TOPIC_META = {
     },
     "Prosent": {
         "subtitle": "Svinn, rabatt, påslag og MVA",
+    },
+    "Enhetsomregning": {
+        "subtitle": "mm, cm, m – og kontroll av enheter",
     },
 }
 
@@ -1537,6 +1617,14 @@ LEVEL_META = {
         5: {"mål": "MVA: pris × (1 + mva/100).", "verksted": ["Les faktura og forklar MVA-beregning."]},
         6: {"mål": "Kombinert: rabatt + MVA (rekkefølge).", "verksted": ["Regn sluttpris fra tilbud med rabatt, påslag og MVA."]},
     },
+    "Enhetsomregning": {
+        1: {"mål": "Konvertere mellom mm, cm og m (lengde).", "verksted": ["Les mål i mm på tegning og skriv i meter på kappeliste."]},
+        2: {"mål": "Blande enheter i samme oppgave (cm + mm → m).", "verksted": ["Mål en lekts lengde i cm og en åpning i mm, regn total i meter."]},
+        3: {"mål": "Areal-enheter (cm² ↔ m²) og når du må konvertere før du regner.", "verksted": ["Sammenlign areal oppgitt i cm med krav i m² (plater/isolasjon)."]},
+        4: {"mål": "Volum-enheter (mm ↔ m) og konsekvens for m³.", "verksted": ["Regn betong: tykkelse i mm må alltid til meter før volum."]},
+        5: {"mål": "Praktisk kontroll: grovsjekk og feilsøking av enheter.", "verksted": ["Finn og forklar en feil der noen har brukt cm som m."]},
+        6: {"mål": "Automatisere egenkontroll: velg riktig enhet og dokumenter omregning.", "verksted": ["Skriv kort KS-notat: hvilke enheter ble brukt og hvorfor."]},
+    },
 }
 
 def get_level_meta(topic: str, level: int) -> dict:
@@ -1581,10 +1669,10 @@ def _check_answer(user_answer: float, correct: float, tol: float) -> bool:
 
 def show_play_screen():
     if not is_school_mode():
-        st.warning("'Test deg selv' er kun tilgjengelig i Skolemodus.")
+        st.warning("'Lek og lær' er kun tilgjengelig i Skolemodus.")
         return
 
-    st.subheader("🎯 " + tt("Test deg selv", "Test yourself"))
+    st.subheader("🎯 " + tt("Lek og lær", "Learn & Play"))
     st.caption(
         "Velg tema, jobb deg gjennom nivåene, og knytt matematikk til praktiske verkstedoppgaver. "
         f"For å låse opp neste nivå må du få {_PLAY_CORRECT_TO_PASS} riktige i nivået."
@@ -1666,7 +1754,7 @@ def show_play_screen():
     # =========================================================
     # Profesjonell flyt: Temakort (dashboard) → Nivåvalg → Oppgave
     # =========================================================
-    topics = ["Areal", "Omkrets", "Volum", "Målestokk", "Prosent"]
+    topics = ["Areal", "Omkrets", "Volum", "Målestokk", "Prosent", "Enhetsomregning"]
     max_levels = 6
 
     if "play_selected_topic" not in st.session_state:
