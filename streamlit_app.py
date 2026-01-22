@@ -1678,266 +1678,393 @@ def show_play_screen():
         f"For å låse opp neste nivå må du få {_PLAY_CORRECT_TO_PASS} riktige i nivået."
     )
 
-    # =========================================================
-    # Identitet for lagring (Elev-ID + Klassekode)
-    # =========================================================
-    with st.container(border=True):
-        st.markdown("### Elevinfo (for lagring)")
-        c1, c2 = st.columns([1.3, 1.0])
-        with c1:
-            user_id = st.text_input("Elev-ID (lagrer progresjon)", placeholder="F.eks. Magnus-0421", key="play_user_id").strip()
-        with c2:
-            class_code = st.text_input("Klassekode", placeholder="F.eks. BA1A", key="play_class_code").strip()
+    tab_train, tab_cards = st.tabs([tt("🎯 Trening", "🎯 Practice"), tt("🃏 Læringskort", "🃏 Learning Cards")])
 
-        if _sb_enabled() and user_id:
-            last_loaded = st.session_state.get("_play_last_loaded_user")
-            if last_loaded != user_id:
-                saved = load_progress_from_db(user_id)
-                if not st.session_state.get("play_class_code") and saved.get("class_code"):
-                    st.session_state["play_class_code"] = str(saved.get("class_code") or "").strip()
-                st.session_state.play_progress = _deserialize_play_progress(saved.get("play_progress", {}))
-                st.session_state.play_state = saved.get("play_state", {}) or {}
-                st.session_state["_play_last_loaded_user"] = user_id
-            st.caption("Progresjon lagres automatisk (Streamlit Cloud).")
-        elif user_id and not _sb_enabled():
-            st.caption("Lagring mellom økter er ikke aktivert (mangler Supabase-oppsett i secrets/requirements).")
+    with tab_train:
+        # =========================================================
+        # Identitet for lagring (Elev-ID + Klassekode)
+        # =========================================================
+        with st.container(border=True):
+            st.markdown("### Elevinfo (for lagring)")
+            c1, c2 = st.columns([1.3, 1.0])
+            with c1:
+                user_id = st.text_input("Elev-ID (lagrer progresjon)", placeholder="F.eks. Magnus-0421", key="play_user_id").strip()
+            with c2:
+                class_code = st.text_input("Klassekode", placeholder="F.eks. BA1A", key="play_class_code").strip()
 
-    # =========================================================
-    # Læreroversikt (som før)
-    # =========================================================
-    teacher_code_secret = None
-    try:
-        teacher_code_secret = st.secrets.get("TEACHER_CODE")
-    except Exception:
+            if _sb_enabled() and user_id:
+                last_loaded = st.session_state.get("_play_last_loaded_user")
+                if last_loaded != user_id:
+                    saved = load_progress_from_db(user_id)
+                    if not st.session_state.get("play_class_code") and saved.get("class_code"):
+                        st.session_state["play_class_code"] = str(saved.get("class_code") or "").strip()
+                    st.session_state.play_progress = _deserialize_play_progress(saved.get("play_progress", {}))
+                    st.session_state.play_state = saved.get("play_state", {}) or {}
+                    st.session_state["_play_last_loaded_user"] = user_id
+                st.caption("Progresjon lagres automatisk (Streamlit Cloud).")
+            elif user_id and not _sb_enabled():
+                st.caption("Lagring mellom økter er ikke aktivert (mangler Supabase-oppsett i secrets/requirements).")
+
+        # =========================================================
+        # Læreroversikt (som før)
+        # =========================================================
         teacher_code_secret = None
+        try:
+            teacher_code_secret = st.secrets.get("TEACHER_CODE")
+        except Exception:
+            teacher_code_secret = None
 
-    if _sb_enabled() and teacher_code_secret:
-        with st.expander("👩‍🏫 Læreroversikt", expanded=False):
-            teacher_code = st.text_input("Lærer-kode", type="password", key="teacher_code_input").strip()
-            if teacher_code != str(teacher_code_secret).strip():
-                st.info("Skriv riktig lærer-kode for å se elevprogresjon.")
-            else:
-                rows = list_progress_from_db(limit=500)
-                if not rows:
-                    st.warning("Fant ingen lagret progresjon i databasen ennå.")
+        if _sb_enabled() and teacher_code_secret:
+            with st.expander("👩‍🏫 Læreroversikt", expanded=False):
+                teacher_code = st.text_input("Lærer-kode", type="password", key="teacher_code_input").strip()
+                if teacher_code != str(teacher_code_secret).strip():
+                    st.info("Skriv riktig lærer-kode for å se elevprogresjon.")
                 else:
-                    overview = []
-                    for r in rows:
-                        uid = r.get("user_id", "")
-                        data = r.get("data") or {}
-                        pp = _deserialize_play_progress((data or {}).get("play_progress", {}))
-                        overview.append(
-                            {
-                                "Elev-ID": uid,
-                                "Klasse": str((data or {}).get("class_code", "") or ""),
-                                "Sist oppdatert": str(r.get("updated_at", "")),
-                                "Areal (låst opp)": int(((pp or {}).get("areal", {}) or {}).get("unlocked", 1)),
-                                "Omkrets (låst opp)": int(((pp or {}).get("omkrets", {}) or {}).get("unlocked", 1)),
-                                "Volum (låst opp)": int(((pp or {}).get("volum", {}) or {}).get("unlocked", 1)),
-                                "Målestokk (låst opp)": int(((pp or {}).get("målestokk", {}) or {}).get("unlocked", 1)),
-                                "Prosent (låst opp)": int(((pp or {}).get("prosent", {}) or {}).get("unlocked", 1)),
-                            }
-                        )
-                    df = pd.DataFrame(overview)
+                    rows = list_progress_from_db(limit=500)
+                    if not rows:
+                        st.warning("Fant ingen lagret progresjon i databasen ennå.")
+                    else:
+                        overview = []
+                        for r in rows:
+                            uid = r.get("user_id", "")
+                            data = r.get("data") or {}
+                            pp = _deserialize_play_progress((data or {}).get("play_progress", {}))
+                            overview.append(
+                                {
+                                    "Elev-ID": uid,
+                                    "Klasse": str((data or {}).get("class_code", "") or ""),
+                                    "Sist oppdatert": str(r.get("updated_at", "")),
+                                    "Areal (låst opp)": int(((pp or {}).get("areal", {}) or {}).get("unlocked", 1)),
+                                    "Omkrets (låst opp)": int(((pp or {}).get("omkrets", {}) or {}).get("unlocked", 1)),
+                                    "Volum (låst opp)": int(((pp or {}).get("volum", {}) or {}).get("unlocked", 1)),
+                                    "Målestokk (låst opp)": int(((pp or {}).get("målestokk", {}) or {}).get("unlocked", 1)),
+                                    "Prosent (låst opp)": int(((pp or {}).get("prosent", {}) or {}).get("unlocked", 1)),
+                                "Enhetsomregning (låst opp)": int(((pp or {}).get("enhetsomregning", {}) or {}).get("unlocked", 1)),
+                                }
+                            )
+                        df = pd.DataFrame(overview)
 
-                    classes = sorted([c for c in df.get("Klasse", pd.Series(dtype=str)).astype(str).unique().tolist() if c and c != "nan"])
-                    class_sel = st.selectbox("Filtrer (Klasse)", options=["Alle"] + classes, key="teacher_class_filter")
-                    if class_sel != "Alle":
-                        df = df[df["Klasse"].astype(str) == class_sel]
+                        classes = sorted([c for c in df.get("Klasse", pd.Series(dtype=str)).astype(str).unique().tolist() if c and c != "nan"])
+                        class_sel = st.selectbox("Filtrer (Klasse)", options=["Alle"] + classes, key="teacher_class_filter")
+                        if class_sel != "Alle":
+                            df = df[df["Klasse"].astype(str) == class_sel]
 
-                    f = st.text_input("Filtrer (Elev-ID)", key="teacher_filter").strip().lower()
-                    if f:
-                        df = df[df["Elev-ID"].astype(str).str.lower().str.contains(f)]
+                        f = st.text_input("Filtrer (Elev-ID)", key="teacher_filter").strip().lower()
+                        if f:
+                            df = df[df["Elev-ID"].astype(str).str.lower().str.contains(f)]
 
-                    st.dataframe(df, use_container_width=True, hide_index=True)
+                        st.dataframe(df, use_container_width=True, hide_index=True)
 
-    # =========================================================
-    # Profesjonell flyt: Temakort (dashboard) → Nivåvalg → Oppgave
-    # =========================================================
-    topics = ["Areal", "Omkrets", "Volum", "Målestokk", "Prosent", "Enhetsomregning"]
-    max_levels = 6
+        # =========================================================
+        # Profesjonell flyt: Temakort (dashboard) → Nivåvalg → Oppgave
+        # =========================================================
+        topics = ["Areal", "Omkrets", "Volum", "Målestokk", "Prosent", "Enhetsomregning"]
+        max_levels = 6
 
-    if "play_selected_topic" not in st.session_state:
-        st.session_state.play_selected_topic = None  # type: ignore
+        if "play_selected_topic" not in st.session_state:
+            st.session_state.play_selected_topic = None  # type: ignore
 
-    # Dersom vi allerede har aktiv oppgave, styr tema fra state
-    state = st.session_state.get("play_state", {}) or {}
-    if state.get("topic") in topics:
-        st.session_state.play_selected_topic = state.get("topic")
+        # Dersom vi allerede har aktiv oppgave, styr tema fra state
+        state = st.session_state.get("play_state", {}) or {}
+        if state.get("topic") in topics:
+            st.session_state.play_selected_topic = state.get("topic")
 
-    # ---------------------------------------------------------
-    # Dashboard (vises når det ikke er aktiv oppgave)
-    # ---------------------------------------------------------
-    if not state:
-        st.markdown("### Temaoversikt")
-        st.caption("Velg et tema. Appen foreslår neste nivå basert på progresjonen din.")
+        # ---------------------------------------------------------
+        # Dashboard (vises når det ikke er aktiv oppgave)
+        # ---------------------------------------------------------
+        if not state:
+            st.markdown("### Temaoversikt")
+            st.caption("Velg et tema. Appen foreslår neste nivå basert på progresjonen din.")
 
-        # Temakort i grid
-        cols = st.columns(3)
-        for i, t in enumerate(topics):
-            prog = _get_progress(t)
-            unlocked = int(prog.get("unlocked", 1))
-            unlocked = max(1, min(unlocked, max_levels))
-            subtitle = (TOPIC_META.get(t, {}) or {}).get("subtitle", "")
+            # Temakort i grid
+            cols = st.columns(3)
+            for i, t in enumerate(topics):
+                prog = _get_progress(t)
+                unlocked = int(prog.get("unlocked", 1))
+                unlocked = max(1, min(unlocked, max_levels))
+                subtitle = (TOPIC_META.get(t, {}) or {}).get("subtitle", "")
 
-            with cols[i % 3]:
-                with st.container(border=True):
-                    st.markdown(f"**{t}**")
-                    if subtitle:
-                        st.caption(subtitle)
-                    st.progress(unlocked / max_levels)
-                    st.write(f"**Nivå låst opp:** {unlocked}/{max_levels}")
+                with cols[i % 3]:
+                    with st.container(border=True):
+                        st.markdown(f"**{t}**")
+                        if subtitle:
+                            st.caption(subtitle)
+                        st.progress(unlocked / max_levels)
+                        st.write(f"**Nivå låst opp:** {unlocked}/{max_levels}")
 
-                    c1, c2 = st.columns(2)
-                    with c1:
-                        if st.button("Fortsett", key=f"play_continue_{t}", use_container_width=True):
-                            st.session_state.play_selected_topic = t
-                            _start_level(t, unlocked)
-                            st.rerun()
-                    with c2:
-                        if st.button("Velg nivå", key=f"play_choose_{t}", use_container_width=True):
-                            st.session_state.play_selected_topic = t
-                            st.rerun()
+                        c1, c2 = st.columns(2)
+                        with c1:
+                            if st.button("Fortsett", key=f"play_continue_{t}", use_container_width=True):
+                                st.session_state.play_selected_topic = t
+                                _start_level(t, unlocked)
+                                st.rerun()
+                        with c2:
+                            if st.button("Velg nivå", key=f"play_choose_{t}", use_container_width=True):
+                                st.session_state.play_selected_topic = t
+                                st.rerun()
 
-        st.divider()
-        st.info("Tips: Start med nivå 1 i hvert tema. Når du mestrer det, går du videre til neste nivå.")
-        return
+            st.divider()
+            st.info("Tips: Start med nivå 1 i hvert tema. Når du mestrer det, går du videre til neste nivå.")
+            return
 
-    # ---------------------------------------------------------
-    # Aktivt tema / nivåvalg (når state finnes)
-    # ---------------------------------------------------------
-    topic = st.session_state.get("play_selected_topic") or state.get("topic")
-    if topic not in topics:
-        st.session_state.play_state = {}
-        st.rerun()
-
-    # Header + navigasjon
-    top_l, top_r = st.columns([3, 1.2])
-    with top_l:
-        st.markdown(f"### {topic}")
-        subtitle = (TOPIC_META.get(topic, {}) or {}).get("subtitle", "")
-        if subtitle:
-            st.caption(subtitle)
-    with top_r:
-        if st.button("⬅️ Tilbake til temaoversikt", key="play_back_to_topics", use_container_width=True):
+        # ---------------------------------------------------------
+        # Aktivt tema / nivåvalg (når state finnes)
+        # ---------------------------------------------------------
+        topic = st.session_state.get("play_selected_topic") or state.get("topic")
+        if topic not in topics:
             st.session_state.play_state = {}
-            st.session_state.play_selected_topic = None
             st.rerun()
 
-    # Nivåbeskrivelse (didaktikk)
-    level = int(state.get("level", 1))
-    render_level_box(topic, level)
+        # Header + navigasjon
+        top_l, top_r = st.columns([3, 1.2])
+        with top_l:
+            st.markdown(f"### {topic}")
+            subtitle = (TOPIC_META.get(topic, {}) or {}).get("subtitle", "")
+            if subtitle:
+                st.caption(subtitle)
+        with top_r:
+            if st.button("⬅️ Tilbake til temaoversikt", key="play_back_to_topics", use_container_width=True):
+                st.session_state.play_state = {}
+                st.session_state.play_selected_topic = None
+                st.rerun()
 
-    # Progresjon i nivå
-    correct_now = int(state.get("correct_in_level", 0))
-    st.progress(min(correct_now / _PLAY_CORRECT_TO_PASS, 1.0))
-    st.caption(f"Riktige i dette nivået: {correct_now}/{_PLAY_CORRECT_TO_PASS}")
+        # Nivåbeskrivelse (didaktikk)
+        level = int(state.get("level", 1))
+        render_level_box(topic, level)
 
-    # Oppgave
-    q = state.get("current") or _make_question(topic, level, int(state.get("q_index", 1)))
+        # Progresjon i nivå
+        correct_now = int(state.get("correct_in_level", 0))
+        st.progress(min(correct_now / _PLAY_CORRECT_TO_PASS, 1.0))
+        st.caption(f"Riktige i dette nivået: {correct_now}/{_PLAY_CORRECT_TO_PASS}")
 
-    st.markdown("### Oppgave")
-    with st.container(border=True):
-        st.write(q.get("prompt", ""))
-        with st.expander("Hint", expanded=False):
-            st.write(q.get("hint", ""))
+        # Oppgave
+        q = state.get("current") or _make_question(topic, level, int(state.get("q_index", 1)))
 
-    ans_label = "Svar" + (f" ({q.get('unit')})" if q.get("unit") else "")
-    user_ans = st.number_input(ans_label, value=0.0, step=0.1, key=f"play_answer_{topic}_{level}")
+        st.markdown("### Oppgave")
+        with st.container(border=True):
+            st.write(q.get("prompt", ""))
+            with st.expander("Hint", expanded=False):
+                st.write(q.get("hint", ""))
 
-    # Primærflyt: Sjekk → feedback → Ny oppgave
-    btn_c1, btn_c2, btn_c3 = st.columns([1.2, 1.2, 1.8])
+        ans_label = "Svar" + (f" ({q.get('unit')})" if q.get("unit") else "")
+        user_ans = st.number_input(ans_label, value=0.0, step=0.1, key=f"play_answer_{topic}_{level}")
 
-    with btn_c1:
-        check = st.button("✅ Sjekk svar", key="play_check", use_container_width=True)
-    with btn_c2:
-        new_q = st.button("➡️ Ny oppgave", key="play_new", use_container_width=True)
-    with btn_c3:
-        reset = st.button("🔄 Nullstill progresjon", key="play_reset", use_container_width=True)
+        # Primærflyt: Sjekk → feedback → Ny oppgave
+        btn_c1, btn_c2, btn_c3 = st.columns([1.2, 1.2, 1.8])
 
-    if reset:
-        st.session_state.play_progress = {}
-        st.session_state.play_state = {}
-        st.toast("Progresjon nullstilt.")
-        if _sb_enabled() and st.session_state.get("play_user_id", "").strip():
-            uid = st.session_state.get("play_user_id", "").strip()
-            save_progress_to_db(uid, {"class_code": st.session_state.get("play_class_code", "").strip(), "play_progress": {}, "play_state": {}})
-        st.rerun()
+        with btn_c1:
+            check = st.button("✅ Sjekk svar", key="play_check", use_container_width=True)
+        with btn_c2:
+            new_q = st.button("➡️ Ny oppgave", key="play_new", use_container_width=True)
+        with btn_c3:
+            reset = st.button("🔄 Nullstill progresjon", key="play_reset", use_container_width=True)
 
-    if new_q:
-        state["q_index"] = int(state.get("q_index", 1)) + 1
-        state["current"] = _make_question(topic, level, int(state["q_index"]))
-        st.session_state.play_state = state
+        if reset:
+            st.session_state.play_progress = {}
+            st.session_state.play_state = {}
+            st.toast("Progresjon nullstilt.")
+            if _sb_enabled() and st.session_state.get("play_user_id", "").strip():
+                uid = st.session_state.get("play_user_id", "").strip()
+                save_progress_to_db(uid, {"class_code": st.session_state.get("play_class_code", "").strip(), "play_progress": {}, "play_state": {}})
+            st.rerun()
 
-        if _sb_enabled() and st.session_state.get("play_user_id", "").strip():
-            uid = st.session_state.get("play_user_id", "").strip()
-            save_progress_to_db(
-                uid,
-                {
-                    "class_code": st.session_state.get("play_class_code", "").strip(),
-                    "play_progress": _serialize_play_progress(st.session_state.get("play_progress", {})),
-                    "play_state": st.session_state.get("play_state", {}),
-                },
-            )
-        st.rerun()
+        if new_q:
+            state["q_index"] = int(state.get("q_index", 1)) + 1
+            state["current"] = _make_question(topic, level, int(state["q_index"]))
+            st.session_state.play_state = state
 
-    if check:
-        ok = _check_answer(user_ans, q.get("answer", 0.0), q.get("tolerance", 0.01))
-        _update_stats(topic, level, ok)
+            if _sb_enabled() and st.session_state.get("play_user_id", "").strip():
+                uid = st.session_state.get("play_user_id", "").strip()
+                save_progress_to_db(
+                    uid,
+                    {
+                        "class_code": st.session_state.get("play_class_code", "").strip(),
+                        "play_progress": _serialize_play_progress(st.session_state.get("play_progress", {})),
+                        "play_state": st.session_state.get("play_state", {}),
+                    },
+                )
+            st.rerun()
 
-        if ok:
-            state["correct_in_level"] = correct_now + 1
-            state["last_feedback"] = (True, "Riktig. God kontroll.")
+        if check:
+            ok = _check_answer(user_ans, q.get("answer", 0.0), q.get("tolerance", 0.01))
+            _update_stats(topic, level, ok)
 
-            # Ferdig med nivå?
-            if state["correct_in_level"] >= _PLAY_CORRECT_TO_PASS:
-                _set_completed(topic, level)
-                state["last_feedback"] = (True, f"Nivå {level} bestått. Neste nivå er låst opp.")
+            if ok:
+                state["correct_in_level"] = correct_now + 1
+                state["last_feedback"] = (True, "Riktig. God kontroll.")
+
+                # Ferdig med nivå?
+                if state["correct_in_level"] >= _PLAY_CORRECT_TO_PASS:
+                    _set_completed(topic, level)
+                    state["last_feedback"] = (True, f"Nivå {level} bestått. Neste nivå er låst opp.")
+                else:
+                    state["q_index"] = int(state.get("q_index", 1)) + 1
+                    state["current"] = _make_question(topic, level, int(state["q_index"]))
             else:
-                state["q_index"] = int(state.get("q_index", 1)) + 1
-                state["current"] = _make_question(topic, level, int(state["q_index"]))
+                corr = float(q.get("answer", 0.0))
+                unit = q.get("unit", "")
+                state["last_feedback"] = (False, f"Ikke helt. Fasit er omtrent {corr:.3f} {unit}. Bruk hint og prøv igjen.")
+
+            st.session_state.play_state = state
+
+            if _sb_enabled() and st.session_state.get("play_user_id", "").strip():
+                uid = st.session_state.get("play_user_id", "").strip()
+                save_progress_to_db(
+                    uid,
+                    {
+                        "class_code": st.session_state.get("play_class_code", "").strip(),
+                        "play_progress": _serialize_play_progress(st.session_state.get("play_progress", {})),
+                        "play_state": st.session_state.get("play_state", {}),
+                    },
+                )
+            st.rerun()
+
+        # Feedback
+        fb = state.get("last_feedback")
+        if fb:
+            ok, msg = fb
+            if ok:
+                st.success(msg)
+            else:
+                st.warning(msg)
+
+        # Nivåplan i oversikt (ryddig og didaktisk)
+        with st.expander("Se nivåplan for dette temaet", expanded=False):
+            rows = []
+            for lvl in range(1, max_levels + 1):
+                meta = get_level_meta(topic, lvl)
+                rows.append(
+                    {
+                        "Nivå": lvl,
+                        "Læringsmål": meta.get("mål", ""),
+                        "Verkstedkobling (kort)": "; ".join((meta.get("verksted") or [])[:2]),
+                    }
+                )
+            st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+
+
+with tab_cards:
+    st.subheader("🃏 " + tt("Læringskort", "Learning Cards"))
+    st.caption(tt(
+        "Spill som Alias: Én elev forklarer begrepet på kortet uten å si ordet (eller forbudte ord). "
+        "De andre gjetter. Bytt på roller og før poeng.",
+        "Play like Alias: One student explains the term on the card without saying the word (or the forbidden words). "
+        "Others guess. Rotate roles and keep score."
+    ))
+
+    # Init state
+    if "alias_scores" not in st.session_state:
+        st.session_state.alias_scores = {"Lag A": 0, "Lag B": 0}
+    if "alias_active_team" not in st.session_state:
+        st.session_state.alias_active_team = "Lag A"
+    if "alias_active_card" not in st.session_state:
+        st.session_state.alias_active_card = None
+    if "alias_round_seconds" not in st.session_state:
+        st.session_state.alias_round_seconds = 60
+    if "alias_round_start" not in st.session_state:
+        st.session_state.alias_round_start = None
+    if "alias_history" not in st.session_state:
+        st.session_state.alias_history = []
+
+    with st.container(border=True):
+        c1, c2, c3 = st.columns([1.0, 1.0, 1.2])
+        with c1:
+            team = st.selectbox(tt("Hvem forklarer nå?", "Who explains now?"), options=["Lag A", "Lag B"], key="alias_team_sel")
+            st.session_state.alias_active_team = team
+        with c2:
+            secs = st.number_input(tt("Sekunder per runde", "Seconds per round"), min_value=20, max_value=180, value=int(st.session_state.alias_round_seconds), step=10)
+            st.session_state.alias_round_seconds = int(secs)
+        with c3:
+            st.write("**" + tt("Poeng", "Score") + "**")
+            st.write(f"Lag A: {int(st.session_state.alias_scores.get('Lag A', 0))}   |   Lag B: {int(st.session_state.alias_scores.get('Lag B', 0))}")
+
+    b1, b2, b3, b4 = st.columns([1,1,1,1])
+    with b1:
+        if st.button(tt("Start / nytt kort", "Start / new card"), use_container_width=True):
+            st.session_state.alias_active_card = random.choice(LEARNING_CARDS)
+            st.session_state.alias_round_start = time.time()
+            st.session_state.alias_history.append({
+                "team": st.session_state.alias_active_team,
+                "card": st.session_state.alias_active_card,
+                "ts": time.time(),
+                "result": None
+            })
+    with b2:
+        if st.button(tt("Riktig (+1)", "Correct (+1)"), use_container_width=True, disabled=st.session_state.alias_active_card is None):
+            t = st.session_state.alias_active_team
+            st.session_state.alias_scores[t] = int(st.session_state.alias_scores.get(t, 0)) + 1
+            # Mark last history entry
+            for i in range(len(st.session_state.alias_history)-1, -1, -1):
+                if st.session_state.alias_history[i].get("result") is None:
+                    st.session_state.alias_history[i]["result"] = "Riktig"
+                    break
+            st.session_state.alias_active_card = random.choice(LEARNING_CARDS)
+            st.session_state.alias_round_start = time.time()
+            st.session_state.alias_history.append({
+                "team": st.session_state.alias_active_team,
+                "card": st.session_state.alias_active_card,
+                "ts": time.time(),
+                "result": None
+            })
+    with b3:
+        if st.button(tt("Pass (0)", "Pass (0)"), use_container_width=True, disabled=st.session_state.alias_active_card is None):
+            for i in range(len(st.session_state.alias_history)-1, -1, -1):
+                if st.session_state.alias_history[i].get("result") is None:
+                    st.session_state.alias_history[i]["result"] = "Pass"
+                    break
+            st.session_state.alias_active_card = random.choice(LEARNING_CARDS)
+            st.session_state.alias_round_start = time.time()
+            st.session_state.alias_history.append({
+                "team": st.session_state.alias_active_team,
+                "card": st.session_state.alias_active_card,
+                "ts": time.time(),
+                "result": None
+            })
+    with b4:
+        if st.button(tt("Nullstill poeng", "Reset score"), use_container_width=True):
+            st.session_state.alias_scores = {"Lag A": 0, "Lag B": 0}
+            st.session_state.alias_history = []
+            st.session_state.alias_active_card = None
+            st.session_state.alias_round_start = None
+
+    # Timer + kort
+    if st.session_state.alias_active_card is None:
+        st.info(tt("Trykk 'Start / nytt kort' for å trekke et kort.", "Click 'Start / new card' to draw a card."))
+    else:
+        card = st.session_state.alias_active_card
+        start_ts = st.session_state.alias_round_start
+        remaining = None
+        if start_ts:
+            elapsed = time.time() - float(start_ts)
+            remaining = max(0, int(st.session_state.alias_round_seconds - elapsed))
+        with st.container(border=True):
+            if remaining is not None:
+                st.markdown(f"### ⏱️ {tt('Tid igjen', 'Time left')}: **{remaining} s**")
+            st.markdown(f"## {card['begrep']}")
+            st.write(f"**{tt('Tema', 'Topic')}:** {card['tema']}")
+            st.write(f"**{tt('Forklar med', 'Explain using')}:** {card['hint']}")
+            st.write("**" + tt("Forbudte ord", "Forbidden words") + "**")
+            st.write(", ".join(card["forbudt"]))
+            st.caption(tt(
+                "Tips: Start med hva begrepet brukes til i verksted, og gi et eksempel uten å nevne ordene over.",
+                "Tip: Start with how the term is used in the workshop, and give an example without using the words above."
+            ))
+
+    with st.expander(tt("Se siste kort (logg)", "See recent cards (log)"), expanded=False):
+        hist = list(reversed(st.session_state.alias_history[-10:]))
+        if not hist:
+            st.write(tt("Ingen runder ennå.", "No rounds yet."))
         else:
-            corr = float(q.get("answer", 0.0))
-            unit = q.get("unit", "")
-            state["last_feedback"] = (False, f"Ikke helt. Fasit er omtrent {corr:.3f} {unit}. Bruk hint og prøv igjen.")
-
-        st.session_state.play_state = state
-
-        if _sb_enabled() and st.session_state.get("play_user_id", "").strip():
-            uid = st.session_state.get("play_user_id", "").strip()
-            save_progress_to_db(
-                uid,
-                {
-                    "class_code": st.session_state.get("play_class_code", "").strip(),
-                    "play_progress": _serialize_play_progress(st.session_state.get("play_progress", {})),
-                    "play_state": st.session_state.get("play_state", {}),
-                },
-            )
-        st.rerun()
-
-    # Feedback
-    fb = state.get("last_feedback")
-    if fb:
-        ok, msg = fb
-        if ok:
-            st.success(msg)
-        else:
-            st.warning(msg)
-
-    # Nivåplan i oversikt (ryddig og didaktisk)
-    with st.expander("Se nivåplan for dette temaet", expanded=False):
-        rows = []
-        for lvl in range(1, max_levels + 1):
-            meta = get_level_meta(topic, lvl)
-            rows.append(
-                {
-                    "Nivå": lvl,
-                    "Læringsmål": meta.get("mål", ""),
-                    "Verkstedkobling (kort)": "; ".join((meta.get("verksted") or [])[:2]),
-                }
-            )
-        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
-
+            rows = []
+            for h in hist:
+                c = h.get("card") or {}
+                rows.append({
+                    tt("Lag", "Team"): h.get("team"),
+                    tt("Begrep", "Term"): c.get("begrep"),
+                    tt("Tema", "Topic"): c.get("tema"),
+                    tt("Resultat", "Result"): h.get("result") or "",
+                })
+            st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
 
 def show_result(res: CalcResult):
     school = is_school_mode()
@@ -2027,6 +2154,123 @@ def show_result(res: CalcResult):
             for s in res.steps:
                 st.write(f"- {s}")
 
+
+
+# ============================================================
+# Læringskort (Alias) – 10 kort på tvers av temaer
+# ============================================================
+LEARNING_CARDS = [
+    {
+        "tema": "Areal",
+        "begrep": "Areal",
+        "hint": "Hva forteller det om en flate, og hvor bruker du det når du bestiller plater?",
+        "forbudt": [
+            "m²",
+            "flate",
+            "lengde",
+            "bredde"
+        ]
+    },
+    {
+        "tema": "Omkrets",
+        "begrep": "Omkrets",
+        "hint": "Hva måler du rundt noe, og når trenger du det til lister/svill?",
+        "forbudt": [
+            "rundt",
+            "meter",
+            "kant",
+            "lengde"
+        ]
+    },
+    {
+        "tema": "Volum",
+        "begrep": "Volum",
+        "hint": "Når regner du mengde i 3D, for eksempel betong eller masser?",
+        "forbudt": [
+            "m³",
+            "3D",
+            "høyde",
+            "bredde"
+        ]
+    },
+    {
+        "tema": "Målestokk",
+        "begrep": "Målestokk",
+        "hint": "Hvordan går du fra tegning til virkelighet (og tilbake)?",
+        "forbudt": [
+            "1:",
+            "tegning",
+            "virkelighet",
+            "skala"
+        ]
+    },
+    {
+        "tema": "Prosent",
+        "begrep": "Svinn",
+        "hint": "Hvorfor legger du på ekstra mengde, og hvordan regner du det ut?",
+        "forbudt": [
+            "prosent",
+            "ekstra",
+            "tap",
+            "margin"
+        ]
+    },
+    {
+        "tema": "Enhetsomregning",
+        "begrep": "Millimeter til meter",
+        "hint": "Forklar hvordan du gjør om et tall i små enheter til større i bygg.",
+        "forbudt": [
+            "mm",
+            "m",
+            "dele",
+            "tusen"
+        ]
+    },
+    {
+        "tema": "Enhetsomregning",
+        "begrep": "Kvadratmeter",
+        "hint": "Hvordan får du riktig enhet når du regner plater/gulv?",
+        "forbudt": [
+            "m²",
+            "areal",
+            "gange",
+            "meter"
+        ]
+    },
+    {
+        "tema": "Vinkler/Diagonal",
+        "begrep": "Diagonal",
+        "hint": "Hvordan sjekker du at noe er i vinkel på byggeplass?",
+        "forbudt": [
+            "pytagoras",
+            "rett",
+            "vinkel",
+            "90"
+        ]
+    },
+    {
+        "tema": "Økonomi",
+        "begrep": "Påslag",
+        "hint": "Hvordan legger du til fortjeneste/tillegg i en prisberegning?",
+        "forbudt": [
+            "prosent",
+            "pris",
+            "kostnad",
+            "margin"
+        ]
+    },
+    {
+        "tema": "Kledning/Omkrets",
+        "begrep": "Løpemeter",
+        "hint": "Hvordan tenker du lengde av materialer som lister/kledning?",
+        "forbudt": [
+            "meter",
+            "lengde",
+            "løpe",
+            "list"
+        ]
+    }
+]
 
 # ============================================================
 # App-state
@@ -2183,7 +2427,7 @@ if "today_task" not in st.session_state:
 # Intern nøkkel -> visningsnavn
 TASK_LABELS = {
     "Ingen valgt": ( "Ingen valgt", "Not selected"),
-    "Vegg / bindingsverk": ("Vegg / bindingsverk", "Wall framing"),
+    "Veggreis / bindingsverk": ("Veggreis / bindingsverk", "Wall framing"),
     "Gulv (plate/undergulv)": ("Gulv (plate/undergulv)", "Flooring (sheet/subfloor)"),
     "Tak / sperrer": ("Tak / sperrer", "Roof / rafters"),
     "Kledning / utvendig": ("Kledning / utvendig", "Cladding / exterior"),
@@ -2218,7 +2462,7 @@ CALC_LABELS = {
 TASK_KEYS = list(TASK_LABELS.keys())
 
 TASK_TO_RECOMMEND = {
-    "Vegg / bindingsverk": {
+    "Veggreis / bindingsverk": {
         "calc": ["Enhetomregner", "Areal", "Omkrets", "Diagonal (Pytagoras)"],
         "play": ["Enhetsomregning", "Areal", "Målestokk"],
         "tips": (
