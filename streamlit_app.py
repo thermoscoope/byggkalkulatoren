@@ -2462,7 +2462,7 @@ CALC_LABELS = {
 TASK_KEYS = list(TASK_LABELS.keys())
 
 TASK_TO_RECOMMEND = {
-    "Veggreis / bindingsverk": {
+    "Vegg / bindingsverk": {
         "calc": ["Enhetomregner", "Areal", "Omkrets", "Diagonal (Pytagoras)"],
         "play": ["Enhetsomregning", "Areal", "Målestokk"],
         "tips": (
