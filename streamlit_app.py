@@ -2427,7 +2427,7 @@ if "today_task" not in st.session_state:
 # Intern nøkkel -> visningsnavn
 TASK_LABELS = {
     "Ingen valgt": ( "Ingen valgt", "Not selected"),
-    "Veggreis / bindingsverk": ("Veggreis / bindingsverk", "Wall framing"),
+    "Vegg / bindingsverk": ("Vegg / bindingsverk", "Wall framing"),
     "Gulv (plate/undergulv)": ("Gulv (plate/undergulv)", "Flooring (sheet/subfloor)"),
     "Tak / sperrer": ("Tak / sperrer", "Roof / rafters"),
     "Kledning / utvendig": ("Kledning / utvendig", "Cladding / exterior"),
