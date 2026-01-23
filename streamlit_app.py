@@ -16,6 +16,14 @@ except Exception:  # pragma: no cover
     create_client = None
 from PIL import Image
 
+# Illustrasjoner (skolemodus)
+try:
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+except Exception:  # pragma: no cover
+    plt = None
+
 import re
 import ast
 import operator as op
@@ -79,6 +87,228 @@ def tt(no: str, en: str) -> str:
 
 def is_school_mode() -> bool:
     return st.session_state.get("app_mode", "Skole") == "Skole"
+
+
+# ============================================================
+# Illustrasjoner for skolemodus (samme visuelle stil)
+# - Bildene genereres automatisk første gang appen kjører
+# - Lagring i ./.illustrations for å unngå ekstra filer i repo
+# ============================================================
+
+ILLUSTRATION_DIR = Path(__file__).parent / ".illustrations"
+
+def _ensure_dir(p: Path) -> None:
+    try:
+        p.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        pass
+
+def _save_fig(path: Path) -> None:
+    if plt is None:
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    plt.tight_layout(pad=0.6)
+    plt.savefig(path, dpi=180, bbox_inches="tight")
+    plt.close()
+
+def _draw_rectangle_base(ax, w=6.0, h=2.0, show_diagonal=False):
+    # Rektangel ABCD med samme layout som eksempelbildet
+    ax.plot([0, w, w, 0, 0], [0, 0, h, h, 0], linewidth=2)
+    if show_diagonal:
+        ax.plot([0, w], [0, h], linestyle="--", linewidth=2)
+    # Hjörnene
+    ax.text(0, 0, "A", ha="right", va="top", fontsize=14)
+    ax.text(w, 0, "B", ha="left", va="top", fontsize=14)
+    ax.text(w, h, "C", ha="left", va="bottom", fontsize=14)
+    ax.text(0, h, "D", ha="right", va="bottom", fontsize=14)
+    ax.set_aspect("equal", adjustable="box")
+    ax.axis("off")
+
+def _annotate_dimension(ax, x0, y0, x1, y1, label, offset=0.18, vertical=False):
+    # Enkel dimensjonsmerking (tekst uten piler for ren stil)
+    if vertical:
+        ax.text((x0+x1)/2 + offset, (y0+y1)/2, label, ha="left", va="center", fontsize=14)
+    else:
+        ax.text((x0+x1)/2, (y0+y1)/2 - offset, label, ha="center", va="top", fontsize=14)
+
+def _gen_png_unit(path: Path):
+    fig, ax = plt.subplots(figsize=(8, 3))
+    ax.axis("off")
+    ax.text(0.02, 0.75, "Eksempel:", fontsize=14, transform=ax.transAxes)
+    ax.text(0.02, 0.55, "6000 mm  →  600 cm  →  6,0 m", fontsize=16, transform=ax.transAxes)
+    ax.text(0.02, 0.30, "mm → cm: ÷10    cm → m: ÷100    mm → m: ÷1000", fontsize=13, transform=ax.transAxes)
+    _save_fig(path)
+
+def _gen_png_area(path: Path):
+    fig, ax = plt.subplots(figsize=(8, 3))
+    _draw_rectangle_base(ax, w=6.0, h=2.0, show_diagonal=False)
+    _annotate_dimension(ax, 0, 0, 6.0, 0, "6,0 m")
+    _annotate_dimension(ax, 6.0, 0, 6.0, 2.0, "2,0 m", vertical=True)
+    _save_fig(path)
+
+def _gen_png_perimeter(path: Path):
+    fig, ax = plt.subplots(figsize=(8, 3))
+    _draw_rectangle_base(ax, w=6.0, h=2.0, show_diagonal=False)
+    _annotate_dimension(ax, 0, 0, 6.0, 0, "6,0 m")
+    _annotate_dimension(ax, 6.0, 0, 6.0, 2.0, "2,0 m", vertical=True)
+    _save_fig(path)
+
+def _gen_png_diagonal(path: Path):
+    fig, ax = plt.subplots(figsize=(8, 3))
+    _draw_rectangle_base(ax, w=6.0, h=2.0, show_diagonal=True)
+    _annotate_dimension(ax, 0, 0, 6.0, 0, "6,0 m")
+    _annotate_dimension(ax, 6.0, 0, 6.0, 2.0, "2,0 m", vertical=True)
+    _save_fig(path)
+
+def _gen_png_volume(path: Path):
+    fig, ax = plt.subplots(figsize=(8, 3))
+    _draw_rectangle_base(ax, w=6.0, h=2.0, show_diagonal=False)
+    _annotate_dimension(ax, 0, 0, 6.0, 0, "6,0 m")
+    _annotate_dimension(ax, 6.0, 0, 6.0, 2.0, "2,0 m", vertical=True)
+    ax.text(3.0, 2.35, "Tykkelse: 100 mm", ha="center", va="bottom", fontsize=14)
+    _save_fig(path)
+
+def _gen_png_scale(path: Path):
+    fig, ax = plt.subplots(figsize=(8, 3))
+    _draw_rectangle_base(ax, w=4.0, h=1.3, show_diagonal=False)
+    _annotate_dimension(ax, 0, 0, 4.0, 0, "4,0 cm (tegning)")
+    _annotate_dimension(ax, 4.0, 0, 4.0, 1.3, "1,3 cm", vertical=True)
+    ax.text(2.0, -0.85, "Målestokk 1 : 50  →  4,0 cm × 50 = 200 cm = 2,0 m", ha="center", va="top", fontsize=13)
+    _save_fig(path)
+
+def _gen_png_cladding(path: Path):
+    fig, ax = plt.subplots(figsize=(8, 3))
+    _draw_rectangle_base(ax, w=6.0, h=2.0, show_diagonal=False)
+    _annotate_dimension(ax, 0, 0, 6.0, 0, "Vegg-bredde: 600 cm")
+    ax.text(3.0, 2.35, "Bord: under 148 mm + over 58 mm, omlegg 2,0 cm", ha="center", va="bottom", fontsize=12)
+    _save_fig(path)
+
+def _gen_png_tiles(path: Path):
+    fig, ax = plt.subplots(figsize=(8, 3))
+    _draw_rectangle_base(ax, w=3.0, h=2.0, show_diagonal=False)
+    _annotate_dimension(ax, 0, 0, 3.0, 0, "Bredde: 3,0 m")
+    _annotate_dimension(ax, 3.0, 0, 3.0, 2.0, "Høyde: 2,0 m", vertical=True)
+    ax.text(1.5, 2.35, "Flis 20×20 cm, fuge 0,3 cm → modul = 20,3 cm", ha="center", va="bottom", fontsize=12)
+    _save_fig(path)
+
+def _gen_png_slope(path: Path):
+    fig, ax = plt.subplots(figsize=(8, 3))
+    ax.axis("off")
+    ax.plot([0.1, 0.85], [0.25, 0.25], linewidth=2, transform=ax.transAxes)
+    ax.plot([0.85, 0.85], [0.25, 0.75], linewidth=2, transform=ax.transAxes)
+    ax.plot([0.1, 0.85], [0.25, 0.75], linestyle="--", linewidth=2, transform=ax.transAxes)
+    ax.text(0.47, 0.18, "Lengde: 4,0 m", ha="center", va="top", fontsize=14, transform=ax.transAxes)
+    ax.text(0.88, 0.50, "Fall: 0,08 m", ha="left", va="center", fontsize=14, transform=ax.transAxes)
+    ax.text(0.48, 0.90, "Fall (%) = (fall / lengde) × 100", ha="center", va="top", fontsize=13, transform=ax.transAxes)
+    _save_fig(path)
+
+def _gen_png_percent(path: Path):
+    fig, ax = plt.subplots(figsize=(8, 3))
+    ax.axis("off")
+    ax.text(0.02, 0.70, "Eksempel:", fontsize=14, transform=ax.transAxes)
+    ax.text(0.02, 0.52, "25 % av 800 kr", fontsize=16, transform=ax.transAxes)
+    ax.text(0.02, 0.30, "0,25 × 800 = 200 kr", fontsize=16, transform=ax.transAxes)
+    _save_fig(path)
+
+def _gen_png_economy(path: Path):
+    fig, ax = plt.subplots(figsize=(8, 3))
+    ax.axis("off")
+    ax.text(0.02, 0.72, "Eksempel (material + timer):", fontsize=14, transform=ax.transAxes)
+    ax.text(0.02, 0.52, "Materialer: 1 800 kr", fontsize=15, transform=ax.transAxes)
+    ax.text(0.02, 0.38, "Timer: 6,0 t × 450 kr/t = 2 700 kr", fontsize=15, transform=ax.transAxes)
+    ax.text(0.02, 0.20, "Sum = 1 800 + 2 700 = 4 500 kr", fontsize=16, transform=ax.transAxes)
+    _save_fig(path)
+
+ILLUSTRATIONS = {
+    "unit": ("unit.png", tt("Enhetsomregning", "Unit conversion"), [
+        "6000 mm → 600 cm → 6,0 m",
+        "mm → cm: ÷10, cm → m: ÷100, mm → m: ÷1000",
+    ]),
+    "area": ("area.png", tt("Areal (rektangel)", "Area (rectangle)"), [
+        "A = lengde × bredde",
+        "A = 6,0 m × 2,0 m = 12,0 m²",
+    ]),
+    "perimeter": ("perimeter.png", tt("Omkrets (rektangel)", "Perimeter (rectangle)"), [
+        "O = 2 × (lengde + bredde)",
+        "O = 2 × (6,0 + 2,0) = 16,0 m",
+    ]),
+    "volume": ("volume.png", tt("Volum (plate)", "Volume (slab)"), [
+        "100 mm = 0,10 m",
+        "V = 6,0 × 2,0 × 0,10 = 1,2 m³",
+    ]),
+    "scale": ("scale.png", tt("Målestokk", "Scale"), [
+        "1 : 50 betyr: 1 cm på tegning = 50 cm i virkelighet",
+        "4,0 cm × 50 = 200 cm = 2,0 m",
+    ]),
+    "diagonal": ("diagonal.png", tt("Diagonal (Pytagoras)", "Diagonal (Pythagoras)"), [
+        "c² = a² + b²",
+        "c = √(6,0² + 2,0²) ≈ 6,32 m",
+    ]),
+    "cladding": ("cladding.png", tt("Tømmermannskledning (bredde)", "Wood cladding (width)"), [
+        "Dekketøy per bord ≈ (under + over) − omlegg",
+        "Antall bord ≈ veggbredde / dekkmål (avrundes opp)",
+    ]),
+    "tiles": ("tiles.png", tt("Fliser på vegg", "Wall tiles"), [
+        "Modulmål = flis + fuge",
+        "Antall = ceil(veggmål / modulmål) (i begge retninger)",
+    ]),
+    "slope": ("slope.png", tt("Fall (%)", "Slope (%)"), [
+        "Fall (%) = (fall / lengde) × 100",
+        "Eksempel: (0,08 / 4,0) × 100 = 2,0 %",
+    ]),
+    "percent": ("percent.png", tt("Prosent", "Percent"), [
+        "Del = prosent × helhet",
+        "Eksempel: 25 % av 800 kr = 0,25 × 800 = 200 kr",
+    ]),
+    "economy": ("economy.png", tt("Økonomi (sum)", "Economy (total)"), [
+        "Sum = materialer + (timer × timepris)",
+        "Eksempel: 1800 + (6,0 × 450) = 4500 kr",
+    ]),
+}
+
+def ensure_illustrations() -> None:
+    if plt is None:
+        return
+    _ensure_dir(ILLUSTRATION_DIR)
+    generators = {
+        "unit": _gen_png_unit,
+        "area": _gen_png_area,
+        "perimeter": _gen_png_perimeter,
+        "volume": _gen_png_volume,
+        "scale": _gen_png_scale,
+        "diagonal": _gen_png_diagonal,
+        "cladding": _gen_png_cladding,
+        "tiles": _gen_png_tiles,
+        "slope": _gen_png_slope,
+        "percent": _gen_png_percent,
+        "economy": _gen_png_economy,
+    }
+    for key, (fname, _, _) in ILLUSTRATIONS.items():
+        fpath = ILLUSTRATION_DIR / fname
+        if not fpath.exists() and key in generators:
+            try:
+                generators[key](fpath)
+            except Exception:
+                # Skal aldri stoppe appen hvis illustrasjon ikke lar seg generere
+                pass
+
+def render_school_illustration(key: str) -> None:
+    if not is_school_mode():
+        return
+    ensure_illustrations()
+    if key not in ILLUSTRATIONS:
+        return
+    fname, title, steps = ILLUSTRATIONS[key]
+    fpath = ILLUSTRATION_DIR / fname
+
+    st.markdown(f"#### {title}")
+    if fpath.exists():
+        st.image(str(fpath), use_container_width=True)
+    st.info(tt("Prøv å regne selv først. Bruk kalkulatoren under for å kontrollere svaret ditt.", 
+               "Try to calculate first. Use the calculator below to verify your answer."))
+
+    with st.expander(tt("Vis utregning (fasit)", "Show solution")):
+        st.markdown("\n".join([f"- {s}" for s in steps]))
 
 
 
@@ -1952,24 +2182,6 @@ def show_play_screen():
             "Others guess. Rotate roles and keep score."
         ))
 
-        # Sørg for at vi alltid har kort tilgjengelig (robust ved endringer/merge)
-        DEFAULT_LEARNING_CARDS = [
-            {'tema': 'Areal', 'begrep': 'Areal', 'hint': 'Forklar hva vi måler i m² og når det brukes.', 'forbudt': ['m²', 'flate', 'areal']},
-            {'tema': 'Omkrets', 'begrep': 'Omkrets', 'hint': 'Forklar lengden rundt en form og et verkstedeksempel.', 'forbudt': ['rundt', 'lengde', 'omkrets']},
-            {'tema': 'Volum', 'begrep': 'Volum', 'hint': 'Forklar hvor mye noe rommer (m³) og et eksempel med betong.', 'forbudt': ['m³', 'rommer', 'volum']},
-            {'tema': 'Målestokk', 'begrep': 'Målestokk 1:50', 'hint': 'Forklar hvordan vi går fra tegning til virkelighet.', 'forbudt': ['1:50', 'målestokk', 'tegning']},
-            {'tema': 'Prosent', 'begrep': 'Svinn', 'hint': 'Forklar hvorfor vi legger til prosent ved bestilling.', 'forbudt': ['prosent', 'ekstra', 'svinn']},
-            {'tema': 'Enhetsomregning', 'begrep': 'mm til m', 'hint': 'Forklar hvordan du gjør om millimeter til meter.', 'forbudt': ['mm', 'meter', 'dele på']},
-            {'tema': 'Areal', 'begrep': 'Nettoareal', 'hint': 'Forklar arealet etter at åpninger (dør/vindu) er trukket fra.', 'forbudt': ['dør', 'vindu', 'trekke fra']},
-            {'tema': 'Omkrets', 'begrep': 'Lister', 'hint': 'Forklar hvordan omkrets brukes for å finne meter list.', 'forbudt': ['list', 'meter', 'omkrets']},
-            {'tema': 'Volum', 'begrep': 'Betongmengde', 'hint': 'Forklar hvordan du finner m³ betong til en plate.', 'forbudt': ['betong', 'm³', 'plate']},
-            {'tema': 'Målestokk', 'begrep': 'Kontrollmål', 'hint': 'Forklar hvorfor vi kontrollerer mål før vi bygger.', 'forbudt': ['kontroll', 'måle', 'sjekke']},
-        ]
-        cards_deck = globals().get('LEARNING_CARDS')
-        if not isinstance(cards_deck, list) or len(cards_deck) == 0:
-            cards_deck = DEFAULT_LEARNING_CARDS
-        st.caption(tt(f'Kortstokk: {len(cards_deck)} kort tilgjengelig.', f'Deck: {len(cards_deck)} cards available.'))
-
         # Init state
         if "alias_scores" not in st.session_state:
             st.session_state.alias_scores = {"Lag A": 0, "Lag B": 0}
@@ -1999,7 +2211,7 @@ def show_play_screen():
         b1, b2, b3, b4 = st.columns([1,1,1,1])
         with b1:
             if st.button(tt("Start / nytt kort", "Start / new card"), use_container_width=True):
-                st.session_state.alias_active_card = random.choice(cards_deck)
+                st.session_state.alias_active_card = random.choice(LEARNING_CARDS)
                 st.session_state.alias_round_start = time.time()
                 st.session_state.alias_history.append({
                     "team": st.session_state.alias_active_team,
@@ -2016,7 +2228,7 @@ def show_play_screen():
                     if st.session_state.alias_history[i].get("result") is None:
                         st.session_state.alias_history[i]["result"] = "Riktig"
                         break
-                st.session_state.alias_active_card = random.choice(cards_deck)
+                st.session_state.alias_active_card = random.choice(LEARNING_CARDS)
                 st.session_state.alias_round_start = time.time()
                 st.session_state.alias_history.append({
                     "team": st.session_state.alias_active_team,
@@ -2030,7 +2242,7 @@ def show_play_screen():
                     if st.session_state.alias_history[i].get("result") is None:
                         st.session_state.alias_history[i]["result"] = "Pass"
                         break
-                st.session_state.alias_active_card = random.choice(cards_deck)
+                st.session_state.alias_active_card = random.choice(LEARNING_CARDS)
                 st.session_state.alias_round_start = time.time()
                 st.session_state.alias_history.append({
                     "team": st.session_state.alias_active_team,
@@ -2344,7 +2556,7 @@ with bar2:
         st.rerun()
 
 with bar3:
-    if st.button("🤖 " + tt("Spør AI (BETA)", "Ask AI (BETA)"), key="btn_ai_top", use_container_width=True):
+    if st.button("🤖 " + tt("Spør Robokai (BETA)", "Ask Robokai (BETA)"), key="btn_ai_top", use_container_width=True):
         st.session_state.show_ai = True
         st.session_state.show_pro = False
         st.session_state.show_play = False
@@ -2628,6 +2840,8 @@ tabs = st.tabs(
 # ---- Enhetsomregner ----
 with tabs[0]:
     st.subheader(tt("Enhetsomregner", "Unit converter"))
+    if is_school_mode():
+        render_school_illustration("unit")
     st.caption("I byggfag brukes måleenheter som millimeter (mm), centimeter (cm) og meter (m). For å regne riktig må alle mål ofte være i samme enhet. Skriv inn et tall, velg enhet, og få omregning til mm, cm og m i tabell.")
 
     c1, c2 = st.columns([2, 1])
@@ -2797,6 +3011,8 @@ with tabs[4]:
 # ---- Kledning ----
 with tabs[5]:
     st.subheader(tt("Tømmermannskledning", "Wood cladding"))
+    if is_school_mode():
+        render_school_illustration("cladding")
     st.caption("Når du kler en vegg, må du vite hvor mange bord som trengs, og om bordene dekker hele bredden riktig. Fritt innskrive: mål fra–til (cm), omlegg (cm) og bordbredder (mm).")
 
     c1, c2, c3, c4 = st.columns([2, 2, 2, 2])
@@ -2814,6 +3030,8 @@ with tabs[5]:
 
     st.divider()
     st.subheader(tt("Fliser", "Tiles"))
+    if is_school_mode():
+        render_school_illustration("tiles")
     if is_school_mode():
         st.caption("Du regner antall fliser ved å bruke modulmål: (flis + fuge). Antall = ceil(vegg / modul).")
 
@@ -2927,6 +3145,8 @@ with tabs[6]:
 
 with tabs[7]:
     st.subheader("🧮 Prosent")
+    if is_school_mode():
+        render_school_illustration("percent")
     st.caption("Prosent brukes for å vise en del av en helhet. I bygg brukes prosent blant annet til svinn, rabatt, påslag og MVA. Regn ut prosent av et tall, eller finn hvor mange prosent et tall er av et annet.")
 
     mode = st.radio(
@@ -3005,6 +3225,8 @@ with tabs[8]:
 # ---- Økonomi ----
 with tabs[9]:
     st.subheader("💰 " + tt("Økonomi", "Economy"))
+    if is_school_mode():
+        render_school_illustration("economy")
     if is_school_mode():
         st.caption('I byggfag må du kunne regne ut priser, rabatter, påslag og merverdiavgift (MVA). Brukes til enkel prisregning: rabatt, påslag og MVA. Pass på prosent og rekkefølge.')
 
