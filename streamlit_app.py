@@ -2683,7 +2683,7 @@ if "today_task" not in st.session_state:
 # Intern nøkkel -> visningsnavn
 TASK_LABELS = {
     "Ingen valgt": ( "Ingen valgt", "Not selected"),
-    "Veggreis / bindingsverk": ("Veggreis / bindingsverk", "Wall framing"),
+    "Vegg / bindingsverk": ("Vegg / bindingsverk", "Wall framing"),
     "Gulv (plate/undergulv)": ("Gulv (plate/undergulv)", "Flooring (sheet/subfloor)"),
     "Tak / sperrer": ("Tak / sperrer", "Roof / rafters"),
     "Kledning / utvendig": ("Kledning / utvendig", "Cladding / exterior"),
@@ -2718,7 +2718,7 @@ CALC_LABELS = {
 TASK_KEYS = list(TASK_LABELS.keys())
 
 TASK_TO_RECOMMEND = {
-    "Veggreis / bindingsverk": {
+    "Vegg / bindingsverk": {
         "calc": ["Enhetomregner", "Areal", "Omkrets", "Diagonal (Pytagoras)"],
         "play": ["Enhetsomregning", "Areal", "Målestokk"],
         "tips": (
