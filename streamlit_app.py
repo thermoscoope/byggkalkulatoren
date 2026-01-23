@@ -55,7 +55,7 @@ st.markdown(
 # ============================================================
 # Konfig + Logo (må ligge før all annen Streamlit-output)
 # ============================================================
-LOGO_PATH = Path(__file__).parent / "byggmattev2.png"
+LOGO_PATH = Path(__file__).parent / "byggmatte.png"
 
 page_icon = None
 # Profesjonell header med logo
@@ -70,7 +70,7 @@ if "current_view" not in st.session_state:
 # Modus: Skole / Produksjon
 # ============================================================
 if "app_mode" not in st.session_state:
-    st.session_state.app_mode = "Skole"
+    st.session_state.app_mode = "Øv"
 
 
 if "language" not in st.session_state:
@@ -86,7 +86,16 @@ def tt(no: str, en: str) -> str:
 
 
 def is_school_mode() -> bool:
-    return st.session_state.get("app_mode", "Skole") == "Skole"
+    """Legacy helper: True when user is in a learning-oriented mode."""
+    return st.session_state.get("app_mode", "Øv") in ["Øv", "Test"]
+
+
+def is_test_mode() -> bool:
+    return st.session_state.get("app_mode", "Øv") == "Test"
+
+
+def is_practice_mode() -> bool:
+    return st.session_state.get("app_mode", "Øv") == "Praksis"
 
 
 # ============================================================
@@ -342,7 +351,7 @@ def render_school_illustration(key: str) -> None:
 # Komprimert header (logo + tittel + undertittel på én linje)
 # ============================
 
-LOGO_PATH = Path(__file__).parent / "byggmattev2.png"
+LOGO_PATH = Path(__file__).parent / "byggmatte.png"
 
 # Strammere CSS rundt bilder/kolonner slik at logoen faktisk kan ligge tett på topmenyen.
 st.markdown(
@@ -2323,16 +2332,23 @@ def show_play_screen():
                 st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
 
 def show_result(res: CalcResult):
+    mode = st.session_state.get("app_mode", "Øv")
     school = is_school_mode()
+    test_mode = is_test_mode()
 
     col1, col2 = st.columns([1.1, 1])
 
     with col1:
         st.subheader(tt("Resultat", "Result"))
 
-        # I skolemodus: kort læringshint øverst
+        # Læringshint øverst (kun i Øv/Test)
         if school:
-            st.info("Tips: Sjekk alltid enhet (mm/cm/m) og om svaret virker realistisk.")
+            if test_mode:
+                st.info(tt("Test først: regn selv før du ser mellomregning. Sjekk alltid enheter og rimelighet.",
+                           "Try first: calculate yourself before viewing the working. Always check units and reasonableness."))
+            else:
+                st.info(tt("Tips: Sjekk alltid enhet (mm/cm/m) og om svaret virker realistisk.",
+                           "Tip: Always check units (mm/cm/m) and whether the result seems reasonable."))
 
         # Målestokk: profesjonell metric-visning for begge retninger
         if res.name.startswith("Målestokk"):
@@ -2381,12 +2397,21 @@ def show_result(res: CalcResult):
         else:
             st.success("Ingen varsler.")
 
-        # Skolemodus: refleksjonsspørsmål (valgfritt, men nyttig)
+        # Skolemodus: refleksjon og egenkontroll (checkliste)
         if school:
-            with st.expander("Refleksjon (for læring)", expanded=False):
-                st.write("1) Hvilke enheter brukte du, og hvorfor?")
-                st.write("2) Virker svaret realistisk? Hvordan kan du grovsjekke?")
-                st.write("3) Hva er en typisk feil her (mm vs m, prosent vs 1:x osv.)?")
+            with st.container(border=True):
+                st.markdown("**" + tt("Egenkontroll før du går videre", "Self-check before moving on") + "**")
+                c_a, c_b, c_c = st.columns(3)
+                with c_a:
+                    st.checkbox(tt("Jeg har kontrollert enhetene", "I verified the units"), key=f"chk_units_{res.timestamp}")
+                with c_b:
+                    st.checkbox(tt("Svaret virker realistisk", "The result seems reasonable"), key=f"chk_real_{res.timestamp}")
+                with c_c:
+                    st.checkbox(tt("Jeg kan forklare fremgangsmåten", "I can explain the method"), key=f"chk_explain_{res.timestamp}")
+                st.caption(tt(
+                    "Tips: Gjør en grovsjekk (avrund, sammenlign med erfaring). Typisk feil er mm vs m eller prosent vs desimal.",
+                    "Tip: Do a quick sanity check (round, compare with experience). Common errors are mm vs m or percent vs decimal."
+                ))
 
         # Historikk
         if st.button("Lagre i historikk", type="primary"):
@@ -2394,7 +2419,7 @@ def show_result(res: CalcResult):
                 {
                     "tid": res.timestamp,
                     "kalkulator": res.name,
-                    "modus": "Skole" if school else "Produksjon",
+                    "modus": st.session_state.get("app_mode","Øv"),
                     "inputs": res.inputs,
                     "outputs": res.outputs,
                     "warnings": res.warnings,
@@ -2403,10 +2428,13 @@ def show_result(res: CalcResult):
             st.toast("Lagret.")
 
     with col2:
-        st.subheader(tt("Utregning (valgfritt)", "Working (optional)"))
+        st.subheader(tt("Utregning", "Working"))
 
-        # Nøkkel: mellomregning åpen i skolemodus, lukket i produksjon
-        with st.expander(tt("Vis mellomregning", "Show working"), expanded=school):
+        # Øv: åpen mellomregning. Test: skjult som standard.
+        exp_label = tt("Vis mellomregning", "Show working")
+        if test_mode:
+            exp_label = tt("Vis fasit / mellomregning", "Reveal working")
+        with st.expander(exp_label, expanded=(school and (not test_mode))):
             for s in res.steps:
                 st.write(f"- {s}")
 
@@ -2602,14 +2630,18 @@ with bar4:
 
         st.session_state.app_mode = st.radio(
             tt("Modus", "Mode"),
-            ["Skole", "Produksjon"],
-            index=0 if st.session_state.get("app_mode", "Skole") == "Skole" else 1,
+            ["Øv", "Test", "Praksis"],
+            horizontal=True,
+            index={"Øv": 0, "Test": 1, "Praksis": 2}.get(st.session_state.get("app_mode", "Øv"), 0),
             key="app_mode_settings",
         )
-        if st.session_state.app_mode == "Skole":
-            st.info(tt("Skolemodus er aktiv.", "School mode is active."))
+
+        if st.session_state.app_mode == "Øv":
+            st.info(tt("Øv-modus: forklaring + mellomregning + refleksjon.", "Practice mode: explanation + working + reflection."))
+        elif st.session_state.app_mode == "Test":
+            st.warning(tt("Test-modus: prøv selv først. Utregning er skjult som standard.", "Test mode: try first. Working is hidden by default."))
         else:
-            st.success(tt("Produksjonsmodus er aktiv.", "Production mode is active."))
+            st.success(tt("Praksis-modus: raskt svar med færre forstyrrelser.", "Production mode: quick output with fewer distractions."))
 
         st.divider()
         st.markdown("**" + tt("Oppgradering", "Upgrade") + "**")
@@ -3310,3 +3342,4 @@ with tabs[10]:
         if st.button(tt("Tøm historikk", "Clear history")):
             st.session_state.history = []
             st.success(tt("Historikk tømt.", "History cleared."))
+
