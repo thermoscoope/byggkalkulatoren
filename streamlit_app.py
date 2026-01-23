@@ -93,6 +93,7 @@ def is_school_mode() -> bool:
 # Illustrasjoner for skolemodus (samme visuelle stil)
 # - Bildene genereres automatisk første gang appen kjører
 # - Lagring i ./.illustrations for å unngå ekstra filer i repo
+# - PIL brukes for maksimal kompatibilitet (matplotlib er ikke alltid tilgjengelig)
 # ============================================================
 
 ILLUSTRATION_DIR = Path(__file__).parent / ".illustrations"
@@ -103,121 +104,116 @@ def _ensure_dir(p: Path) -> None:
     except Exception:
         pass
 
-def _save_fig(path: Path) -> None:
-    if plt is None:
-        return
-    path.parent.mkdir(parents=True, exist_ok=True)
-    plt.tight_layout(pad=0.6)
-    plt.savefig(path, dpi=180, bbox_inches="tight")
-    plt.close()
+def _pil_font(size: int = 28):
+    # Bruk systemfont hvis mulig, fall tilbake til PIL default
+    try:
+        from PIL import ImageFont
+        for candidate in [
+            "DejaVuSerif.ttf",
+            "DejaVuSans.ttf",
+            "LiberationSerif-Regular.ttf",
+            "LiberationSans-Regular.ttf",
+            "Arial.ttf",
+        ]:
+            try:
+                return ImageFont.truetype(candidate, size=size)
+            except Exception:
+                continue
+        return ImageFont.load_default()
+    except Exception:
+        return None
 
-def _draw_rectangle_base(ax, w=6.0, h=2.0, show_diagonal=False):
-    # Rektangel ABCD med samme layout som eksempelbildet
-    ax.plot([0, w, w, 0, 0], [0, 0, h, h, 0], linewidth=2)
+def _save_pil(img, path: Path) -> None:
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        img.save(path, format="PNG")
+    except Exception:
+        pass
+
+def _draw_rect_illustration(path: Path, w_label="6,0 m", h_label="2,0 m", show_diagonal=False, title_text=None, top_text=None):
+    # Ren teknisk stil: hvit bakgrunn, grå/svart linje, serif-aktig font
+    from PIL import Image, ImageDraw
+
+    W, H = 1400, 480
+    img = Image.new("RGB", (W, H), "white")
+    d = ImageDraw.Draw(img)
+
+    font_big = _pil_font(34)
+    font_mid = _pil_font(28)
+    font_small = _pil_font(22)
+
+    # Rammeområde for figuren
+    margin_left = 120
+    margin_top = 70
+    rect_w = 1050
+    rect_h = 300
+
+    x0, y0 = margin_left, margin_top
+    x1, y1 = x0 + rect_w, y0 + rect_h
+
+    # Rektangel
+    line_col = (45, 45, 45)
+    d.rectangle([x0, y0, x1, y1], outline=line_col, width=5)
+
+    # Diagonal (stiplet)
     if show_diagonal:
-        ax.plot([0, w], [0, h], linestyle="--", linewidth=2)
-    # Hjörnene
-    ax.text(0, 0, "A", ha="right", va="top", fontsize=14)
-    ax.text(w, 0, "B", ha="left", va="top", fontsize=14)
-    ax.text(w, h, "C", ha="left", va="bottom", fontsize=14)
-    ax.text(0, h, "D", ha="right", va="bottom", fontsize=14)
-    ax.set_aspect("equal", adjustable="box")
-    ax.axis("off")
+        dash = 18
+        gap = 12
+        # draw dashed line from A(x0,y1) to C(x1,y0)
+        # Note: koordinatsystemet i PIL har (0,0) oppe til venstre, så vi bruker A nederst-venstre og C øverst-høyre
+        ax, ay = x0, y1
+        cx, cy = x1, y0
+        import math
+        dx, dy = cx - ax, cy - ay
+        dist = math.hypot(dx, dy)
+        steps = int(dist // (dash + gap)) + 1
+        for i in range(steps):
+            t0 = (i * (dash + gap)) / dist
+            t1 = min((i * (dash + gap) + dash) / dist, 1.0)
+            sx0 = ax + dx * t0
+            sy0 = ay + dy * t0
+            sx1 = ax + dx * t1
+            sy1 = ay + dy * t1
+            d.line([sx0, sy0, sx1, sy1], fill=line_col, width=4)
 
-def _annotate_dimension(ax, x0, y0, x1, y1, label, offset=0.18, vertical=False):
-    # Enkel dimensjonsmerking (tekst uten piler for ren stil)
-    if vertical:
-        ax.text((x0+x1)/2 + offset, (y0+y1)/2, label, ha="left", va="center", fontsize=14)
-    else:
-        ax.text((x0+x1)/2, (y0+y1)/2 - offset, label, ha="center", va="top", fontsize=14)
+    # Punktnavn (A,B,C,D)
+    # A nederst-venstre, B nederst-høyre, C øverst-høyre, D øverst-venstre
+    d.text((x0-26, y1+6), "A", fill=line_col, font=font_big)
+    d.text((x1+10, y1+6), "B", fill=line_col, font=font_big)
+    d.text((x1+10, y0-44), "C", fill=line_col, font=font_big)
+    d.text((x0-26, y0-44), "D", fill=line_col, font=font_big)
 
-def _gen_png_unit(path: Path):
-    fig, ax = plt.subplots(figsize=(8, 3))
-    ax.axis("off")
-    ax.text(0.02, 0.75, "Eksempel:", fontsize=14, transform=ax.transAxes)
-    ax.text(0.02, 0.55, "6000 mm  →  600 cm  →  6,0 m", fontsize=16, transform=ax.transAxes)
-    ax.text(0.02, 0.30, "mm → cm: ÷10    cm → m: ÷100    mm → m: ÷1000", fontsize=13, transform=ax.transAxes)
-    _save_fig(path)
+    # Dimensjonstekst (samme plassering som eksempel)
+    d.text(((x0+x1)/2 - 35, y1+40), w_label, fill=line_col, font=font_mid)
+    d.text((x1+35, (y0+y1)/2 - 18), h_label, fill=line_col, font=font_mid)
 
-def _gen_png_area(path: Path):
-    fig, ax = plt.subplots(figsize=(8, 3))
-    _draw_rectangle_base(ax, w=6.0, h=2.0, show_diagonal=False)
-    _annotate_dimension(ax, 0, 0, 6.0, 0, "6,0 m")
-    _annotate_dimension(ax, 6.0, 0, 6.0, 2.0, "2,0 m", vertical=True)
-    _save_fig(path)
+    # Valgfri tittel / topptekst
+    if title_text:
+        d.text((40, 14), title_text, fill=line_col, font=font_small)
+    if top_text:
+        d.text(((x0+x1)/2 - 240, y0-55), top_text, fill=line_col, font=font_small)
 
-def _gen_png_perimeter(path: Path):
-    fig, ax = plt.subplots(figsize=(8, 3))
-    _draw_rectangle_base(ax, w=6.0, h=2.0, show_diagonal=False)
-    _annotate_dimension(ax, 0, 0, 6.0, 0, "6,0 m")
-    _annotate_dimension(ax, 6.0, 0, 6.0, 2.0, "2,0 m", vertical=True)
-    _save_fig(path)
+    _save_pil(img, path)
 
-def _gen_png_diagonal(path: Path):
-    fig, ax = plt.subplots(figsize=(8, 3))
-    _draw_rectangle_base(ax, w=6.0, h=2.0, show_diagonal=True)
-    _annotate_dimension(ax, 0, 0, 6.0, 0, "6,0 m")
-    _annotate_dimension(ax, 6.0, 0, 6.0, 2.0, "2,0 m", vertical=True)
-    _save_fig(path)
+def _draw_text_illustration(path: Path, lines, title=None):
+    from PIL import Image, ImageDraw
+    W, H = 1400, 360
+    img = Image.new("RGB", (W, H), "white")
+    d = ImageDraw.Draw(img)
+    col = (45, 45, 45)
+    font_title = _pil_font(30)
+    font_line = _pil_font(28)
 
-def _gen_png_volume(path: Path):
-    fig, ax = plt.subplots(figsize=(8, 3))
-    _draw_rectangle_base(ax, w=6.0, h=2.0, show_diagonal=False)
-    _annotate_dimension(ax, 0, 0, 6.0, 0, "6,0 m")
-    _annotate_dimension(ax, 6.0, 0, 6.0, 2.0, "2,0 m", vertical=True)
-    ax.text(3.0, 2.35, "Tykkelse: 100 mm", ha="center", va="bottom", fontsize=14)
-    _save_fig(path)
+    y = 30
+    if title:
+        d.text((40, y), title, fill=col, font=font_title)
+        y += 60
 
-def _gen_png_scale(path: Path):
-    fig, ax = plt.subplots(figsize=(8, 3))
-    _draw_rectangle_base(ax, w=4.0, h=1.3, show_diagonal=False)
-    _annotate_dimension(ax, 0, 0, 4.0, 0, "4,0 cm (tegning)")
-    _annotate_dimension(ax, 4.0, 0, 4.0, 1.3, "1,3 cm", vertical=True)
-    ax.text(2.0, -0.85, "Målestokk 1 : 50  →  4,0 cm × 50 = 200 cm = 2,0 m", ha="center", va="top", fontsize=13)
-    _save_fig(path)
+    for ln in lines:
+        d.text((40, y), ln, fill=col, font=font_line)
+        y += 48
 
-def _gen_png_cladding(path: Path):
-    fig, ax = plt.subplots(figsize=(8, 3))
-    _draw_rectangle_base(ax, w=6.0, h=2.0, show_diagonal=False)
-    _annotate_dimension(ax, 0, 0, 6.0, 0, "Vegg-bredde: 600 cm")
-    ax.text(3.0, 2.35, "Bord: under 148 mm + over 58 mm, omlegg 2,0 cm", ha="center", va="bottom", fontsize=12)
-    _save_fig(path)
-
-def _gen_png_tiles(path: Path):
-    fig, ax = plt.subplots(figsize=(8, 3))
-    _draw_rectangle_base(ax, w=3.0, h=2.0, show_diagonal=False)
-    _annotate_dimension(ax, 0, 0, 3.0, 0, "Bredde: 3,0 m")
-    _annotate_dimension(ax, 3.0, 0, 3.0, 2.0, "Høyde: 2,0 m", vertical=True)
-    ax.text(1.5, 2.35, "Flis 20×20 cm, fuge 0,3 cm → modul = 20,3 cm", ha="center", va="bottom", fontsize=12)
-    _save_fig(path)
-
-def _gen_png_slope(path: Path):
-    fig, ax = plt.subplots(figsize=(8, 3))
-    ax.axis("off")
-    ax.plot([0.1, 0.85], [0.25, 0.25], linewidth=2, transform=ax.transAxes)
-    ax.plot([0.85, 0.85], [0.25, 0.75], linewidth=2, transform=ax.transAxes)
-    ax.plot([0.1, 0.85], [0.25, 0.75], linestyle="--", linewidth=2, transform=ax.transAxes)
-    ax.text(0.47, 0.18, "Lengde: 4,0 m", ha="center", va="top", fontsize=14, transform=ax.transAxes)
-    ax.text(0.88, 0.50, "Fall: 0,08 m", ha="left", va="center", fontsize=14, transform=ax.transAxes)
-    ax.text(0.48, 0.90, "Fall (%) = (fall / lengde) × 100", ha="center", va="top", fontsize=13, transform=ax.transAxes)
-    _save_fig(path)
-
-def _gen_png_percent(path: Path):
-    fig, ax = plt.subplots(figsize=(8, 3))
-    ax.axis("off")
-    ax.text(0.02, 0.70, "Eksempel:", fontsize=14, transform=ax.transAxes)
-    ax.text(0.02, 0.52, "25 % av 800 kr", fontsize=16, transform=ax.transAxes)
-    ax.text(0.02, 0.30, "0,25 × 800 = 200 kr", fontsize=16, transform=ax.transAxes)
-    _save_fig(path)
-
-def _gen_png_economy(path: Path):
-    fig, ax = plt.subplots(figsize=(8, 3))
-    ax.axis("off")
-    ax.text(0.02, 0.72, "Eksempel (material + timer):", fontsize=14, transform=ax.transAxes)
-    ax.text(0.02, 0.52, "Materialer: 1 800 kr", fontsize=15, transform=ax.transAxes)
-    ax.text(0.02, 0.38, "Timer: 6,0 t × 450 kr/t = 2 700 kr", fontsize=15, transform=ax.transAxes)
-    ax.text(0.02, 0.20, "Sum = 1 800 + 2 700 = 4 500 kr", fontsize=16, transform=ax.transAxes)
-    _save_fig(path)
+    _save_pil(img, path)
 
 ILLUSTRATIONS = {
     "unit": ("unit.png", tt("Enhetsomregning", "Unit conversion"), [
@@ -267,49 +263,79 @@ ILLUSTRATIONS = {
 }
 
 def ensure_illustrations() -> None:
-    if plt is None:
-        return
     _ensure_dir(ILLUSTRATION_DIR)
-    generators = {
-        "unit": _gen_png_unit,
-        "area": _gen_png_area,
-        "perimeter": _gen_png_perimeter,
-        "volume": _gen_png_volume,
-        "scale": _gen_png_scale,
-        "diagonal": _gen_png_diagonal,
-        "cladding": _gen_png_cladding,
-        "tiles": _gen_png_tiles,
-        "slope": _gen_png_slope,
-        "percent": _gen_png_percent,
-        "economy": _gen_png_economy,
+
+    # Rektangelbaserte
+    rect_jobs = {
+        "area": dict(show_diagonal=False, w_label="6,0 m", h_label="2,0 m"),
+        "perimeter": dict(show_diagonal=False, w_label="6,0 m", h_label="2,0 m"),
+        "diagonal": dict(show_diagonal=True, w_label="6,0 m", h_label="2,0 m"),
+        "volume": dict(show_diagonal=False, w_label="6,0 m", h_label="2,0 m", top_text="Tykkelse: 100 mm"),
+        "cladding": dict(show_diagonal=False, w_label="Vegg-bredde: 600 cm", h_label="", top_text="Bord: 148 mm + 58 mm, omlegg 2,0 cm"),
+        "tiles": dict(show_diagonal=False, w_label="Bredde: 3,0 m", h_label="Høyde: 2,0 m", top_text="Flis 20×20 cm, fuge 0,3 cm → modul 20,3 cm"),
+        "scale": dict(show_diagonal=False, w_label="4,0 cm (tegning)", h_label="1,3 cm", top_text="Målestokk 1 : 50"),
     }
-    for key, (fname, _, _) in ILLUSTRATIONS.items():
+
+    # Tekstbaserte
+    text_jobs = {
+        "unit": ["Eksempel:", "6000 mm  →  600 cm  →  6,0 m", "mm→cm: ÷10   cm→m: ÷100   mm→m: ÷1000"],
+        "percent": ["Eksempel:", "25 % av 800 kr", "0,25 × 800 = 200 kr"],
+        "economy": ["Eksempel:", "Materialer: 1 800 kr", "Timer: 6,0 t × 450 kr/t = 2 700 kr", "Sum = 4 500 kr"],
+        "slope": ["Eksempel:", "Lengde: 4,0 m", "Fall: 0,08 m", "Fall (%) = (fall / lengde) × 100 = 2,0 %"],
+    }
+
+    for key, (fname, title, _) in ILLUSTRATIONS.items():
         fpath = ILLUSTRATION_DIR / fname
-        if not fpath.exists() and key in generators:
-            try:
-                generators[key](fpath)
-            except Exception:
-                # Skal aldri stoppe appen hvis illustrasjon ikke lar seg generere
-                pass
+        if fpath.exists():
+            continue
+        try:
+            if key in rect_jobs:
+                kw = rect_jobs[key]
+                # Noen trenger tom høyde-etikett
+                h_lab = kw.get("h_label", "2,0 m")
+                if not h_lab:
+                    # Tegn uten høyde-etikett: bruk liten font og legg ikke tekst
+                    _draw_rect_illustration(fpath, w_label=kw.get("w_label","6,0 m"), h_label=" ", show_diagonal=kw.get("show_diagonal", False),
+                                           top_text=kw.get("top_text"))
+                else:
+                    _draw_rect_illustration(fpath, w_label=kw.get("w_label","6,0 m"), h_label=h_lab, show_diagonal=kw.get("show_diagonal", False),
+                                           top_text=kw.get("top_text"))
+            elif key in text_jobs:
+                _draw_text_illustration(fpath, text_jobs[key], title=title)
+            else:
+                # Fallback: generer enkel tekst
+                _draw_text_illustration(fpath, ["Eksempel kommer"], title=title)
+        except Exception:
+            # Skal aldri stoppe appen hvis illustrasjon ikke lar seg generere
+            pass
 
 def render_school_illustration(key: str) -> None:
+    # Kun skolemodus
     if not is_school_mode():
         return
+
     ensure_illustrations()
     if key not in ILLUSTRATIONS:
         return
+
     fname, title, steps = ILLUSTRATIONS[key]
     fpath = ILLUSTRATION_DIR / fname
 
     st.markdown(f"#### {title}")
+
     if fpath.exists():
         st.image(str(fpath), use_container_width=True)
-    st.info(tt("Prøv å regne selv først. Bruk kalkulatoren under for å kontrollere svaret ditt.", 
+    else:
+        # Hvis det mot formodning ikke ble generert bilde, vis et klart varsel for lærer
+        st.warning(tt("Illustrasjonen ble ikke generert på denne enheten. Sjekk skrive-/filrettigheter.",
+                      "Illustration could not be generated on this device. Check file permissions."))
+
+    st.info(tt("Prøv å regne selv først. Bruk kalkulatoren under for å kontrollere svaret ditt.",
                "Try to calculate first. Use the calculator below to verify your answer."))
 
-    with st.expander(tt("Vis utregning (fasit)", "Show solution")):
-        st.markdown("\n".join([f"- {s}" for s in steps]))
-
+    # FASIT SYNLIG (ikke expander)
+    st.markdown("**Fasit / utregning:**")
+    st.markdown("\n".join([f"- {s}" for s in steps]))
 
 
 # ============================
@@ -2878,6 +2904,7 @@ with tabs[0]:
 with tabs[1]:
     if is_school_mode():
         st.caption("Areal forteller hvor stor en flate er. I bygg brukes areal for å finne hvor mye gulv, vegg, isolasjon eller kledning som trengs. Tenk: areal = lengde × bredde. Sjekk alltid at begge mål er i meter.")
+        render_school_illustration("area")
 
     st.subheader(tt("Areal (rektangel)", "Area (rectangle)"))
     l = st.number_input("Lengde (m)", min_value=0.0, value=5.0, step=0.1, key="areal_l")
@@ -2924,6 +2951,7 @@ with tabs[1]:
 with tabs[2]:
     if is_school_mode():
         st.caption("Omkrets er lengden rundt en figur. I bygg brukes omkrets blant annet for å finne lengde på lister, sviller eller fundament. Rektangel: 2(a+b). Sirkel: 2πr.")
+        render_school_illustration("perimeter")
 
     st.subheader("🧵 " + tt("Omkrets", "Perimeter"))
     shape = st.selectbox(tt("Velg figur", "Select shape"), ["Rektangel", "Sirkel"], key="per_shape")
@@ -2955,6 +2983,7 @@ with tabs[2]:
 with tabs[3]:
     if is_school_mode():
         st.caption("Volum sier hvor mye noe rommer. I bygg brukes volum særlig når man skal beregne mengde betong, masser eller fyll. Volum beregnes i m³. Tykkelser oppgis ofte i mm og må konverteres til meter.")
+        render_school_illustration("volume")
 
     st.subheader(tt("Betongplate", "Concrete slab"))
     l = st.number_input("Lengde (m)", min_value=0.0, value=6.0, step=0.1, key="slab_l")
@@ -2982,6 +3011,7 @@ with tabs[3]:
 with tabs[4]:
     if is_school_mode():
         st.caption("Målestokk viser forholdet mellom en tegning og virkeligheten. En målestokk på 1:50 betyr at 1 cm på tegningen er 50 cm i virkeligheten.")
+        render_school_illustration("scale")
 
     st.subheader(tt("Målestokk", "Scale"))
 
@@ -3125,6 +3155,7 @@ with tabs[6]:
 
     if is_school_mode():
         st.caption("Fall brukes for å sikre at vann renner riktig vei, for eksempel på bad, terrasse eller tak. Fall kan angis i prosent, 1:x eller mm per meter.")
+        render_school_illustration("slope")
 
     st.subheader(tt("Fallberegning", "Slope calculation"))
     length = st.number_input("Lengde (m)", min_value=0.0, value=2.0, step=0.1, key="fall_len")
@@ -3202,6 +3233,7 @@ with tabs[7]:
 with tabs[8]:
     if is_school_mode():
         st.caption("Pytagoras brukes i rettvinklede trekanter: c = √(a² + b²). Sjekk alltid enhet før du regner.")
+        render_school_illustration("diagonal")
 
     st.subheader(tt("Diagonal (Pytagoras)", "Diagonal (Pythagoras)"))
 
