@@ -1680,245 +1680,6 @@ def show_play_screen():
 
     tab_train, tab_cards = st.tabs([tt("🎯 Trening", "🎯 Practice"), tt("🃏 Læringskort", "🃏 Learning Cards")])
 
-    # NOTE: Render Læringskort først for å unngå at tidlig st.stop() eller return i treningsdelen gjør fanen tom.
-
-
-
-    with tab_cards:
-        st.markdown('### ✅ Læringskort er aktiv')
-        st.subheader("🃏 " + tt("Læringskort", "Learning Cards"))
-        st.caption(tt(
-            "Spill som Alias: Én elev forklarer begrepet på kortet uten å si ordet (eller forbudte ord). "
-            "De andre gjetter. Bytt på roller og før poeng.",
-            "Play like Alias: One student explains the term on the card without saying the word (or the forbidden words). "
-            "Others guess. Rotate roles and keep score."
-        ))
-
-        # Sørg for at vi alltid har kort tilgjengelig (robust ved endringer/merge)
-        DEFAULT_LEARNING_CARDS = [
-            {'tema': 'Areal', 'begrep': 'Areal', 'hint': 'Forklar hva vi måler i m² og når det brukes.', 'forbudt': ['m²', 'flate', 'areal']},
-            {'tema': 'Omkrets', 'begrep': 'Omkrets', 'hint': 'Forklar lengden rundt en form og et verkstedeksempel.', 'forbudt': ['rundt', 'lengde', 'omkrets']},
-            {'tema': 'Volum', 'begrep': 'Volum', 'hint': 'Forklar hvor mye noe rommer (m³) og et eksempel med betong.', 'forbudt': ['m³', 'rommer', 'volum']},
-            {'tema': 'Målestokk', 'begrep': 'Målestokk 1:50', 'hint': 'Forklar hvordan vi går fra tegning til virkelighet.', 'forbudt': ['1:50', 'målestokk', 'tegning']},
-            {'tema': 'Prosent', 'begrep': 'Svinn', 'hint': 'Forklar hvorfor vi legger til prosent ved bestilling.', 'forbudt': ['prosent', 'ekstra', 'svinn']},
-            {'tema': 'Enhetsomregning', 'begrep': 'mm til m', 'hint': 'Forklar hvordan du gjør om millimeter til meter.', 'forbudt': ['mm', 'meter', 'dele på']},
-            {'tema': 'Areal', 'begrep': 'Nettoareal', 'hint': 'Forklar arealet etter at åpninger (dør/vindu) er trukket fra.', 'forbudt': ['dør', 'vindu', 'trekke fra']},
-            {'tema': 'Omkrets', 'begrep': 'Lister', 'hint': 'Forklar hvordan omkrets brukes for å finne meter list.', 'forbudt': ['list', 'meter', 'omkrets']},
-            {'tema': 'Volum', 'begrep': 'Betongmengde', 'hint': 'Forklar hvordan du finner m³ betong til en plate.', 'forbudt': ['betong', 'm³', 'plate']},
-            {'tema': 'Målestokk', 'begrep': 'Kontrollmål', 'hint': 'Forklar hvorfor vi kontrollerer mål før vi bygger.', 'forbudt': ['kontroll', 'måle', 'sjekke']},
-        ]
-        cards_deck = globals().get('LEARNING_CARDS')
-        if not isinstance(cards_deck, list) or len(cards_deck) == 0:
-            cards_deck = DEFAULT_LEARNING_CARDS
-        st.caption(tt(f'Kortstokk: {len(cards_deck)} kort tilgjengelig.', f'Deck: {len(cards_deck)} cards available.'))
-
-        # Init state
-        if "alias_scores" not in st.session_state:
-            st.session_state.alias_scores = {"Lag A": 0, "Lag B": 0}
-        if "alias_active_team" not in st.session_state:
-            st.session_state.alias_active_team = "Lag A"
-        if "alias_active_card" not in st.session_state:
-            st.session_state.alias_active_card = None
-        if "alias_round_seconds" not in st.session_state:
-            st.session_state.alias_round_seconds = 60
-        if "alias_round_start" not in st.session_state:
-            st.session_state.alias_round_start = None
-        if "alias_history" not in st.session_state:
-            st.session_state.alias_history = []
-
-        with st.container(border=True):
-            c1, c2, c3 = st.columns([1.0, 1.0, 1.2])
-            with c1:
-                team = st.selectbox(tt("Hvem forklarer nå?", "Who explains now?"), options=["Lag A", "Lag B"], key="alias_team_sel")
-                st.session_state.alias_active_team = team
-            with c2:
-                secs = st.number_input(tt("Sekunder per runde", "Seconds per round"), min_value=20, max_value=180, value=int(st.session_state.alias_round_seconds), step=10)
-                st.session_state.alias_round_seconds = int(secs)
-            with c3:
-                st.write("**" + tt("Poeng", "Score") + "**")
-                st.write(f"Lag A: {int(st.session_state.alias_scores.get('Lag A', 0))}   |   Lag B: {int(st.session_state.alias_scores.get('Lag B', 0))}")
-
-        b1, b2, b3, b4 = st.columns([1,1,1,1])
-        with b1:
-            if st.button(tt("Start / nytt kort", "Start / new card"), use_container_width=True):
-                st.session_state.alias_active_card = random.choice(cards_deck)
-                st.session_state.alias_round_start = time.time()
-                st.session_state.alias_history.append({
-                    "team": st.session_state.alias_active_team,
-                    "card": st.session_state.alias_active_card,
-                    "ts": time.time(),
-                    "result": None
-                })
-        with b2:
-            if st.button(tt("Riktig (+1)", "Correct (+1)"), use_container_width=True, disabled=st.session_state.alias_active_card is None):
-                t = st.session_state.alias_active_team
-                st.session_state.alias_scores[t] = int(st.session_state.alias_scores.get(t, 0)) + 1
-                # Mark last history entry
-                for i in range(len(st.session_state.alias_history)-1, -1, -1):
-                    if st.session_state.alias_history[i].get("result") is None:
-                        st.session_state.alias_history[i]["result"] = "Riktig"
-                        break
-                st.session_state.alias_active_card = random.choice(cards_deck)
-                st.session_state.alias_round_start = time.time()
-                st.session_state.alias_history.append({
-                    "team": st.session_state.alias_active_team,
-                    "card": st.session_state.alias_active_card,
-                    "ts": time.time(),
-                    "result": None
-                })
-        with b3:
-            if st.button(tt("Pass (0)", "Pass (0)"), use_container_width=True, disabled=st.session_state.alias_active_card is None):
-                for i in range(len(st.session_state.alias_history)-1, -1, -1):
-                    if st.session_state.alias_history[i].get("result") is None:
-                        st.session_state.alias_history[i]["result"] = "Pass"
-                        break
-                st.session_state.alias_active_card = random.choice(cards_deck)
-                st.session_state.alias_round_start = time.time()
-                st.session_state.alias_history.append({
-                    "team": st.session_state.alias_active_team,
-                    "card": st.session_state.alias_active_card,
-                    "ts": time.time(),
-                    "result": None
-                })
-        with b4:
-            if st.button(tt("Nullstill poeng", "Reset score"), use_container_width=True):
-                st.session_state.alias_scores = {"Lag A": 0, "Lag B": 0}
-                st.session_state.alias_history = []
-                st.session_state.alias_active_card = None
-                st.session_state.alias_round_start = None
-
-        # Timer + kort
-        if st.session_state.alias_active_card is None:
-            st.info(tt("Trykk 'Start / nytt kort' for å trekke et kort.", "Click 'Start / new card' to draw a card."))
-        else:
-            card = st.session_state.alias_active_card
-            start_ts = st.session_state.alias_round_start
-            remaining = None
-            if start_ts:
-                elapsed = time.time() - float(start_ts)
-                remaining = max(0, int(st.session_state.alias_round_seconds - elapsed))
-            with st.container(border=True):
-                if remaining is not None:
-                    st.markdown(f"### ⏱️ {tt('Tid igjen', 'Time left')}: **{remaining} s**")
-                st.markdown(f"## {card['begrep']}")
-                st.write(f"**{tt('Tema', 'Topic')}:** {card['tema']}")
-                st.write(f"**{tt('Forklar med', 'Explain using')}:** {card['hint']}")
-                st.write("**" + tt("Forbudte ord", "Forbidden words") + "**")
-                st.write(", ".join(card["forbudt"]))
-                st.caption(tt(
-                    "Tips: Start med hva begrepet brukes til i verksted, og gi et eksempel uten å nevne ordene over.",
-                    "Tip: Start with how the term is used in the workshop, and give an example without using the words above."
-                ))
-
-        with st.expander(tt("Se siste kort (logg)", "See recent cards (log)"), expanded=False):
-            hist = list(reversed(st.session_state.alias_history[-10:]))
-            if not hist:
-                st.write(tt("Ingen runder ennå.", "No rounds yet."))
-            else:
-                rows = []
-                for h in hist:
-                    c = h.get("card") or {}
-                    rows.append({
-                        tt("Lag", "Team"): h.get("team"),
-                        tt("Begrep", "Term"): c.get("begrep"),
-                        tt("Tema", "Topic"): c.get("tema"),
-                        tt("Resultat", "Result"): h.get("result") or "",
-                    })
-                st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
-
-def show_result(res: CalcResult):
-    school = is_school_mode()
-
-    col1, col2 = st.columns([1.1, 1])
-
-    with col1:
-        st.subheader(tt("Resultat", "Result"))
-
-        # I skolemodus: kort læringshint øverst
-        if school:
-            st.info("Tips: Sjekk alltid enhet (mm/cm/m) og om svaret virker realistisk.")
-
-        # Målestokk: profesjonell metric-visning for begge retninger
-        if res.name.startswith("Målestokk"):
-            o = res.outputs
-
-            if "virkelig_mm" in o:
-                c1, c2, c3 = st.columns(3)
-                c1.metric("Virkelig mål (mm)", format_value("virkelig_mm", o.get("virkelig_mm", 0)))
-                c2.metric("Virkelig mål (cm)", format_value("virkelig_cm", o.get("virkelig_cm", 0)))
-                c3.metric("Virkelig mål (m)", format_value("virkelig_m", o.get("virkelig_m", 0)))
-
-            if "tegning_mm" in o:
-                c1, c2, c3 = st.columns(3)
-                c1.metric("Tegningsmål (mm)", format_value("tegning_mm", o.get("tegning_mm", 0)))
-                c2.metric("Tegningsmål (cm)", format_value("tegning_cm", o.get("tegning_cm", 0)))
-                c3.metric("Tegningsmål (m)", format_value("tegning_m", o.get("tegning_m", 0)))
-
-        # Kledning: profesjonell metric-visning
-        elif res.name.startswith("Tømmermannskledning"):
-            o = res.outputs
-            r1c1, r1c2, r1c3 = st.columns(3)
-            r1c1.metric("Underliggere", str(o.get("underliggere_antall", "")))
-            r1c2.metric("Overliggere", str(o.get("overliggere_antall", "")))
-            r1c3.metric("Overligger OK", str(o.get("overligger_ok_for_omlegg", "")))
-
-            r2c1, r2c2, r2c3 = st.columns(3)
-            r2c1.metric("Dekket bredde (mm)", format_value("dekket_bredde_mm", o.get("dekket_bredde_mm", 0)))
-            r2c2.metric("Overdekning (mm)", format_value("overdekning_mm", o.get("overdekning_mm", 0)))
-            r2c3.metric(
-                "Min overliggerbredde (mm)",
-                format_value("min_overligger_bredde_mm", o.get("min_overligger_bredde_mm", 0)),
-            )
-
-        # Standard: labels uten understreker
-        else:
-            for k, v in res.outputs.items():
-                st.write(f"**{label_for(k)}**: {format_value(k, v)}")
-
-        # Varsler: skole vs produksjon
-        if res.warnings:
-            if school:
-                st.warning("Sjekk dette:\n- " + "\n- ".join(res.warnings))
-                st.caption("I skolemodus er varsler laget for å støtte kontroll og enhetsforståelse.")
-            else:
-                st.error("Kontroller før bruk i produksjon:\n- " + "\n- ".join(res.warnings))
-        else:
-            st.success("Ingen varsler.")
-
-        # Skolemodus: refleksjonsspørsmål (valgfritt, men nyttig)
-        if school:
-            with st.expander("Refleksjon (for læring)", expanded=False):
-                st.write("1) Hvilke enheter brukte du, og hvorfor?")
-                st.write("2) Virker svaret realistisk? Hvordan kan du grovsjekke?")
-                st.write("3) Hva er en typisk feil her (mm vs m, prosent vs 1:x osv.)?")
-
-        # Historikk
-        if st.button("Lagre i historikk", type="primary"):
-            st.session_state.history.append(
-                {
-                    "tid": res.timestamp,
-                    "kalkulator": res.name,
-                    "modus": "Skole" if school else "Produksjon",
-                    "inputs": res.inputs,
-                    "outputs": res.outputs,
-                    "warnings": res.warnings,
-                }
-            )
-            st.toast("Lagret.")
-
-    with col2:
-        st.subheader(tt("Utregning (valgfritt)", "Working (optional)"))
-
-        # Nøkkel: mellomregning åpen i skolemodus, lukket i produksjon
-        with st.expander(tt("Vis mellomregning", "Show working"), expanded=school):
-            for s in res.steps:
-                st.write(f"- {s}")
-
-
-
-
-
-
     with tab_train:
         # =========================================================
         # Identitet for lagring (Elev-ID + Klassekode)
@@ -2179,7 +1940,241 @@ def show_result(res: CalcResult):
                         "Verkstedkobling (kort)": "; ".join((meta.get("verksted") or [])[:2]),
                     }
                 )
-            st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)# ============================================================
+            st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+
+
+    with tab_cards:
+        st.subheader("🃏 " + tt("Læringskort", "Learning Cards"))
+        st.caption(tt(
+            "Spill som Alias: Én elev forklarer begrepet på kortet uten å si ordet (eller forbudte ord). "
+            "De andre gjetter. Bytt på roller og før poeng.",
+            "Play like Alias: One student explains the term on the card without saying the word (or the forbidden words). "
+            "Others guess. Rotate roles and keep score."
+        ))
+
+        # Sørg for at vi alltid har kort tilgjengelig (robust ved endringer/merge)
+        DEFAULT_LEARNING_CARDS = [
+            {'tema': 'Areal', 'begrep': 'Areal', 'hint': 'Forklar hva vi måler i m² og når det brukes.', 'forbudt': ['m²', 'flate', 'areal']},
+            {'tema': 'Omkrets', 'begrep': 'Omkrets', 'hint': 'Forklar lengden rundt en form og et verkstedeksempel.', 'forbudt': ['rundt', 'lengde', 'omkrets']},
+            {'tema': 'Volum', 'begrep': 'Volum', 'hint': 'Forklar hvor mye noe rommer (m³) og et eksempel med betong.', 'forbudt': ['m³', 'rommer', 'volum']},
+            {'tema': 'Målestokk', 'begrep': 'Målestokk 1:50', 'hint': 'Forklar hvordan vi går fra tegning til virkelighet.', 'forbudt': ['1:50', 'målestokk', 'tegning']},
+            {'tema': 'Prosent', 'begrep': 'Svinn', 'hint': 'Forklar hvorfor vi legger til prosent ved bestilling.', 'forbudt': ['prosent', 'ekstra', 'svinn']},
+            {'tema': 'Enhetsomregning', 'begrep': 'mm til m', 'hint': 'Forklar hvordan du gjør om millimeter til meter.', 'forbudt': ['mm', 'meter', 'dele på']},
+            {'tema': 'Areal', 'begrep': 'Nettoareal', 'hint': 'Forklar arealet etter at åpninger (dør/vindu) er trukket fra.', 'forbudt': ['dør', 'vindu', 'trekke fra']},
+            {'tema': 'Omkrets', 'begrep': 'Lister', 'hint': 'Forklar hvordan omkrets brukes for å finne meter list.', 'forbudt': ['list', 'meter', 'omkrets']},
+            {'tema': 'Volum', 'begrep': 'Betongmengde', 'hint': 'Forklar hvordan du finner m³ betong til en plate.', 'forbudt': ['betong', 'm³', 'plate']},
+            {'tema': 'Målestokk', 'begrep': 'Kontrollmål', 'hint': 'Forklar hvorfor vi kontrollerer mål før vi bygger.', 'forbudt': ['kontroll', 'måle', 'sjekke']},
+        ]
+        cards_deck = globals().get('LEARNING_CARDS')
+        if not isinstance(cards_deck, list) or len(cards_deck) == 0:
+            cards_deck = DEFAULT_LEARNING_CARDS
+        st.caption(tt(f'Kortstokk: {len(cards_deck)} kort tilgjengelig.', f'Deck: {len(cards_deck)} cards available.'))
+
+        # Init state
+        if "alias_scores" not in st.session_state:
+            st.session_state.alias_scores = {"Lag A": 0, "Lag B": 0}
+        if "alias_active_team" not in st.session_state:
+            st.session_state.alias_active_team = "Lag A"
+        if "alias_active_card" not in st.session_state:
+            st.session_state.alias_active_card = None
+        if "alias_round_seconds" not in st.session_state:
+            st.session_state.alias_round_seconds = 60
+        if "alias_round_start" not in st.session_state:
+            st.session_state.alias_round_start = None
+        if "alias_history" not in st.session_state:
+            st.session_state.alias_history = []
+
+        with st.container(border=True):
+            c1, c2, c3 = st.columns([1.0, 1.0, 1.2])
+            with c1:
+                team = st.selectbox(tt("Hvem forklarer nå?", "Who explains now?"), options=["Lag A", "Lag B"], key="alias_team_sel")
+                st.session_state.alias_active_team = team
+            with c2:
+                secs = st.number_input(tt("Sekunder per runde", "Seconds per round"), min_value=20, max_value=180, value=int(st.session_state.alias_round_seconds), step=10)
+                st.session_state.alias_round_seconds = int(secs)
+            with c3:
+                st.write("**" + tt("Poeng", "Score") + "**")
+                st.write(f"Lag A: {int(st.session_state.alias_scores.get('Lag A', 0))}   |   Lag B: {int(st.session_state.alias_scores.get('Lag B', 0))}")
+
+        b1, b2, b3, b4 = st.columns([1,1,1,1])
+        with b1:
+            if st.button(tt("Start / nytt kort", "Start / new card"), use_container_width=True):
+                st.session_state.alias_active_card = random.choice(cards_deck)
+                st.session_state.alias_round_start = time.time()
+                st.session_state.alias_history.append({
+                    "team": st.session_state.alias_active_team,
+                    "card": st.session_state.alias_active_card,
+                    "ts": time.time(),
+                    "result": None
+                })
+        with b2:
+            if st.button(tt("Riktig (+1)", "Correct (+1)"), use_container_width=True, disabled=st.session_state.alias_active_card is None):
+                t = st.session_state.alias_active_team
+                st.session_state.alias_scores[t] = int(st.session_state.alias_scores.get(t, 0)) + 1
+                # Mark last history entry
+                for i in range(len(st.session_state.alias_history)-1, -1, -1):
+                    if st.session_state.alias_history[i].get("result") is None:
+                        st.session_state.alias_history[i]["result"] = "Riktig"
+                        break
+                st.session_state.alias_active_card = random.choice(cards_deck)
+                st.session_state.alias_round_start = time.time()
+                st.session_state.alias_history.append({
+                    "team": st.session_state.alias_active_team,
+                    "card": st.session_state.alias_active_card,
+                    "ts": time.time(),
+                    "result": None
+                })
+        with b3:
+            if st.button(tt("Pass (0)", "Pass (0)"), use_container_width=True, disabled=st.session_state.alias_active_card is None):
+                for i in range(len(st.session_state.alias_history)-1, -1, -1):
+                    if st.session_state.alias_history[i].get("result") is None:
+                        st.session_state.alias_history[i]["result"] = "Pass"
+                        break
+                st.session_state.alias_active_card = random.choice(cards_deck)
+                st.session_state.alias_round_start = time.time()
+                st.session_state.alias_history.append({
+                    "team": st.session_state.alias_active_team,
+                    "card": st.session_state.alias_active_card,
+                    "ts": time.time(),
+                    "result": None
+                })
+        with b4:
+            if st.button(tt("Nullstill poeng", "Reset score"), use_container_width=True):
+                st.session_state.alias_scores = {"Lag A": 0, "Lag B": 0}
+                st.session_state.alias_history = []
+                st.session_state.alias_active_card = None
+                st.session_state.alias_round_start = None
+
+        # Timer + kort
+        if st.session_state.alias_active_card is None:
+            st.info(tt("Trykk 'Start / nytt kort' for å trekke et kort.", "Click 'Start / new card' to draw a card."))
+        else:
+            card = st.session_state.alias_active_card
+            start_ts = st.session_state.alias_round_start
+            remaining = None
+            if start_ts:
+                elapsed = time.time() - float(start_ts)
+                remaining = max(0, int(st.session_state.alias_round_seconds - elapsed))
+            with st.container(border=True):
+                if remaining is not None:
+                    st.markdown(f"### ⏱️ {tt('Tid igjen', 'Time left')}: **{remaining} s**")
+                st.markdown(f"## {card['begrep']}")
+                st.write(f"**{tt('Tema', 'Topic')}:** {card['tema']}")
+                st.write(f"**{tt('Forklar med', 'Explain using')}:** {card['hint']}")
+                st.write("**" + tt("Forbudte ord", "Forbidden words") + "**")
+                st.write(", ".join(card["forbudt"]))
+                st.caption(tt(
+                    "Tips: Start med hva begrepet brukes til i verksted, og gi et eksempel uten å nevne ordene over.",
+                    "Tip: Start with how the term is used in the workshop, and give an example without using the words above."
+                ))
+
+        with st.expander(tt("Se siste kort (logg)", "See recent cards (log)"), expanded=False):
+            hist = list(reversed(st.session_state.alias_history[-10:]))
+            if not hist:
+                st.write(tt("Ingen runder ennå.", "No rounds yet."))
+            else:
+                rows = []
+                for h in hist:
+                    c = h.get("card") or {}
+                    rows.append({
+                        tt("Lag", "Team"): h.get("team"),
+                        tt("Begrep", "Term"): c.get("begrep"),
+                        tt("Tema", "Topic"): c.get("tema"),
+                        tt("Resultat", "Result"): h.get("result") or "",
+                    })
+                st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+
+def show_result(res: CalcResult):
+    school = is_school_mode()
+
+    col1, col2 = st.columns([1.1, 1])
+
+    with col1:
+        st.subheader(tt("Resultat", "Result"))
+
+        # I skolemodus: kort læringshint øverst
+        if school:
+            st.info("Tips: Sjekk alltid enhet (mm/cm/m) og om svaret virker realistisk.")
+
+        # Målestokk: profesjonell metric-visning for begge retninger
+        if res.name.startswith("Målestokk"):
+            o = res.outputs
+
+            if "virkelig_mm" in o:
+                c1, c2, c3 = st.columns(3)
+                c1.metric("Virkelig mål (mm)", format_value("virkelig_mm", o.get("virkelig_mm", 0)))
+                c2.metric("Virkelig mål (cm)", format_value("virkelig_cm", o.get("virkelig_cm", 0)))
+                c3.metric("Virkelig mål (m)", format_value("virkelig_m", o.get("virkelig_m", 0)))
+
+            if "tegning_mm" in o:
+                c1, c2, c3 = st.columns(3)
+                c1.metric("Tegningsmål (mm)", format_value("tegning_mm", o.get("tegning_mm", 0)))
+                c2.metric("Tegningsmål (cm)", format_value("tegning_cm", o.get("tegning_cm", 0)))
+                c3.metric("Tegningsmål (m)", format_value("tegning_m", o.get("tegning_m", 0)))
+
+        # Kledning: profesjonell metric-visning
+        elif res.name.startswith("Tømmermannskledning"):
+            o = res.outputs
+            r1c1, r1c2, r1c3 = st.columns(3)
+            r1c1.metric("Underliggere", str(o.get("underliggere_antall", "")))
+            r1c2.metric("Overliggere", str(o.get("overliggere_antall", "")))
+            r1c3.metric("Overligger OK", str(o.get("overligger_ok_for_omlegg", "")))
+
+            r2c1, r2c2, r2c3 = st.columns(3)
+            r2c1.metric("Dekket bredde (mm)", format_value("dekket_bredde_mm", o.get("dekket_bredde_mm", 0)))
+            r2c2.metric("Overdekning (mm)", format_value("overdekning_mm", o.get("overdekning_mm", 0)))
+            r2c3.metric(
+                "Min overliggerbredde (mm)",
+                format_value("min_overligger_bredde_mm", o.get("min_overligger_bredde_mm", 0)),
+            )
+
+        # Standard: labels uten understreker
+        else:
+            for k, v in res.outputs.items():
+                st.write(f"**{label_for(k)}**: {format_value(k, v)}")
+
+        # Varsler: skole vs produksjon
+        if res.warnings:
+            if school:
+                st.warning("Sjekk dette:\n- " + "\n- ".join(res.warnings))
+                st.caption("I skolemodus er varsler laget for å støtte kontroll og enhetsforståelse.")
+            else:
+                st.error("Kontroller før bruk i produksjon:\n- " + "\n- ".join(res.warnings))
+        else:
+            st.success("Ingen varsler.")
+
+        # Skolemodus: refleksjonsspørsmål (valgfritt, men nyttig)
+        if school:
+            with st.expander("Refleksjon (for læring)", expanded=False):
+                st.write("1) Hvilke enheter brukte du, og hvorfor?")
+                st.write("2) Virker svaret realistisk? Hvordan kan du grovsjekke?")
+                st.write("3) Hva er en typisk feil her (mm vs m, prosent vs 1:x osv.)?")
+
+        # Historikk
+        if st.button("Lagre i historikk", type="primary"):
+            st.session_state.history.append(
+                {
+                    "tid": res.timestamp,
+                    "kalkulator": res.name,
+                    "modus": "Skole" if school else "Produksjon",
+                    "inputs": res.inputs,
+                    "outputs": res.outputs,
+                    "warnings": res.warnings,
+                }
+            )
+            st.toast("Lagret.")
+
+    with col2:
+        st.subheader(tt("Utregning (valgfritt)", "Working (optional)"))
+
+        # Nøkkel: mellomregning åpen i skolemodus, lukket i produksjon
+        with st.expander(tt("Vis mellomregning", "Show working"), expanded=school):
+            for s in res.steps:
+                st.write(f"- {s}")
+
+
+
+# ============================================================
 # Læringskort (Alias) – 10 kort på tvers av temaer
 # ============================================================
 LEARNING_CARDS = [
