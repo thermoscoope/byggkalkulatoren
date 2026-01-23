@@ -351,7 +351,7 @@ def render_school_illustration(key: str) -> None:
 # Komprimert header (logo + tittel + undertittel på én linje)
 # ============================
 
-LOGO_PATH = Path(__file__).parent / "byggmatte.png"
+LOGO_PATH = Path(__file__).parent / "byggmattev2.png"
 
 # Strammere CSS rundt bilder/kolonner slik at logoen faktisk kan ligge tett på topmenyen.
 st.markdown(
