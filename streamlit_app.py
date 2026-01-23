@@ -33,7 +33,7 @@ import operator as op
 # Streamlit side-oppsett (må komme før annen Streamlit-bruk)
 # ============================================================
 st.set_page_config(
-    page_title="Bygg-kalkulatoren",
+    page_title="Byggmatte",
     page_icon="🧮",
     layout="wide",
     initial_sidebar_state="collapsed",
