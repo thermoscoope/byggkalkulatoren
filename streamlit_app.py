@@ -225,7 +225,7 @@ def _draw_text_illustration(path: Path, lines, title=None):
     _save_pil(img, path)
 
 ILLUSTRATIONS = {
-    "unit": ("unit.png", tt("Enhetsomregning", "Unit conversion"), [
+    "unit": ("", tt("Enhetsomregning", "Unit conversion"), [
         "6000 mm → 600 cm → 6,0 m",
         "mm → cm: ÷10, cm → m: ÷100, mm → m: ÷1000",
     ]),
