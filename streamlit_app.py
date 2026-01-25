@@ -16,6 +16,14 @@ except Exception:  # pragma: no cover
     create_client = None
 from PIL import Image
 
+# Illustrasjoner (skolemodus)
+try:
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+except Exception:  # pragma: no cover
+    plt = None
+
 import re
 import ast
 import operator as op
@@ -25,7 +33,7 @@ import operator as op
 # Streamlit side-oppsett (må komme før annen Streamlit-bruk)
 # ============================================================
 st.set_page_config(
-    page_title="Bygg-kalkulatoren",
+    page_title="Byggmatte",
     page_icon="🧮",
     layout="wide",
     initial_sidebar_state="collapsed",
@@ -47,7 +55,7 @@ st.markdown(
 # ============================================================
 # Konfig + Logo (må ligge før all annen Streamlit-output)
 # ============================================================
-LOGO_PATH = Path(__file__).parent / "logo.png"
+LOGO_PATH = Path(__file__).parent / "byggmatte.png"
 
 page_icon = None
 # Profesjonell header med logo
@@ -62,7 +70,7 @@ if "current_view" not in st.session_state:
 # Modus: Skole / Produksjon
 # ============================================================
 if "app_mode" not in st.session_state:
-    st.session_state.app_mode = "Skole"
+    st.session_state.app_mode = "Øv"
 
 
 if "language" not in st.session_state:
@@ -78,15 +86,272 @@ def tt(no: str, en: str) -> str:
 
 
 def is_school_mode() -> bool:
-    return st.session_state.get("app_mode", "Skole") == "Skole"
+    """Legacy helper: True when user is in a learning-oriented mode."""
+    return st.session_state.get("app_mode", "Øv") in ["Øv", "Test"]
 
+
+def is_test_mode() -> bool:
+    return st.session_state.get("app_mode", "Øv") == "Test"
+
+
+def is_practice_mode() -> bool:
+    return st.session_state.get("app_mode", "Øv") == "Praksis"
+
+
+# ============================================================
+# Illustrasjoner for skolemodus (samme visuelle stil)
+# - Bildene genereres automatisk første gang appen kjører
+# - Lagring i ./.illustrations for å unngå ekstra filer i repo
+# - PIL brukes for maksimal kompatibilitet (matplotlib er ikke alltid tilgjengelig)
+# ============================================================
+
+ILLUSTRATION_DIR = Path(__file__).parent / ".illustrations"
+
+def _ensure_dir(p: Path) -> None:
+    try:
+        p.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        pass
+
+def _pil_font(size: int = 28):
+    # Bruk systemfont hvis mulig, fall tilbake til PIL default
+    try:
+        from PIL import ImageFont
+        for candidate in [
+            "DejaVuSerif.ttf",
+            "DejaVuSans.ttf",
+            "LiberationSerif-Regular.ttf",
+            "LiberationSans-Regular.ttf",
+            "Arial.ttf",
+        ]:
+            try:
+                return ImageFont.truetype(candidate, size=size)
+            except Exception:
+                continue
+        return ImageFont.load_default()
+    except Exception:
+        return None
+
+def _save_pil(img, path: Path) -> None:
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        img.save(path, format="PNG")
+    except Exception:
+        pass
+
+def _draw_rect_illustration(path: Path, w_label="6,0 m", h_label="2,0 m", show_diagonal=False, title_text=None, top_text=None):
+    # Ren teknisk stil: hvit bakgrunn, grå/svart linje, serif-aktig font
+    from PIL import Image, ImageDraw
+
+    W, H = 1400, 480
+    img = Image.new("RGB", (W, H), "white")
+    d = ImageDraw.Draw(img)
+
+    font_big = _pil_font(34)
+    font_mid = _pil_font(28)
+    font_small = _pil_font(22)
+
+    # Rammeområde for figuren
+    margin_left = 120
+    margin_top = 70
+    rect_w = 1050
+    rect_h = 300
+
+    x0, y0 = margin_left, margin_top
+    x1, y1 = x0 + rect_w, y0 + rect_h
+
+    # Rektangel
+    line_col = (45, 45, 45)
+    d.rectangle([x0, y0, x1, y1], outline=line_col, width=5)
+
+    # Diagonal (stiplet)
+    if show_diagonal:
+        dash = 18
+        gap = 12
+        # draw dashed line from A(x0,y1) to C(x1,y0)
+        # Note: koordinatsystemet i PIL har (0,0) oppe til venstre, så vi bruker A nederst-venstre og C øverst-høyre
+        ax, ay = x0, y1
+        cx, cy = x1, y0
+        import math
+        dx, dy = cx - ax, cy - ay
+        dist = math.hypot(dx, dy)
+        steps = int(dist // (dash + gap)) + 1
+        for i in range(steps):
+            t0 = (i * (dash + gap)) / dist
+            t1 = min((i * (dash + gap) + dash) / dist, 1.0)
+            sx0 = ax + dx * t0
+            sy0 = ay + dy * t0
+            sx1 = ax + dx * t1
+            sy1 = ay + dy * t1
+            d.line([sx0, sy0, sx1, sy1], fill=line_col, width=4)
+
+    # Punktnavn (A,B,C,D)
+    # A nederst-venstre, B nederst-høyre, C øverst-høyre, D øverst-venstre
+    d.text((x0-26, y1+6), "A", fill=line_col, font=font_big)
+    d.text((x1+10, y1+6), "B", fill=line_col, font=font_big)
+    d.text((x1+10, y0-44), "C", fill=line_col, font=font_big)
+    d.text((x0-26, y0-44), "D", fill=line_col, font=font_big)
+
+    # Dimensjonstekst (samme plassering som eksempel)
+    d.text(((x0+x1)/2 - 35, y1+40), w_label, fill=line_col, font=font_mid)
+    d.text((x1+35, (y0+y1)/2 - 18), h_label, fill=line_col, font=font_mid)
+
+    # Valgfri tittel / topptekst
+    if title_text:
+        d.text((40, 14), title_text, fill=line_col, font=font_small)
+    if top_text:
+        d.text(((x0+x1)/2 - 240, y0-55), top_text, fill=line_col, font=font_small)
+
+    _save_pil(img, path)
+
+def _draw_text_illustration(path: Path, lines, title=None):
+    from PIL import Image, ImageDraw
+    W, H = 1400, 360
+    img = Image.new("RGB", (W, H), "white")
+    d = ImageDraw.Draw(img)
+    col = (45, 45, 45)
+    font_title = _pil_font(30)
+    font_line = _pil_font(28)
+
+    y = 30
+    if title:
+        d.text((40, y), title, fill=col, font=font_title)
+        y += 60
+
+    for ln in lines:
+        d.text((40, y), ln, fill=col, font=font_line)
+        y += 48
+
+    _save_pil(img, path)
+
+ILLUSTRATIONS = {
+    "unit": ("unit.png", tt("Enhetsomregning", "Unit conversion"), [
+        "6000 mm → 600 cm → 6,0 m",
+        "mm → cm: ÷10, cm → m: ÷100, mm → m: ÷1000",
+    ]),
+    "area": ("area.png", tt("Areal (rektangel)", "Area (rectangle)"), [
+        "A = lengde × bredde",
+        "A = 6,0 m × 2,0 m = 12,0 m²",
+    ]),
+    "perimeter": ("perimeter.png", tt("Omkrets (rektangel)", "Perimeter (rectangle)"), [
+        "O = 2 × (lengde + bredde)",
+        "O = 2 × (6,0 + 2,0) = 16,0 m",
+    ]),
+    "volume": ("volume.png", tt("Volum (plate)", "Volume (slab)"), [
+        "100 mm = 0,10 m",
+        "V = 6,0 × 2,0 × 0,10 = 1,2 m³",
+    ]),
+    "scale": ("scale.png", tt("Målestokk", "Scale"), [
+        "1 : 50 betyr: 1 cm på tegning = 50 cm i virkelighet",
+        "4,0 cm × 50 = 200 cm = 2,0 m",
+    ]),
+    "diagonal": ("diagonal.png", tt("Diagonal (Pytagoras)", "Diagonal (Pythagoras)"), [
+        "c² = a² + b²",
+        "c = √(6,0² + 2,0²) ≈ 6,32 m",
+    ]),
+    "cladding": ("cladding.png", tt("Tømmermannskledning (bredde)", "Wood cladding (width)"), [
+        "Dekketøy per bord ≈ (under + over) − omlegg",
+        "Antall bord ≈ veggbredde / dekkmål (avrundes opp)",
+    ]),
+    "tiles": ("tiles.png", tt("Fliser på vegg", "Wall tiles"), [
+        "Modulmål = flis + fuge",
+        "Antall = ceil(veggmål / modulmål) (i begge retninger)",
+    ]),
+    "slope": ("slope.png", tt("Fall (%)", "Slope (%)"), [
+        "Fall (%) = (fall / lengde) × 100",
+        "Eksempel: (0,08 / 4,0) × 100 = 2,0 %",
+    ]),
+    "percent": ("percent.png", tt("Prosent", "Percent"), [
+        "Del = prosent × helhet",
+        "Eksempel: 25 % av 800 kr = 0,25 × 800 = 200 kr",
+    ]),
+    "economy": ("economy.png", tt("Økonomi (sum)", "Economy (total)"), [
+        "Sum = materialer + (timer × timepris)",
+        "Eksempel: 1800 + (6,0 × 450) = 4500 kr",
+    ]),
+}
+
+def ensure_illustrations() -> None:
+    _ensure_dir(ILLUSTRATION_DIR)
+
+    # Rektangelbaserte
+    rect_jobs = {
+        "area": dict(show_diagonal=False, w_label="6,0 m", h_label="2,0 m"),
+        "perimeter": dict(show_diagonal=False, w_label="6,0 m", h_label="2,0 m"),
+        "diagonal": dict(show_diagonal=True, w_label="6,0 m", h_label="2,0 m"),
+        "volume": dict(show_diagonal=False, w_label="6,0 m", h_label="2,0 m", top_text="Tykkelse: 100 mm"),
+        "cladding": dict(show_diagonal=False, w_label="Vegg-bredde: 600 cm", h_label="", top_text="Bord: 148 mm + 58 mm, omlegg 2,0 cm"),
+        "tiles": dict(show_diagonal=False, w_label="Bredde: 3,0 m", h_label="Høyde: 2,0 m", top_text="Flis 20×20 cm, fuge 0,3 cm → modul 20,3 cm"),
+        "scale": dict(show_diagonal=False, w_label="4,0 cm (tegning)", h_label="1,3 cm", top_text="Målestokk 1 : 50"),
+    }
+
+    # Tekstbaserte
+    text_jobs = {
+        "unit": ["Eksempel:", "6000 mm  →  600 cm  →  6,0 m", "mm→cm: ÷10   cm→m: ÷100   mm→m: ÷1000"],
+        "percent": ["Eksempel:", "25 % av 800 kr", "0,25 × 800 = 200 kr"],
+        "economy": ["Eksempel:", "Materialer: 1 800 kr", "Timer: 6,0 t × 450 kr/t = 2 700 kr", "Sum = 4 500 kr"],
+        "slope": ["Eksempel:", "Lengde: 4,0 m", "Fall: 0,08 m", "Fall (%) = (fall / lengde) × 100 = 2,0 %"],
+    }
+
+    for key, (fname, title, _) in ILLUSTRATIONS.items():
+        fpath = ILLUSTRATION_DIR / fname
+        if fpath.exists():
+            continue
+        try:
+            if key in rect_jobs:
+                kw = rect_jobs[key]
+                # Noen trenger tom høyde-etikett
+                h_lab = kw.get("h_label", "2,0 m")
+                if not h_lab:
+                    # Tegn uten høyde-etikett: bruk liten font og legg ikke tekst
+                    _draw_rect_illustration(fpath, w_label=kw.get("w_label","6,0 m"), h_label=" ", show_diagonal=kw.get("show_diagonal", False),
+                                           top_text=kw.get("top_text"))
+                else:
+                    _draw_rect_illustration(fpath, w_label=kw.get("w_label","6,0 m"), h_label=h_lab, show_diagonal=kw.get("show_diagonal", False),
+                                           top_text=kw.get("top_text"))
+            elif key in text_jobs:
+                _draw_text_illustration(fpath, text_jobs[key], title=title)
+            else:
+                # Fallback: generer enkel tekst
+                _draw_text_illustration(fpath, ["Eksempel kommer"], title=title)
+        except Exception:
+            # Skal aldri stoppe appen hvis illustrasjon ikke lar seg generere
+            pass
+
+def render_school_illustration(key: str) -> None:
+    # Kun skolemodus
+    if not is_school_mode():
+        return
+
+    ensure_illustrations()
+    if key not in ILLUSTRATIONS:
+        return
+
+    fname, title, steps = ILLUSTRATIONS[key]
+    fpath = ILLUSTRATION_DIR / fname
+
+    st.markdown(f"#### {title}")
+
+    if fpath.exists():
+        st.image(str(fpath), use_container_width=True)
+    else:
+        # Hvis det mot formodning ikke ble generert bilde, vis et klart varsel for lærer
+        st.warning(tt("Illustrasjonen ble ikke generert på denne enheten. Sjekk skrive-/filrettigheter.",
+                      "Illustration could not be generated on this device. Check file permissions."))
+
+    st.info(tt("Prøv å regne selv først. Bruk kalkulatoren under for å kontrollere svaret ditt.",
+               "Try to calculate first. Use the calculator below to verify your answer."))
+
+    # FASIT SYNLIG (ikke expander)
+    st.markdown("**Fasit / utregning:**")
+    st.markdown("\n".join([f"- {s}" for s in steps]))
 
 
 # ============================
 # Komprimert header (logo + tittel + undertittel på én linje)
 # ============================
 
-LOGO_PATH = Path(__file__).parent / "logo.png"
+LOGO_PATH = Path(__file__).parent / "byggmatte.png"
 
 # Strammere CSS rundt bilder/kolonner slik at logoen faktisk kan ligge tett på topmenyen.
 st.markdown(
@@ -2067,16 +2332,23 @@ def show_play_screen():
                 st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
 
 def show_result(res: CalcResult):
+    mode = st.session_state.get("app_mode", "Øv")
     school = is_school_mode()
+    test_mode = is_test_mode()
 
     col1, col2 = st.columns([1.1, 1])
 
     with col1:
         st.subheader(tt("Resultat", "Result"))
 
-        # I skolemodus: kort læringshint øverst
+        # Læringshint øverst (kun i Øv/Test)
         if school:
-            st.info("Tips: Sjekk alltid enhet (mm/cm/m) og om svaret virker realistisk.")
+            if test_mode:
+                st.info(tt("Test først: regn selv før du ser mellomregning. Sjekk alltid enheter og rimelighet.",
+                           "Try first: calculate yourself before viewing the working. Always check units and reasonableness."))
+            else:
+                st.info(tt("Tips: Sjekk alltid enhet (mm/cm/m) og om svaret virker realistisk.",
+                           "Tip: Always check units (mm/cm/m) and whether the result seems reasonable."))
 
         # Målestokk: profesjonell metric-visning for begge retninger
         if res.name.startswith("Målestokk"):
@@ -2125,12 +2397,21 @@ def show_result(res: CalcResult):
         else:
             st.success("Ingen varsler.")
 
-        # Skolemodus: refleksjonsspørsmål (valgfritt, men nyttig)
+        # Skolemodus: refleksjon og egenkontroll (checkliste)
         if school:
-            with st.expander("Refleksjon (for læring)", expanded=False):
-                st.write("1) Hvilke enheter brukte du, og hvorfor?")
-                st.write("2) Virker svaret realistisk? Hvordan kan du grovsjekke?")
-                st.write("3) Hva er en typisk feil her (mm vs m, prosent vs 1:x osv.)?")
+            with st.container(border=True):
+                st.markdown("**" + tt("Egenkontroll før du går videre", "Self-check before moving on") + "**")
+                c_a, c_b, c_c = st.columns(3)
+                with c_a:
+                    st.checkbox(tt("Jeg har kontrollert enhetene", "I verified the units"), key=f"chk_units_{res.timestamp}")
+                with c_b:
+                    st.checkbox(tt("Svaret virker realistisk", "The result seems reasonable"), key=f"chk_real_{res.timestamp}")
+                with c_c:
+                    st.checkbox(tt("Jeg kan forklare fremgangsmåten", "I can explain the method"), key=f"chk_explain_{res.timestamp}")
+                st.caption(tt(
+                    "Tips: Gjør en grovsjekk (avrund, sammenlign med erfaring). Typisk feil er mm vs m eller prosent vs desimal.",
+                    "Tip: Do a quick sanity check (round, compare with experience). Common errors are mm vs m or percent vs decimal."
+                ))
 
         # Historikk
         if st.button("Lagre i historikk", type="primary"):
@@ -2138,7 +2419,7 @@ def show_result(res: CalcResult):
                 {
                     "tid": res.timestamp,
                     "kalkulator": res.name,
-                    "modus": "Skole" if school else "Produksjon",
+                    "modus": st.session_state.get("app_mode","Øv"),
                     "inputs": res.inputs,
                     "outputs": res.outputs,
                     "warnings": res.warnings,
@@ -2147,10 +2428,13 @@ def show_result(res: CalcResult):
             st.toast("Lagret.")
 
     with col2:
-        st.subheader(tt("Utregning (valgfritt)", "Working (optional)"))
+        st.subheader(tt("Utregning", "Working"))
 
-        # Nøkkel: mellomregning åpen i skolemodus, lukket i produksjon
-        with st.expander(tt("Vis mellomregning", "Show working"), expanded=school):
+        # Øv: åpen mellomregning. Test: skjult som standard.
+        exp_label = tt("Vis mellomregning", "Show working")
+        if test_mode:
+            exp_label = tt("Vis fasit / mellomregning", "Reveal working")
+        with st.expander(exp_label, expanded=(school and (not test_mode))):
             for s in res.steps:
                 st.write(f"- {s}")
 
@@ -2326,7 +2610,7 @@ with bar2:
         st.rerun()
 
 with bar3:
-    if st.button("🤖 " + tt("Spør Robokai (BETA)", "Ask Robokai (BETA)"), key="btn_ai_top", use_container_width=True):
+    if st.button("🤖 " + tt("Spør AI (BETA)", "Ask AI (BETA)"), key="btn_ai_top", use_container_width=True):
         st.session_state.show_ai = True
         st.session_state.show_pro = False
         st.session_state.show_play = False
@@ -2346,14 +2630,18 @@ with bar4:
 
         st.session_state.app_mode = st.radio(
             tt("Modus", "Mode"),
-            ["Skole", "Produksjon"],
-            index=0 if st.session_state.get("app_mode", "Skole") == "Skole" else 1,
+            ["Øv", "Test", "Praksis"],
+            horizontal=True,
+            index={"Øv": 0, "Test": 1, "Praksis": 2}.get(st.session_state.get("app_mode", "Øv"), 0),
             key="app_mode_settings",
         )
-        if st.session_state.app_mode == "Skole":
-            st.info(tt("Skolemodus er aktiv.", "School mode is active."))
+
+        if st.session_state.app_mode == "Øv":
+            st.info(tt("Øv-modus: forklaring + mellomregning + refleksjon.", "Practice mode: explanation + working + reflection."))
+        elif st.session_state.app_mode == "Test":
+            st.warning(tt("Test-modus: prøv selv først. Utregning er skjult som standard.", "Test mode: try first. Working is hidden by default."))
         else:
-            st.success(tt("Produksjonsmodus er aktiv.", "Production mode is active."))
+            st.success(tt("Praksis-modus: raskt svar med færre forstyrrelser.", "Production mode: quick output with fewer distractions."))
 
         st.divider()
         st.markdown("**" + tt("Oppgradering", "Upgrade") + "**")
@@ -2427,7 +2715,7 @@ if "today_task" not in st.session_state:
 # Intern nøkkel -> visningsnavn
 TASK_LABELS = {
     "Ingen valgt": ( "Ingen valgt", "Not selected"),
-    "Veggreis / bindingsverk": ("Veggreis / bindingsverk", "Wall framing"),
+    "Vegg / bindingsverk": ("Vegg / bindingsverk", "Wall framing"),
     "Gulv (plate/undergulv)": ("Gulv (plate/undergulv)", "Flooring (sheet/subfloor)"),
     "Tak / sperrer": ("Tak / sperrer", "Roof / rafters"),
     "Kledning / utvendig": ("Kledning / utvendig", "Cladding / exterior"),
@@ -2462,7 +2750,7 @@ CALC_LABELS = {
 TASK_KEYS = list(TASK_LABELS.keys())
 
 TASK_TO_RECOMMEND = {
-    "Veggreis / bindingsverk": {
+    "Vegg / bindingsverk": {
         "calc": ["Enhetomregner", "Areal", "Omkrets", "Diagonal (Pytagoras)"],
         "play": ["Enhetsomregning", "Areal", "Målestokk"],
         "tips": (
@@ -2610,6 +2898,8 @@ tabs = st.tabs(
 # ---- Enhetsomregner ----
 with tabs[0]:
     st.subheader(tt("Enhetsomregner", "Unit converter"))
+    if is_school_mode():
+        render_school_illustration("unit")
     st.caption("I byggfag brukes måleenheter som millimeter (mm), centimeter (cm) og meter (m). For å regne riktig må alle mål ofte være i samme enhet. Skriv inn et tall, velg enhet, og få omregning til mm, cm og m i tabell.")
 
     c1, c2 = st.columns([2, 1])
@@ -2646,6 +2936,7 @@ with tabs[0]:
 with tabs[1]:
     if is_school_mode():
         st.caption("Areal forteller hvor stor en flate er. I bygg brukes areal for å finne hvor mye gulv, vegg, isolasjon eller kledning som trengs. Tenk: areal = lengde × bredde. Sjekk alltid at begge mål er i meter.")
+        render_school_illustration("area")
 
     st.subheader(tt("Areal (rektangel)", "Area (rectangle)"))
     l = st.number_input("Lengde (m)", min_value=0.0, value=5.0, step=0.1, key="areal_l")
@@ -2692,6 +2983,7 @@ with tabs[1]:
 with tabs[2]:
     if is_school_mode():
         st.caption("Omkrets er lengden rundt en figur. I bygg brukes omkrets blant annet for å finne lengde på lister, sviller eller fundament. Rektangel: 2(a+b). Sirkel: 2πr.")
+        render_school_illustration("perimeter")
 
     st.subheader("🧵 " + tt("Omkrets", "Perimeter"))
     shape = st.selectbox(tt("Velg figur", "Select shape"), ["Rektangel", "Sirkel"], key="per_shape")
@@ -2723,6 +3015,7 @@ with tabs[2]:
 with tabs[3]:
     if is_school_mode():
         st.caption("Volum sier hvor mye noe rommer. I bygg brukes volum særlig når man skal beregne mengde betong, masser eller fyll. Volum beregnes i m³. Tykkelser oppgis ofte i mm og må konverteres til meter.")
+        render_school_illustration("volume")
 
     st.subheader(tt("Betongplate", "Concrete slab"))
     l = st.number_input("Lengde (m)", min_value=0.0, value=6.0, step=0.1, key="slab_l")
@@ -2750,6 +3043,7 @@ with tabs[3]:
 with tabs[4]:
     if is_school_mode():
         st.caption("Målestokk viser forholdet mellom en tegning og virkeligheten. En målestokk på 1:50 betyr at 1 cm på tegningen er 50 cm i virkeligheten.")
+        render_school_illustration("scale")
 
     st.subheader(tt("Målestokk", "Scale"))
 
@@ -2779,6 +3073,8 @@ with tabs[4]:
 # ---- Kledning ----
 with tabs[5]:
     st.subheader(tt("Tømmermannskledning", "Wood cladding"))
+    if is_school_mode():
+        render_school_illustration("cladding")
     st.caption("Når du kler en vegg, må du vite hvor mange bord som trengs, og om bordene dekker hele bredden riktig. Fritt innskrive: mål fra–til (cm), omlegg (cm) og bordbredder (mm).")
 
     c1, c2, c3, c4 = st.columns([2, 2, 2, 2])
@@ -2796,6 +3092,8 @@ with tabs[5]:
 
     st.divider()
     st.subheader(tt("Fliser", "Tiles"))
+    if is_school_mode():
+        render_school_illustration("tiles")
     if is_school_mode():
         st.caption("Du regner antall fliser ved å bruke modulmål: (flis + fuge). Antall = ceil(vegg / modul).")
 
@@ -2889,6 +3187,7 @@ with tabs[6]:
 
     if is_school_mode():
         st.caption("Fall brukes for å sikre at vann renner riktig vei, for eksempel på bad, terrasse eller tak. Fall kan angis i prosent, 1:x eller mm per meter.")
+        render_school_illustration("slope")
 
     st.subheader(tt("Fallberegning", "Slope calculation"))
     length = st.number_input("Lengde (m)", min_value=0.0, value=2.0, step=0.1, key="fall_len")
@@ -2909,6 +3208,8 @@ with tabs[6]:
 
 with tabs[7]:
     st.subheader("🧮 Prosent")
+    if is_school_mode():
+        render_school_illustration("percent")
     st.caption("Prosent brukes for å vise en del av en helhet. I bygg brukes prosent blant annet til svinn, rabatt, påslag og MVA. Regn ut prosent av et tall, eller finn hvor mange prosent et tall er av et annet.")
 
     mode = st.radio(
@@ -2964,6 +3265,7 @@ with tabs[7]:
 with tabs[8]:
     if is_school_mode():
         st.caption("Pytagoras brukes i rettvinklede trekanter: c = √(a² + b²). Sjekk alltid enhet før du regner.")
+        render_school_illustration("diagonal")
 
     st.subheader(tt("Diagonal (Pytagoras)", "Diagonal (Pythagoras)"))
 
@@ -2987,6 +3289,8 @@ with tabs[8]:
 # ---- Økonomi ----
 with tabs[9]:
     st.subheader("💰 " + tt("Økonomi", "Economy"))
+    if is_school_mode():
+        render_school_illustration("economy")
     if is_school_mode():
         st.caption('I byggfag må du kunne regne ut priser, rabatter, påslag og merverdiavgift (MVA). Brukes til enkel prisregning: rabatt, påslag og MVA. Pass på prosent og rekkefølge.')
 
