@@ -16,14 +16,6 @@ except Exception:  # pragma: no cover
     create_client = None
 from PIL import Image
 
-# Illustrasjoner (skolemodus)
-try:
-    import matplotlib
-    matplotlib.use('Agg')
-    import matplotlib.pyplot as plt
-except Exception:  # pragma: no cover
-    plt = None
-
 import re
 import ast
 import operator as op
@@ -105,310 +97,58 @@ def is_practice_mode() -> bool:
 # - PIL brukes for maksimal kompatibilitet (matplotlib er ikke alltid tilgjengelig)
 # ============================================================
 
-ILLUSTRATION_DIR = Path(__file__).parent / ".illustrations"
+# ============================================================
+# Illustrasjoner (skolemodus) – lastes fra assets/
+# ============================================================
 
-def _ensure_dir(p: Path) -> None:
-    try:
-        p.mkdir(parents=True, exist_ok=True)
-    except Exception:
-        pass
+ASSETS_DIR = Path(__file__).parent / "assets"
 
-def _pil_font(size: int = 28):
-    # Bruk systemfont hvis mulig, fall tilbake til PIL default
-    try:
-        from PIL import ImageFont
-        for candidate in [
-            "DejaVuSerif.ttf",
-            "DejaVuSans.ttf",
-            "LiberationSerif-Regular.ttf",
-            "LiberationSans-Regular.ttf",
-            "Arial.ttf",
-        ]:
-            try:
-                return ImageFont.truetype(candidate, size=size)
-            except Exception:
-                continue
-        return ImageFont.load_default()
-    except Exception:
-        return None
-
-def _save_pil(img, path: Path) -> None:
-    try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        img.save(path, format="PNG")
-    except Exception:
-        pass
-
-def _draw_rect_illustration(path: Path, w_label="6,0 m", h_label="2,0 m", show_diagonal=False, title_text=None, top_text=None):
-    # Ren teknisk stil: hvit bakgrunn, grå/svart linje, serif-aktig font
-    from PIL import Image, ImageDraw
-
-    W, H = 1400, 480
-    img = Image.new("RGB", (W, H), "white")
-    d = ImageDraw.Draw(img)
-
-    font_big = _pil_font(34)
-    font_mid = _pil_font(28)
-    font_small = _pil_font(22)
-
-    # Rammeområde for figuren
-    margin_left = 120
-    margin_top = 70
-    rect_w = 1050
-    rect_h = 300
-
-    x0, y0 = margin_left, margin_top
-    x1, y1 = x0 + rect_w, y0 + rect_h
-
-    # Rektangel
-    line_col = (45, 45, 45)
-    d.rectangle([x0, y0, x1, y1], outline=line_col, width=5)
-
-    # Diagonal (stiplet)
-    if show_diagonal:
-        dash = 18
-        gap = 12
-        # draw dashed line from A(x0,y1) to C(x1,y0)
-        # Note: koordinatsystemet i PIL har (0,0) oppe til venstre, så vi bruker A nederst-venstre og C øverst-høyre
-        ax, ay = x0, y1
-        cx, cy = x1, y0
-        import math
-        dx, dy = cx - ax, cy - ay
-        dist = math.hypot(dx, dy)
-        steps = int(dist // (dash + gap)) + 1
-        for i in range(steps):
-            t0 = (i * (dash + gap)) / dist
-            t1 = min((i * (dash + gap) + dash) / dist, 1.0)
-            sx0 = ax + dx * t0
-            sy0 = ay + dy * t0
-            sx1 = ax + dx * t1
-            sy1 = ay + dy * t1
-            d.line([sx0, sy0, sx1, sy1], fill=line_col, width=4)
-
-    # Punktnavn (A,B,C,D)
-    # A nederst-venstre, B nederst-høyre, C øverst-høyre, D øverst-venstre
-    d.text((x0-26, y1+6), "A", fill=line_col, font=font_big)
-    d.text((x1+10, y1+6), "B", fill=line_col, font=font_big)
-    d.text((x1+10, y0-44), "C", fill=line_col, font=font_big)
-    d.text((x0-26, y0-44), "D", fill=line_col, font=font_big)
-
-    # Dimensjonstekst (samme plassering som eksempel)
-    d.text(((x0+x1)/2 - 35, y1+40), w_label, fill=line_col, font=font_mid)
-    d.text((x1+35, (y0+y1)/2 - 18), h_label, fill=line_col, font=font_mid)
-
-    # Valgfri tittel / topptekst
-    if title_text:
-        d.text((40, 14), title_text, fill=line_col, font=font_small)
-    if top_text:
-        d.text(((x0+x1)/2 - 240, y0-55), top_text, fill=line_col, font=font_small)
-
-    _save_pil(img, path)
-
-def _draw_text_illustration(path: Path, lines, title=None):
-    from PIL import Image, ImageDraw
-    W, H = 1400, 360
-    img = Image.new("RGB", (W, H), "white")
-    d = ImageDraw.Draw(img)
-    col = (45, 45, 45)
-    font_title = _pil_font(30)
-    font_line = _pil_font(28)
-
-    y = 30
-    if title:
-        d.text((40, y), title, fill=col, font=font_title)
-        y += 60
-
-    for ln in lines:
-        d.text((40, y), ln, fill=col, font=font_line)
-        y += 48
-
-    _save_pil(img, path)
-
-ILLUSTRATIONS = {
-    "unit": ("unit.png", tt("Enhetsomregning", "Unit conversion"), [
-        "6000 mm → 600 cm → 6,0 m",
-        "mm → cm: ÷10, cm → m: ÷100, mm → m: ÷1000",
-    ]),
-    "area": ("area.png", tt("Areal (rektangel)", "Area (rectangle)"), [
-        "A = lengde × bredde",
-        "A = 6,0 m × 2,0 m = 12,0 m²",
-    ]),
-    "perimeter": ("perimeter.png", tt("Omkrets (rektangel)", "Perimeter (rectangle)"), [
-        "O = 2 × (lengde + bredde)",
-        "O = 2 × (6,0 + 2,0) = 16,0 m",
-    ]),
-    "volume": ("volume.png", tt("Volum (plate)", "Volume (slab)"), [
-        "100 mm = 0,10 m",
-        "V = 6,0 × 2,0 × 0,10 = 1,2 m³",
-    ]),
-    "scale": ("scale.png", tt("Målestokk", "Scale"), [
-        "1 : 50 betyr: 1 cm på tegning = 50 cm i virkelighet",
-        "4,0 cm × 50 = 200 cm = 2,0 m",
-    ]),
-    "diagonal": ("diagonal.png", tt("Diagonal (Pytagoras)", "Diagonal (Pythagoras)"), [
-        "c² = a² + b²",
-        "c = √(6,0² + 2,0²) ≈ 6,32 m",
-    ]),
-    "cladding": ("cladding.png", tt("Tømmermannskledning (bredde)", "Wood cladding (width)"), [
-        "Dekketøy per bord ≈ (under + over) − omlegg",
-        "Antall bord ≈ veggbredde / dekkmål (avrundes opp)",
-    ]),
-    "tiles": ("tiles.png", tt("Fliser på vegg", "Wall tiles"), [
-        "Modulmål = flis + fuge",
-        "Antall = ceil(veggmål / modulmål) (i begge retninger)",
-    ]),
-    "slope": ("slope.png", tt("Fall (%)", "Slope (%)"), [
-        "Fall (%) = (fall / lengde) × 100",
-        "Eksempel: (0,08 / 4,0) × 100 = 2,0 %",
-    ]),
-    "percent": ("percent.png", tt("Prosent", "Percent"), [
-        "Del = prosent × helhet",
-        "Eksempel: 25 % av 800 kr = 0,25 × 800 = 200 kr",
-    ]),
-    "economy": ("economy.png", tt("Økonomi (sum)", "Economy (total)"), [
-        "Sum = materialer + (timer × timepris)",
-        "Eksempel: 1800 + (6,0 × 450) = 4500 kr",
-    ]),
+# Nøkkel -> (tittel, kandidat-filenavn i assets/)
+ILLUSTRATION_ASSETS: Dict[str, Tuple[str, List[str]]] = {
+    "unit": ("Enhetsomregner", ["enhetsomregner.png"]),
+    "area": ("Areal", ["areal.png"]),
+    "diagonal": ("Diagonal (Pytagoras)", ["diagonal.png"]),
+    "perimeter": ("Omkrets", ["omkrets.png"]),
+    "volume": ("Volum", ["volum.png"]),
+    "scale": ("Målestokk", ["malestokk.png"]),
+    "percent": ("Prosent", ["prosent.png"]),
+    "slope": ("Fall", ["fall.png"]),
+    "economy": ("Økonomi", ["okonomi.png"]),
+    # Valgfri/ekstra (hvis du legger dem i assets):
+    "angles": ("Vinkler", ["vinkler.png"]),
+    "cladding": ("Kledning", ["kledning.png", "cladding.png"]),
+    "tiles": ("Fliser", ["fliser.png", "tiles.png"]),
 }
 
-def ensure_illustrations() -> None:
-    _ensure_dir(ILLUSTRATION_DIR)
-
-    # Rektangelbaserte
-    rect_jobs = {
-        "area": dict(show_diagonal=False, w_label="6,0 m", h_label="2,0 m"),
-        "perimeter": dict(show_diagonal=False, w_label="6,0 m", h_label="2,0 m"),
-        "diagonal": dict(show_diagonal=True, w_label="6,0 m", h_label="2,0 m"),
-        "volume": dict(show_diagonal=False, w_label="6,0 m", h_label="2,0 m", top_text="Tykkelse: 100 mm"),
-        "cladding": dict(show_diagonal=False, w_label="Vegg-bredde: 600 cm", h_label="", top_text="Bord: 148 mm + 58 mm, omlegg 2,0 cm"),
-        "tiles": dict(show_diagonal=False, w_label="Bredde: 3,0 m", h_label="Høyde: 2,0 m", top_text="Flis 20×20 cm, fuge 0,3 cm → modul 20,3 cm"),
-        "scale": dict(show_diagonal=False, w_label="4,0 cm (tegning)", h_label="1,3 cm", top_text="Målestokk 1 : 50"),
-    }
-
-    # Tekstbaserte
-    text_jobs = {
-        "unit": ["Eksempel:", "6000 mm  →  600 cm  →  6,0 m", "mm→cm: ÷10   cm→m: ÷100   mm→m: ÷1000"],
-        "percent": ["Eksempel:", "25 % av 800 kr", "0,25 × 800 = 200 kr"],
-        "economy": ["Eksempel:", "Materialer: 1 800 kr", "Timer: 6,0 t × 450 kr/t = 2 700 kr", "Sum = 4 500 kr"],
-        "slope": ["Eksempel:", "Lengde: 4,0 m", "Fall: 0,08 m", "Fall (%) = (fall / lengde) × 100 = 2,0 %"],
-    }
-
-    for key, (fname, title, _) in ILLUSTRATIONS.items():
-        fpath = ILLUSTRATION_DIR / fname
-        if fpath.exists():
-            continue
-        try:
-            if key in rect_jobs:
-                kw = rect_jobs[key]
-                # Noen trenger tom høyde-etikett
-                h_lab = kw.get("h_label", "2,0 m")
-                if not h_lab:
-                    # Tegn uten høyde-etikett: bruk liten font og legg ikke tekst
-                    _draw_rect_illustration(fpath, w_label=kw.get("w_label","6,0 m"), h_label=" ", show_diagonal=kw.get("show_diagonal", False),
-                                           top_text=kw.get("top_text"))
-                else:
-                    _draw_rect_illustration(fpath, w_label=kw.get("w_label","6,0 m"), h_label=h_lab, show_diagonal=kw.get("show_diagonal", False),
-                                           top_text=kw.get("top_text"))
-            elif key in text_jobs:
-                _draw_text_illustration(fpath, text_jobs[key], title=title)
-            else:
-                # Fallback: generer enkel tekst
-                _draw_text_illustration(fpath, ["Eksempel kommer"], title=title)
-        except Exception:
-            # Skal aldri stoppe appen hvis illustrasjon ikke lar seg generere
-            pass
+def _first_existing_asset(candidates: List[str]) -> Path | None:
+    for name in candidates:
+        p = ASSETS_DIR / name
+        if p.exists():
+            return p
+    return None
 
 def render_school_illustration(key: str) -> None:
-    # Kun skolemodus
+    """Viser illustrasjonsbilde i skolemodus fra assets/"""
     if not is_school_mode():
         return
 
-    ensure_illustrations()
-    if key not in ILLUSTRATIONS:
+    meta = ILLUSTRATION_ASSETS.get(key)
+    if not meta:
         return
 
-    fname, title, steps = ILLUSTRATIONS[key]
-    fpath = ILLUSTRATION_DIR / fname
+    title, candidates = meta
+    img_path = _first_existing_asset(candidates)
 
     st.markdown(f"#### {title}")
 
-    if fpath.exists():
-        st.image(str(fpath), use_container_width=True)
+    if img_path and img_path.exists():
+        st.image(str(img_path), use_container_width=True)
     else:
-        # Hvis det mot formodning ikke ble generert bilde, vis et klart varsel for lærer
-        st.warning(tt("Illustrasjonen ble ikke generert på denne enheten. Sjekk skrive-/filrettigheter.",
-                      "Illustration could not be generated on this device. Check file permissions."))
+        st.info(tt(
+            "Fant ikke illustrasjonsbilde i assets/. Legg inn riktig filnavn eller oppdater mappingen i koden.",
+            "Could not find illustration image in assets/. Add the correct filename or update the mapping in code."
+        ))
 
-    st.info(tt("Prøv å regne selv først. Bruk kalkulatoren under for å kontrollere svaret ditt.",
-               "Try to calculate first. Use the calculator below to verify your answer."))
-
-    # FASIT SYNLIG (ikke expander)
-    st.markdown("**Fasit / utregning:**")
-    st.markdown("\n".join([f"- {s}" for s in steps]))
-
-
-# ============================
-# Komprimert header (logo + tittel + undertittel på én linje)
-# ============================
-
-LOGO_PATH = Path(__file__).parent / "byggmatte.png"
-
-# Strammere CSS rundt bilder/kolonner slik at logoen faktisk kan ligge tett på topmenyen.
-st.markdown(
-    """
-    <style>
-      /* Fjern unødvendig luft rundt Streamlit-bilder */
-      div[data-testid="stImage"] { margin-top: 0rem !important; margin-bottom: 0rem !important; }
-      div[data-testid="stImage"] > img { display:block; }
-
-      /* Header-tekst: tittel + undertittel på én linje */
-      .bk-title-row { display:flex; align-items: baseline; gap: 8px; line-height: 1; margin: 0; padding: 0; }
-      .bk-title { font-size: 32px; font-weight: 800; color: #ff7a00; line-height: 1; }
-      .bk-sub { font-size: 15px; color: #9aa4ad; line-height: 1; white-space: nowrap; }
-
-      /* Trekk litt opp, men uten å overlappe */
-      .bk-header-tight { margin-bottom: 8px; }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
-
-# Header rad: logo til venstre, tittel+undertittel rett etter.
-header_left, header_right = st.columns([1.1, 5], gap="small")
-
-with header_left:
-    try:
-        img = Image.open(LOGO_PATH)
-        # Skaler ned slik at alt synes (logoen var for høy i tidligere versjoner)
-        st.image(img, width=260)
-    except Exception:
-        # Hvis logo mangler i deploy, ikke knekk appen
-        st.write("")
-
-with header_right:
-    subtitle = tt("Fra skole til yrke – matematikk tilpasset yrkeslivet!",
-                  "From school to trade – practical math for the workplace!")
-    st.markdown(
-        f"""
-        <div class="bk-header-tight">
-          <div class="bk-title-row">
-            <div class="bk-title"></div>
-            <div class="bk-sub" style="margin-top:10px;">{subtitle}</div>
-          </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-# Trekker toppmenyen litt opp mot headeren (uten overlapp)
-st.markdown("<div style='margin-top:-10px;'></div>", unsafe_allow_html=True)
-
-
-
-
-# ============================================================
-# Hjelpefunksjoner (enheter + formatering)
-# ============================================================
 def mm_to_m(mm: float) -> float:
     return mm / 1000.0
 
