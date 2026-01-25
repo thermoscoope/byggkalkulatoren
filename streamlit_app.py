@@ -55,7 +55,12 @@ st.markdown(
 # ============================================================
 # Konfig + Logo (må ligge før all annen Streamlit-output)
 # ============================================================
-LOGO_PATH = Path(__file__).parent / "byggmatte.png"
+LOGO_PATH = Path(__file__).parent / "byggmattev2.png"
+if not LOGO_PATH.exists():
+    # Fallback dersom repoet bruker annet logonavn
+    alt1 = Path(__file__).parent / "logo.png"
+    alt2 = Path(__file__).parent / "byggmatte.png"
+    LOGO_PATH = alt1 if alt1.exists() else (alt2 if alt2.exists() else LOGO_PATH)
 
 page_icon = None
 # Profesjonell header med logo
@@ -319,73 +324,98 @@ def ensure_illustrations() -> None:
             pass
 
 def render_school_illustration(key: str) -> None:
-    """Viser skoleillustrasjon fra ./assets (ingen generering / base64).
+    """Vis illustrasjon fra ./assets (kun i skolemodus).
 
-    Forutsetter at repoet har:
-        streamlit_app.py
-        assets/<filnavn>.png
+    Denne erstatter tidligere logikk som genererte/lagret illustrasjoner i .illustrations.
     """
     if not is_school_mode():
         return
 
-    assets_dir = Path(__file__).parent / "assets"
-
-    # Nøkkel -> filnavn i assets/
-    asset_map = {
+    # Nøkkel -> foretrukket filnavn i assets/
+    key_to_asset = {
         "unit": "enhetsomregner.png",
         "area": "areal.png",
         "perimeter": "omkrets.png",
+        "diagonal": "diagonal.png",
         "volume": "volum.png",
         "scale": "malestokk.png",
-        "diagonal": "diagonal.png",
-        "slope": "fall.png",
         "percent": "prosent.png",
+        "slope": "fall.png",
         "economy": "okonomi.png",
-        # Valgfritt (hvis du har egne bilder for disse):
-        "cladding": "cladding.png",
-        "tiles": "tiles.png",
+        # Valgfrie (hvis du legger dem i assets/)
+        "cladding": "kledning.png",
+        "tiles": "flis.png",
     }
 
-    if key not in ILLUSTRATIONS:
-        return
+    # Finn tittel + fasit/utregning fra eksisterende ILLUSTRATIONS (hvis definert)
+    title = None
+    steps = None
+    if "ILLUSTRATIONS" in globals() and isinstance(globals().get("ILLUSTRATIONS"), dict):
+        entry = globals()["ILLUSTRATIONS"].get(key)
+        if entry and isinstance(entry, tuple) and len(entry) == 3:
+            _fname, _title, _steps = entry
+            title = _title
+            steps = _steps
 
-    # Beholder tittel + fasit-tekst fra ILLUSTRATIONS
-    _fname, title, steps = ILLUSTRATIONS[key]
-    st.markdown(f"#### {title}")
+    # Bildekandidater (nytt filnavn først, deretter evt. gammelt filnavn fra ILLUSTRATIONS)
+    candidates = []
+    preferred = key_to_asset.get(key)
+    if preferred:
+        candidates.append(preferred)
+    if "ILLUSTRATIONS" in globals() and isinstance(globals().get("ILLUSTRATIONS"), dict):
+        entry = globals()["ILLUSTRATIONS"].get(key)
+        if entry and isinstance(entry, tuple) and len(entry) >= 1:
+            old_fname = entry[0]
+            if isinstance(old_fname, str) and old_fname not in candidates:
+                candidates.append(old_fname)
 
-    fname = asset_map.get(key, _fname)
-    fpath = assets_dir / fname
+    assets_dir = Path(__file__).parent / "assets"
 
-    # Unngå PIL.UnidentifiedImageError ved tomme filer / feil format
-    if fpath.exists() and fpath.is_file() and fpath.stat().st_size > 0:
-        try:
-            st.image(str(fpath), use_container_width=True)
-        except Exception:
-            st.warning(tt(
-                f"Kunne ikke lese bildet: {fname}. Sjekk at filen er en gyldig PNG i assets-mappen.",
-                f"Could not read image: {fname}. Ensure it is a valid PNG inside the assets folder."
-            ))
+    # Render
+    if title:
+        st.markdown(f"#### {title}")
+
+    img_path = None
+    for fname in candidates:
+        p = assets_dir / fname
+        if p.exists() and p.is_file() and p.stat().st_size > 0:
+            img_path = p
+            break
+
+    if img_path:
+        st.image(str(img_path), use_container_width=True)
     else:
-        st.warning(tt(
-            f"Mangler illustrasjon i assets/: {fname}",
-            f"Missing illustration in assets/: {fname}"
-        ))
+        # Ikke crash dersom assets mangler/feil navn
+        if candidates:
+            st.warning(tt(
+                f"Mangler illustrasjonsbilde i assets/. Forventet ett av: {', '.join(candidates)}",
+                f"Missing illustration in assets/. Expected one of: {', '.join(candidates)}",
+            ))
+        else:
+            st.warning(tt(
+                "Mangler illustrasjonsbilde i assets/ for denne fanen.",
+                "Missing illustration in assets/ for this tab.",
+            ))
 
     st.info(tt(
         "Prøv å regne selv først. Bruk kalkulatoren under for å kontrollere svaret ditt.",
-        "Try to calculate first. Use the calculator below to verify your answer."
+        "Try to calculate first. Use the calculator below to verify your answer.",
     ))
 
     # FASIT SYNLIG (ikke expander)
-    st.markdown("**Fasit / utregning:**")
-    st.markdown("
-".join([f"- {s}" for s in steps]))
+    if steps:
+        st.markdown("**Fasit / utregning:**")
+        st.markdown("\n".join([f"- {s}" for s in steps]))
+
+
+
 
 # ============================
+
 # Komprimert header (logo + tittel + undertittel på én linje)
 # ============================
 
-LOGO_PATH = Path(__file__).parent / "byggmatte.png"
+LOGO_PATH = Path(__file__).parent / "byggmattev2.png"
 
 # Strammere CSS rundt bilder/kolonner slik at logoen faktisk kan ligge tett på topmenyen.
 st.markdown(
@@ -3376,4 +3406,3 @@ with tabs[10]:
         if st.button(tt("Tøm historikk", "Clear history")):
             st.session_state.history = []
             st.success(tt("Historikk tømt.", "History cleared."))
-
