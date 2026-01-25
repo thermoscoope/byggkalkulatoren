@@ -1943,128 +1943,128 @@ def show_play_screen():
             st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
 
 
-with tab_cards:
-    st.subheader("🃏 " + tt("Læringskort", "Learning Cards"))
-    st.caption(tt(
-        "Spill som Alias: Én elev forklarer begrepet på kortet uten å si ordet (eller forbudte ord). "
-        "De andre gjetter. Bytt på roller og før poeng.",
-        "Play like Alias: One student explains the term on the card without saying the word (or the forbidden words). "
-        "Others guess. Rotate roles and keep score."
-    ))
+    with tab_cards:
+        st.subheader("🃏 " + tt("Læringskort", "Learning Cards"))
+        st.caption(tt(
+            "Spill som Alias: Én elev forklarer begrepet på kortet uten å si ordet (eller forbudte ord). "
+            "De andre gjetter. Bytt på roller og før poeng.",
+            "Play like Alias: One student explains the term on the card without saying the word (or the forbidden words). "
+            "Others guess. Rotate roles and keep score."
+        ))
 
-    # Init state
-    if "alias_scores" not in st.session_state:
-        st.session_state.alias_scores = {"Lag A": 0, "Lag B": 0}
-    if "alias_active_team" not in st.session_state:
-        st.session_state.alias_active_team = "Lag A"
-    if "alias_active_card" not in st.session_state:
-        st.session_state.alias_active_card = None
-    if "alias_round_seconds" not in st.session_state:
-        st.session_state.alias_round_seconds = 60
-    if "alias_round_start" not in st.session_state:
-        st.session_state.alias_round_start = None
-    if "alias_history" not in st.session_state:
-        st.session_state.alias_history = []
-
-    with st.container(border=True):
-        c1, c2, c3 = st.columns([1.0, 1.0, 1.2])
-        with c1:
-            team = st.selectbox(tt("Hvem forklarer nå?", "Who explains now?"), options=["Lag A", "Lag B"], key="alias_team_sel")
-            st.session_state.alias_active_team = team
-        with c2:
-            secs = st.number_input(tt("Sekunder per runde", "Seconds per round"), min_value=20, max_value=180, value=int(st.session_state.alias_round_seconds), step=10)
-            st.session_state.alias_round_seconds = int(secs)
-        with c3:
-            st.write("**" + tt("Poeng", "Score") + "**")
-            st.write(f"Lag A: {int(st.session_state.alias_scores.get('Lag A', 0))}   |   Lag B: {int(st.session_state.alias_scores.get('Lag B', 0))}")
-
-    b1, b2, b3, b4 = st.columns([1,1,1,1])
-    with b1:
-        if st.button(tt("Start / nytt kort", "Start / new card"), use_container_width=True):
-            st.session_state.alias_active_card = random.choice(LEARNING_CARDS)
-            st.session_state.alias_round_start = time.time()
-            st.session_state.alias_history.append({
-                "team": st.session_state.alias_active_team,
-                "card": st.session_state.alias_active_card,
-                "ts": time.time(),
-                "result": None
-            })
-    with b2:
-        if st.button(tt("Riktig (+1)", "Correct (+1)"), use_container_width=True, disabled=st.session_state.alias_active_card is None):
-            t = st.session_state.alias_active_team
-            st.session_state.alias_scores[t] = int(st.session_state.alias_scores.get(t, 0)) + 1
-            # Mark last history entry
-            for i in range(len(st.session_state.alias_history)-1, -1, -1):
-                if st.session_state.alias_history[i].get("result") is None:
-                    st.session_state.alias_history[i]["result"] = "Riktig"
-                    break
-            st.session_state.alias_active_card = random.choice(LEARNING_CARDS)
-            st.session_state.alias_round_start = time.time()
-            st.session_state.alias_history.append({
-                "team": st.session_state.alias_active_team,
-                "card": st.session_state.alias_active_card,
-                "ts": time.time(),
-                "result": None
-            })
-    with b3:
-        if st.button(tt("Pass (0)", "Pass (0)"), use_container_width=True, disabled=st.session_state.alias_active_card is None):
-            for i in range(len(st.session_state.alias_history)-1, -1, -1):
-                if st.session_state.alias_history[i].get("result") is None:
-                    st.session_state.alias_history[i]["result"] = "Pass"
-                    break
-            st.session_state.alias_active_card = random.choice(LEARNING_CARDS)
-            st.session_state.alias_round_start = time.time()
-            st.session_state.alias_history.append({
-                "team": st.session_state.alias_active_team,
-                "card": st.session_state.alias_active_card,
-                "ts": time.time(),
-                "result": None
-            })
-    with b4:
-        if st.button(tt("Nullstill poeng", "Reset score"), use_container_width=True):
+        # Init state
+        if "alias_scores" not in st.session_state:
             st.session_state.alias_scores = {"Lag A": 0, "Lag B": 0}
-            st.session_state.alias_history = []
+        if "alias_active_team" not in st.session_state:
+            st.session_state.alias_active_team = "Lag A"
+        if "alias_active_card" not in st.session_state:
             st.session_state.alias_active_card = None
+        if "alias_round_seconds" not in st.session_state:
+            st.session_state.alias_round_seconds = 60
+        if "alias_round_start" not in st.session_state:
             st.session_state.alias_round_start = None
+        if "alias_history" not in st.session_state:
+            st.session_state.alias_history = []
 
-    # Timer + kort
-    if st.session_state.alias_active_card is None:
-        st.info(tt("Trykk 'Start / nytt kort' for å trekke et kort.", "Click 'Start / new card' to draw a card."))
-    else:
-        card = st.session_state.alias_active_card
-        start_ts = st.session_state.alias_round_start
-        remaining = None
-        if start_ts:
-            elapsed = time.time() - float(start_ts)
-            remaining = max(0, int(st.session_state.alias_round_seconds - elapsed))
         with st.container(border=True):
-            if remaining is not None:
-                st.markdown(f"### ⏱️ {tt('Tid igjen', 'Time left')}: **{remaining} s**")
-            st.markdown(f"## {card['begrep']}")
-            st.write(f"**{tt('Tema', 'Topic')}:** {card['tema']}")
-            st.write(f"**{tt('Forklar med', 'Explain using')}:** {card['hint']}")
-            st.write("**" + tt("Forbudte ord", "Forbidden words") + "**")
-            st.write(", ".join(card["forbudt"]))
-            st.caption(tt(
-                "Tips: Start med hva begrepet brukes til i verksted, og gi et eksempel uten å nevne ordene over.",
-                "Tip: Start with how the term is used in the workshop, and give an example without using the words above."
-            ))
+            c1, c2, c3 = st.columns([1.0, 1.0, 1.2])
+            with c1:
+                team = st.selectbox(tt("Hvem forklarer nå?", "Who explains now?"), options=["Lag A", "Lag B"], key="alias_team_sel")
+                st.session_state.alias_active_team = team
+            with c2:
+                secs = st.number_input(tt("Sekunder per runde", "Seconds per round"), min_value=20, max_value=180, value=int(st.session_state.alias_round_seconds), step=10)
+                st.session_state.alias_round_seconds = int(secs)
+            with c3:
+                st.write("**" + tt("Poeng", "Score") + "**")
+                st.write(f"Lag A: {int(st.session_state.alias_scores.get('Lag A', 0))}   |   Lag B: {int(st.session_state.alias_scores.get('Lag B', 0))}")
 
-    with st.expander(tt("Se siste kort (logg)", "See recent cards (log)"), expanded=False):
-        hist = list(reversed(st.session_state.alias_history[-10:]))
-        if not hist:
-            st.write(tt("Ingen runder ennå.", "No rounds yet."))
-        else:
-            rows = []
-            for h in hist:
-                c = h.get("card") or {}
-                rows.append({
-                    tt("Lag", "Team"): h.get("team"),
-                    tt("Begrep", "Term"): c.get("begrep"),
-                    tt("Tema", "Topic"): c.get("tema"),
-                    tt("Resultat", "Result"): h.get("result") or "",
+        b1, b2, b3, b4 = st.columns([1,1,1,1])
+        with b1:
+            if st.button(tt("Start / nytt kort", "Start / new card"), use_container_width=True):
+                st.session_state.alias_active_card = random.choice(LEARNING_CARDS)
+                st.session_state.alias_round_start = time.time()
+                st.session_state.alias_history.append({
+                    "team": st.session_state.alias_active_team,
+                    "card": st.session_state.alias_active_card,
+                    "ts": time.time(),
+                    "result": None
                 })
-            st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+        with b2:
+            if st.button(tt("Riktig (+1)", "Correct (+1)"), use_container_width=True, disabled=st.session_state.alias_active_card is None):
+                t = st.session_state.alias_active_team
+                st.session_state.alias_scores[t] = int(st.session_state.alias_scores.get(t, 0)) + 1
+                # Mark last history entry
+                for i in range(len(st.session_state.alias_history)-1, -1, -1):
+                    if st.session_state.alias_history[i].get("result") is None:
+                        st.session_state.alias_history[i]["result"] = "Riktig"
+                        break
+                st.session_state.alias_active_card = random.choice(LEARNING_CARDS)
+                st.session_state.alias_round_start = time.time()
+                st.session_state.alias_history.append({
+                    "team": st.session_state.alias_active_team,
+                    "card": st.session_state.alias_active_card,
+                    "ts": time.time(),
+                    "result": None
+                })
+        with b3:
+            if st.button(tt("Pass (0)", "Pass (0)"), use_container_width=True, disabled=st.session_state.alias_active_card is None):
+                for i in range(len(st.session_state.alias_history)-1, -1, -1):
+                    if st.session_state.alias_history[i].get("result") is None:
+                        st.session_state.alias_history[i]["result"] = "Pass"
+                        break
+                st.session_state.alias_active_card = random.choice(LEARNING_CARDS)
+                st.session_state.alias_round_start = time.time()
+                st.session_state.alias_history.append({
+                    "team": st.session_state.alias_active_team,
+                    "card": st.session_state.alias_active_card,
+                    "ts": time.time(),
+                    "result": None
+                })
+        with b4:
+            if st.button(tt("Nullstill poeng", "Reset score"), use_container_width=True):
+                st.session_state.alias_scores = {"Lag A": 0, "Lag B": 0}
+                st.session_state.alias_history = []
+                st.session_state.alias_active_card = None
+                st.session_state.alias_round_start = None
+
+        # Timer + kort
+        if st.session_state.alias_active_card is None:
+            st.info(tt("Trykk 'Start / nytt kort' for å trekke et kort.", "Click 'Start / new card' to draw a card."))
+        else:
+            card = st.session_state.alias_active_card
+            start_ts = st.session_state.alias_round_start
+            remaining = None
+            if start_ts:
+                elapsed = time.time() - float(start_ts)
+                remaining = max(0, int(st.session_state.alias_round_seconds - elapsed))
+            with st.container(border=True):
+                if remaining is not None:
+                    st.markdown(f"### ⏱️ {tt('Tid igjen', 'Time left')}: **{remaining} s**")
+                st.markdown(f"## {card['begrep']}")
+                st.write(f"**{tt('Tema', 'Topic')}:** {card['tema']}")
+                st.write(f"**{tt('Forklar med', 'Explain using')}:** {card['hint']}")
+                st.write("**" + tt("Forbudte ord", "Forbidden words") + "**")
+                st.write(", ".join(card["forbudt"]))
+                st.caption(tt(
+                    "Tips: Start med hva begrepet brukes til i verksted, og gi et eksempel uten å nevne ordene over.",
+                    "Tip: Start with how the term is used in the workshop, and give an example without using the words above."
+                ))
+
+        with st.expander(tt("Se siste kort (logg)", "See recent cards (log)"), expanded=False):
+            hist = list(reversed(st.session_state.alias_history[-10:]))
+            if not hist:
+                st.write(tt("Ingen runder ennå.", "No rounds yet."))
+            else:
+                rows = []
+                for h in hist:
+                    c = h.get("card") or {}
+                    rows.append({
+                        tt("Lag", "Team"): h.get("team"),
+                        tt("Begrep", "Term"): c.get("begrep"),
+                        tt("Tema", "Topic"): c.get("tema"),
+                        tt("Resultat", "Result"): h.get("result") or "",
+                    })
+                st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
 
 def show_result(res: CalcResult):
     school = is_school_mode()
