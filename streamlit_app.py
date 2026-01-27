@@ -342,7 +342,6 @@ def render_school_illustration(key: str) -> None:
         "percent": "prosent.png",
         "slope": "fall.png",
         "economy": "okonomi.png",
-        "angles": "vinkler.png",
         # Valgfrie (hvis du legger dem i assets/)
         "cladding": "kledning.png",
         "tiles": "flis.png",
@@ -1335,47 +1334,433 @@ def label_for(key: str) -> str:
 # ============================
 
 def show_pro_screen():
-    is_school = is_school_mode()
+    """Pro-skjerm (BETA): vurderingsrettet innhold koblet til LK20 (Vg1 BA, BAT01-03).
 
-    st.subheader("Vil du videre utvikle deg som yrkesutøver?")
-    st.caption("Pro gir deg funksjoner som sparer tid, gir bedre kontroll og gjør dokumentasjon enklere.")
+    Tilgang:
+      - Pilotbetaling (dummy-knapp) eller
+      - Lærerkode = 2150
+    """
 
-    c1, c2 = st.columns([2, 1])
-    with c1:
-        if is_school:
-            st.markdown(
-                """
-Pro handler om læring, vurdering og struktur i et bredere spekter mot en lærlingtid. I pro-pakken vil du kunne ha::
+    # ---- Tilgang ----
+    if "pro_access" not in st.session_state:
+        st.session_state.pro_access = False
 
-- Øvingsoppgaver med *skjult fasit*
-- HMS - Hvorfor er HMS viktig?
-- Verktøyopplæring
-- Hvorfor dokumentasjon av eget arbeid er viktig for seg selv og andre.
-- TEK-kravene
-- Lese og forstår tegning.
-- Refleksjon og egenkontroll knyttet til hver beregning
-- Eksport til PDF for innlevering
-- Lærer-/klassevis historikk (dokumentasjon av progresjon)
-                """
+    st.subheader(tt("⭐ Oppgrader til Pro (BETA)", "⭐ Upgrade to Pro (BETA)"))
+    st.caption(
+        tt(
+            "Pro er laget for lærlingtid/verksted og vurderingsarbeid i skole. Innholdet er koblet til LK20 (BAT01-03).",
+            "Pro is built for apprenticeship/workshop and assessment in school. Content is aligned to LK20 (BAT01-03).",
+        )
+    )
+
+    with st.container(border=True):
+        st.markdown("**" + tt("Lyst til å bli en bedre yrkesutøver?", "Want to become a better craftsperson?") + "**")
+        st.write(tt("Få tilgang til øvingsoppgaver, HMS, dokumentasjon, TEK og tegning.",
+                    "Get access to practice tasks, HSE, documentation, TEK and drawings."))
+
+        c1, c2 = st.columns([1, 1])
+        with c1:
+            if st.button(tt("Betal 29 kr / mnd (pilot)", "Pay 29 NOK / month (pilot)"), use_container_width=True, key="pro_pay_btn"):
+                # OBS: Dette er en pilot/dummy – ikke ekte betaling
+                st.session_state.pro_access = True
+                st.success(tt("Tilgang aktivert (pilot).", "Access activated (pilot)."))
+
+        with c2:
+            teacher_code = st.text_input(tt("Lærerkode", "Teacher code"), type="password", key="pro_teacher_code")
+            if teacher_code == "2150":
+                st.session_state.pro_access = True
+                st.success(tt("Lærertilgang aktivert.", "Teacher access activated."))
+
+        st.caption(
+            tt(
+                "Pilot: Dette er en enkel tilgangssperre. For ekte betaling må du integrere Stripe/Vipps el.l.",
+                "Pilot: This is a simple access gate. For real payments, integrate Stripe/Vipps etc.",
             )
+        )
+
+    if not st.session_state.pro_access:
+        st.warning(tt("Du må betale eller bruke lærerkode for å åpne Pro-innholdet.", "You must pay or use a teacher code to unlock Pro content."))
+        return
+
+    # ---- LK20: lenker + kompetansemål (BAT01-03) ----
+    LK20_BASE = "https://www.udir.no/lk20/bat01-03"
+    LK20_AMD = "https://www.udir.no/lk20/bat01-03/kompetansemaal-og-vurdering/kv249"  # Arbeidsmiljø og dokumentasjon
+    LK20_PYU = "https://www.udir.no/lk20/bat01-03/kompetansemaal-og-vurdering/kv250"  # Praktisk yrkesutøvelse
+
+    cm_amd = [
+        "vurdere risiko og utføre forebyggende tiltak",
+        "gjennomføre og dokumentere arbeid i samsvar med gjeldende bestemmelser for HMS, og rapportere om uønskede hendelser",
+        "utføre livreddende førstehjelp",
+        "gjøre rede for varme arbeider som brannårsak, gjennomføre sikkerhetstiltak og hindre brann",
+        "anvende sikkerhetsdatablad og følge anvisninger ved bruk av kjemikalier",
+        "beskrive og bruke arbeidsteknikker og arbeidsstillinger som forebygger helseskader",
+        "gjøre rede for betydningen av orden på bygge- og anleggsplasser og følge rutiner for dette",
+        "planlegge, gjennomføre, vurdere og dokumentere eget arbeid",
+        "vedlikeholde maskiner og verktøy",
+        "kildesortere avfall etter gitte retningslinjer og reflektere over konsekvenser av feilhåndtering av avfall",
+        "kommunisere og formidle budskap tilpasset ulike målgrupper",
+        "forstå og bruke fagterminologi i samhandling med ulike målgrupper",
+    ]
+
+    cm_pyu = [
+        "forstå og arbeide etter tegninger og beskrivelser",
+        "tegne skisser og konstruksjoner i målestokk",
+        "velge og bruke maskiner og verktøy til ulike arbeidsoppdrag og følge anvisning for bruk og håndtering",
+        "velge ut og bruke personlig verneutstyr og vurdere konsekvenser av feilbruk",
+        "oppbevare, beregne og behandle materialer på en miljøvennlig, faglig og økonomisk måte",
+        "bruke digitale ressurser til å beregne, måle opp og merke etter beskrivelse og tegning",
+        "bruke enkel tredimensjonal modellering i arbeidsoppdrag",
+        "planlegge og bygge en konstruksjon",
+        "beskrive krav og forventninger til en profesjonell yrkesutøver, og reflektere over egen praksis",
+    ]
+
+    def _lk20_box(title_no: str, title_en: str, body_no: str, body_en: str, links: list):
+        with st.expander(tt(title_no, title_en), expanded=False):
+            st.write(tt(body_no, body_en))
+            st.markdown("**" + tt("Lenker", "Links") + "**")
+            for label, url in links:
+                st.markdown(f"- [{label}]({url})")
+
+    def _rubric(criteria: list):
+        """En enkel vurderingsmatrise (kjennetegn på måloppnåelse)."""
+        levels = [
+            ("Lav måloppnåelse", "Begynner", "Nivå 1"),
+            ("Middels måloppnåelse", "På vei", "Nivå 2"),
+            ("Høy måloppnåelse", "Sikker", "Nivå 3"),
+        ]
+        # Vi viser som markdown for kompatibilitet (st.table er ofte trangt på mobil)
+        st.markdown("**" + tt("Vurderingskriterier (kjennetegn)", "Assessment criteria (descriptors)") + "**")
+        for c in criteria:
+            st.markdown(f"**{c}**")
+            st.write(
+                f"- {tt(levels[0][0], levels[0][1])}: {tt('Trenger mye støtte / mangler viktige deler.', 'Needs significant support / missing key parts.')}"
+            )
+            st.write(
+                f"- {tt(levels[1][0], levels[1][1])}: {tt('Gjennomfører det meste, men med noe feil/variasjon.', 'Completes most parts, but with some errors/variation.')}"
+            )
+            st.write(
+                f"- {tt(levels[2][0], levels[2][1])}: {tt('Gjennomfører selvstendig, sikkert og med begrunnelser.', 'Independent, accurate and with clear reasoning.')}"
+            )
+            st.markdown("---")
+
+    def _self_assessment(prefix: str):
+        st.markdown("**" + tt("Egenvurdering (før du får veiledning)", "Self-assessment (before feedback)") + "**")
+        a = st.slider(tt("Hvor trygg var du på svaret?", "How confident were you?"), 1, 5, 3, key=f"{prefix}_conf")
+        b = st.selectbox(tt("Hva var mest utfordrende?", "What was most challenging?"),
+                         [tt("Enheter", "Units"), tt("Målestokk/tegning", "Scale/drawing"), tt("Formel/framgangsmåte", "Method"), tt("HMS/risiko", "HSE/risk"), tt("Annet", "Other")],
+                         key=f"{prefix}_hard")
+        c = st.text_area(tt("Kort refleksjon (2–4 setninger)", "Short reflection (2–4 sentences)"),
+                         key=f"{prefix}_refl", height=90)
+        st.session_state[f"{prefix}_self"] = {"confidence": a, "challenge": b, "reflection": c}
+
+    st.divider()
+
+    # ---- Faner ----
+    tabs = st.tabs([
+        tt("Øvingsoppgaver", "Practice tasks"),
+        tt("HMS", "HSE"),
+        tt("Verktøyopplæring", "Tool training"),
+        tt("Dokumentasjon", "Documentation"),
+        tt("TEK-krav", "TEK requirements"),
+        tt("Tegningsforståelse", "Drawing literacy"),
+        tt("Lærer / vurdering", "Teacher / assessment"),
+    ])
+
+    # 1) Øvingsoppgaver
+    with tabs[0]:
+        st.markdown("### " + tt("Øvingsoppgaver med skjult fasit", "Practice tasks with hidden answers"))
+        st.caption(tt("Bruk dette som mikrotrening på arbeidsplassen: regn først – sjekk fasit etterpå.",
+                      "Use this as micro-practice at work: calculate first – then check."))
+
+        _lk20_box(
+            "LK20-kobling (BAT01-03)",
+            "LK20 alignment (BAT01-03)",
+            "Dette støtter særlig kompetansemål om digitale beregninger, målestokk og arbeid etter tegning.",
+            "Supports competence aims on digital calculations, scale and working from drawings.",
+            links=[
+                ("BAT01-03 – Praktisk yrkesutøvelse", LK20_PYU),
+                ("BAT01-03 – Arbeidsmiljø og dokumentasjon", LK20_AMD),
+            ],
+        )
+
+        st.markdown("**" + tt("Velg oppgave", "Choose a task") + "**")
+        task = st.selectbox(
+            tt("Oppgavetype", "Task type"),
+            [
+                tt("Areal – vegg", "Area – wall"),
+                tt("Volum – betong", "Volume – concrete"),
+                tt("Fall – sluk", "Slope – drain"),
+                tt("Målestokk 1:50", "Scale 1:50"),
+                tt("Enheter mm↔m", "Units mm↔m"),
+            ],
+            key="pro_task_select",
+        )
+
+        # Oppgavedata
+        if "pro_task_log" not in st.session_state:
+            st.session_state.pro_task_log = []
+
+        if task == tt("Areal – vegg", "Area – wall"):
+            st.write(tt("Du skal kle en vegg som er 4,8 m bred og 2,4 m høy. Hva er arealet i m²?",
+                        "You will clad a wall 4.8 m wide and 2.4 m high. What is the area (m²)?"))
+            _self_assessment("area_wall")
+            if st.button(tt("Vis fasit", "Show answer"), key="ans_area_wall"):
+                st.success("4,8 × 2,4 = 11,52 m²")
+                st.session_state.pro_task_log.append({"task": "Areal vegg", "answer": "11,52 m²"})
+
+        elif task == tt("Volum – betong", "Volume – concrete"):
+            st.write(tt("Du støper en såle: 6,0 m × 0,6 m × 0,12 m. Hva er volumet i m³?",
+                        "You pour a slab: 6.0 m × 0.6 m × 0.12 m. What is the volume (m³)?"))
+            _self_assessment("vol_conc")
+            if st.button(tt("Vis fasit", "Show answer"), key="ans_vol_conc"):
+                st.success("6,0 × 0,6 × 0,12 = 0,432 m³")
+                st.session_state.pro_task_log.append({"task": "Volum såle", "answer": "0,432 m³"})
+
+        elif task == tt("Fall – sluk", "Slope – drain"):
+            st.write(tt("Du trenger fall 1:50 på en lengde på 3,2 m. Hvor mange mm fall blir det?",
+                        "You need slope 1:50 over 3.2 m. How many mm fall is that?"))
+            _self_assessment("slope")
+            if st.button(tt("Vis fasit", "Show answer"), key="ans_slope"):
+                # 1:50 betyr 1/50 av lengden
+                st.success("3,2 m / 50 = 0,064 m = 64 mm")
+                st.session_state.pro_task_log.append({"task": "Fall 1:50", "answer": "64 mm"})
+
+        elif task == tt("Målestokk 1:50", "Scale 1:50"):
+            st.write(tt("På tegning (1:50) måler en vegg 72 mm. Hvor lang er veggen i virkeligheten?",
+                        "On a drawing (1:50), a wall measures 72 mm. What is the real length?"))
+            _self_assessment("scale")
+            if st.button(tt("Vis fasit", "Show answer"), key="ans_scale"):
+                st.success("72 mm × 50 = 3600 mm = 3,6 m")
+                st.session_state.pro_task_log.append({"task": "Målestokk 1:50", "answer": "3,6 m"})
+
         else:
-            st.markdown(
-                """
-**Pro for produksjon** handler om tempo, færre feil og bedre dokumentasjon:
+            st.write(tt("Gjør om 2400 mm til meter.", "Convert 2400 mm to meters."))
+            _self_assessment("units")
+            if st.button(tt("Vis fasit", "Show answer"), key="ans_units"):
+                st.success("2400 mm = 2,4 m")
+                st.session_state.pro_task_log.append({"task": "Enheter", "answer": "2,4 m"})
 
-- Prosjektlogg (jobblogg): Prosjekt → rom → beregning
-- Eksport til PDF/CSV for KS, bestilling og dokumentasjon
-- Produksjonstilpasset avrunding og tydeligere varsler
-- Standardverdier for bransje (mål, svinn, toleranser)
-                """
+        _rubric([
+            tt("Framgangsmåte", "Method"),
+            tt("Enheter og rimelighet", "Units and reasonableness"),
+            tt("Refleksjon/egenkontroll", "Reflection/self-check"),
+        ])
+
+    # 2) HMS
+    with tabs[1]:
+        st.markdown("### " + tt("HMS – hvorfor er HMS viktig?", "HSE – why is it important?"))
+        st.write(tt(
+            "HMS handler om å forebygge ulykker, helseskader og feil. Det er profesjonelt håndverk å jobbe trygt – hver dag.",
+            "HSE is about preventing accidents, injuries and defects. Professional craft means working safely—every day.",
+        ))
+
+        _lk20_box(
+            "LK20-kobling (Arbeidsmiljø og dokumentasjon)",
+            "LK20 alignment (Work environment & documentation)",
+            "Dette treffer direkte kompetansemål om risikovurdering, forebyggende tiltak, rapportering og dokumentasjon.",
+            "Directly aligns to competence aims on risk assessment, preventive measures, reporting and documentation.",
+            links=[("Kompetansemål – Arbeidsmiljø og dokumentasjon", LK20_AMD)],
+        )
+
+        st.markdown("**" + tt("Mini-ROS (risikovurdering)", "Mini risk assessment") + "**")
+        hazard = st.text_area(tt("Hva kan gå galt i arbeidsoperasjonen?", "What can go wrong?"), height=90, key="pro_hms_hazard")
+        measures = st.text_area(tt("Hvilke tiltak reduserer risikoen?", "Which measures reduce the risk?"), height=90, key="pro_hms_measures")
+        report = st.selectbox(tt("Hvis noe skjer, hva gjør du?", "If something happens, what do you do?"),
+                              [tt("Stopper arbeidet og varsler", "Stop work and notify"),
+                               tt("Gir førstehjelp og varsler 113 ved behov", "Provide first aid and call emergency if needed"),
+                               tt("Rapporterer avvik/hendelse", "Report deviation/incident")],
+                              key="pro_hms_report")
+
+        _self_assessment("hms")
+        _rubric([
+            tt("Risikovurdering (reelle farer)", "Risk assessment (real hazards)"),
+            tt("Tiltak (konkrete og relevante)", "Measures (concrete & relevant)"),
+            tt("Dokumentasjon/avvik", "Documentation/deviation reporting"),
+        ])
+
+    # 3) Verktøyopplæring
+    with tabs[2]:
+        st.markdown("### " + tt("Verktøyopplæring – trygghet og kvalitet", "Tool training – safety and quality"))
+
+        _lk20_box(
+            "LK20-kobling",
+            "LK20 alignment",
+            "Kobles til kompetansemål om å velge og bruke maskiner/verktøy, vedlikehold og HMS-rutiner.",
+            "Aligned to competence aims on selecting/using tools, maintenance and HSE routines.",
+            links=[
+                ("Kompetansemål – Praktisk yrkesutøvelse", LK20_PYU),
+                ("Kompetansemål – Arbeidsmiljø og dokumentasjon", LK20_AMD),
+            ],
+        )
+
+        tool = st.selectbox(
+            tt("Velg verktøy", "Choose a tool"),
+            [tt("Sirkelsag", "Circular saw"), tt("Kapp-/gjærsag", "Mitre saw"), tt("Gjerdesag", "Table saw"), tt("Stikksag", "Jigsaw")],
+            key="pro_tool_select",
+        )
+
+        st.markdown("**" + tt("Sjekkliste før bruk", "Pre-use checklist") + "**")
+        checks = [
+            tt("Verneutstyr (briller/hørsel/støv)", "PPE (eye/ear/dust)"),
+            tt("Sjekk blad/bit og vern", "Check blade/bit and guards"),
+            tt("Sjekk kabel/batteri og arbeidsområde", "Check cable/battery and work area"),
+            tt("Fast oppspenning/underlag", "Secure workpiece/support"),
+            tt("Riktig innstilling og prøvekutt", "Correct settings and test cut"),
+        ]
+        checked = {c: st.checkbox(c, key=f"pro_tool_chk_{hash(c)}") for c in checks}
+
+        st.markdown("**" + tt("Kort forklaring (til vurdering)", "Short explanation (for assessment)") + "**")
+        st.text_area(
+            tt("Skriv 3–5 setninger: Hvordan bruker du dette verktøyet trygt og presist?", "Write 3–5 sentences: How do you use this tool safely and accurately?"),
+            key="pro_tool_explain",
+            height=110,
+        )
+
+        _self_assessment("tool")
+        _rubric([
+            tt("Sikker bruk (rutiner/verneutstyr)", "Safe use (routines/PPE)"),
+            tt("Presisjon (måling/merking/utførelse)", "Accuracy (measure/mark/execute)"),
+            tt("Vedlikehold og orden", "Maintenance and order"),
+        ])
+
+    # 4) Dokumentasjon
+    with tabs[3]:
+        st.markdown("### " + tt("Dokumentasjon av eget arbeid", "Documentation of your work"))
+
+        _lk20_box(
+            "LK20-kobling (Arbeidsmiljø og dokumentasjon)",
+            "LK20 alignment (Work environment & documentation)",
+            "Dette treffer direkte kompetansemål om å planlegge, gjennomføre, vurdere og dokumentere eget arbeid – og fagterminologi/kommunikasjon.",
+            "Directly aligns to competence aims on planning, executing, evaluating and documenting work—plus communication/terminology.",
+            links=[("Kompetansemål – Arbeidsmiljø og dokumentasjon", LK20_AMD)],
+        )
+
+        st.markdown("**" + tt("Dokumentasjonsmal (mini)", "Mini documentation template") + "**")
+        st.text_input(tt("Oppdrag / arbeidsoperasjon", "Task / work operation"), key="doc_task")
+        st.text_area(tt("Plan (hva skal gjøres, i hvilken rekkefølge?)", "Plan (what and in what order?)"), key="doc_plan", height=90)
+        st.text_area(tt("Gjennomføring (hva gjorde du?)", "Execution (what did you do?)"), key="doc_do", height=90)
+        st.text_area(tt("Kontroll (hvordan sjekket du kvalitet?)", "Quality control (how did you verify?)"), key="doc_check", height=90)
+        st.text_area(tt("Vurdering/refleksjon (hva lærte du?)", "Evaluation/reflection (what did you learn?)"), key="doc_eval", height=90)
+
+        _rubric([
+            tt("Planlegging (tydelig rekkefølge)", "Planning (clear sequence)"),
+            tt("Kvalitetskontroll (måling/krav)", "Quality control (measure/requirements)"),
+            tt("Fagterminologi og refleksjon", "Terminology and reflection"),
+        ])
+
+    # 5) TEK-krav
+    with tabs[4]:
+        st.markdown("### " + tt("TEK-krav – hvorfor vi må følge kravene", "TEK – why we must comply"))
+
+        st.info(
+            tt(
+                "TEK17 er byggteknisk forskrift. Den angir minstekrav til sikkerhet, helse og kvalitet i bygg. "
+                "I praksis må du ofte forholde deg til prosjekteringsgrunnlag, leverandørkrav og løsninger som dokumenterer oppfyllelse.",
+                "TEK17 is the Norwegian building regulation. It sets minimum requirements for safety, health and quality. "
+                "In practice you follow project specs, supplier requirements and documented solutions.",
             )
+        )
 
-    with c2:
-        st.markdown("**Pro inkluderer**")
-        st.write("• Mer historikk")
-        st.write("• Eksport")
-        st.write("• Pro-funksjoner per fane")
-        st.write("• Prioritert støtte (valgfritt)")
+        st.markdown("**" + tt("Oppdatert status", "Up-to-date status") + "**")
+        st.markdown("- " + tt("Endringshistorikk (veiledning) hos DiBK.", "Change history (guidance) at DiBK."))
+        st.markdown("- " + tt("Sjekk alltid siste versjon før du bruker dette som kilde i innlevering.", "Always check the latest version before using as a submission source."))
+        st.markdown("- " + tt("Lenke: Endringshistorikk TEK17.", "Link: TEK17 change history."))
+        st.markdown("- [DiBK – Endringshistorikk TEK17](https://www.dibk.no/regelverk/endringshistorikk-tek17)")
+
+        st.markdown("**" + tt("Vurderingsoppgave", "Assessment task") + "**")
+        st.write(tt(
+            "Velg én situasjon og skriv kort: (1) hvilke krav/risikoer er relevante, (2) hvordan sikrer du dokumentasjon, (3) hvordan kontrollerer du utførelse.",
+            "Choose one situation and write briefly: (1) which requirements/risks matter, (2) how you document compliance, (3) how you verify execution.",
+        ))
+        case = st.selectbox(
+            tt("Situasjon", "Situation"),
+            [tt("Våtrom (fall/tetthet)", "Wet room (slope/watertightness)"),
+             tt("Rekkverk/trapp", "Guardrails/stairs"),
+             tt("Brannsikring (gjennomføringer)", "Fire safety (penetrations)")],
+            key="tek_case",
+        )
+        st.text_area(tt("Svar (6–10 setninger)", "Answer (6–10 sentences)"), key="tek_answer", height=140)
+
+        _rubric([
+            tt("Kravforståelse (hva og hvorfor)", "Requirement understanding (what & why)"),
+            tt("Dokumentasjon (hva kan vises)", "Documentation (what can be shown)"),
+            tt("Kontroll (hvordan du sjekker)", "Verification (how you check)"),
+        ])
+
+    # 6) Tegningsforståelse
+    with tabs[5]:
+        st.markdown("### " + tt("Lese og forstå tegning", "Read and understand drawings"))
+
+        _lk20_box(
+            "LK20-kobling (Praktisk yrkesutøvelse)",
+            "LK20 alignment (Practical vocational practice)",
+            "Kobles direkte til kompetansemål om å arbeide etter tegninger, tegne i målestokk og bruke digitale ressurser for oppmåling/merking.",
+            "Directly aligns to competence aims on working from drawings, drawing to scale and using digital tools for measuring/marking.",
+            links=[("Kompetansemål – Praktisk yrkesutøvelse", LK20_PYU)],
+        )
+
+        st.markdown("**" + tt("Mini-oppgave: målestokk", "Mini task: scale") + "**")
+        scale = st.selectbox(tt("Målestokk", "Scale"), ["1:20", "1:25", "1:50", "1:100"], key="drw_scale")
+        mm = st.number_input(tt("Målt på tegning (mm)", "Measured on drawing (mm)"), min_value=0.0, value=50.0, step=1.0, key="drw_mm")
+        factor = int(scale.split(":")[1])
+        real_mm = mm * factor
+        st.write(tt(f"Virkelig lengde: {real_mm:.0f} mm = {real_mm/1000:.2f} m",
+                    f"Real length: {real_mm:.0f} mm = {real_mm/1000:.2f} m"))
+
+        st.text_area(tt("Forklar med egne ord hva målestokk betyr her.", "Explain in your own words what scale means here."), key="drw_explain", height=100)
+
+        _rubric([
+            tt("Målestokk og enheter", "Scale and units"),
+            tt("Tolkning (hva betyr målene?)", "Interpretation (what do the dimensions mean?)"),
+            tt("Fagterminologi", "Terminology"),
+        ])
+
+    # 7) Lærer / vurdering
+    with tabs[6]:
+        st.markdown("### " + tt("Lærer / vurdering", "Teacher / assessment"))
+        st.caption(tt(
+            "Her får du et enkelt vurderingsgrunnlag fra Pro-aktivitetene (lokalt i denne økten).",
+            "Here you get a simple assessment basis from Pro activity (local to this session).",
+        ))
+
+        st.markdown("**" + tt("LK20 – underveisvurdering i app-format", "LK20 – formative assessment in app format") + "**")
+        st.write(tt(
+            "Bruk dette som: (1) tydelige kriterier, (2) elevens egenvurdering, (3) lærerens framovermelding.",
+            "Use this as: (1) clear criteria, (2) student self-assessment, (3) teacher feedforward.",
+        ))
+
+        # Samle "logger" fra økten
+        log = st.session_state.get("pro_task_log", [])
+        st.markdown("**" + tt("Gjennomførte oppgaver (i denne økten)", "Completed tasks (this session)") + "**")
+        if log:
+            st.table(log)
+        else:
+            st.info(tt("Ingen oppgaver logget ennå.", "No tasks logged yet."))
+
+        st.markdown("**" + tt("Lærerkommentar (framovermelding)", "Teacher feedback (feedforward)") + "**")
+        st.text_area(tt("Skriv én konkret framovermelding", "Write one concrete feedforward comment"), key="teacher_feedforward", height=110)
+
+        st.markdown("**" + tt("Forslag til vurderingsgrunnlag (standpunkt)", "Suggested basis for grading") + "**")
+        st.write(tt(
+            "Når du setter standpunkt i programfagene, bør du vurdere samlet kompetanse over tid: "
+            "planlegge → gjennomføre → vurdere → dokumentere. Appen kan støtte dette ved å samle elevens tekster, svar og refleksjoner.",
+            "When grading, assess overall competence over time: plan → execute → evaluate → document. "
+            "The app can support this by collecting student texts, answers and reflections.",
+        ))
+
+        with st.expander(tt("Vis relevante kompetansemål (utdrag)", "Show relevant competence aims (excerpt)"), expanded=False):
+            st.markdown("**Arbeidsmiljø og dokumentasjon**")
+            for c in cm_amd:
+                st.write("• " + c)
+            st.markdown("**Praktisk yrkesutøvelse**")
+            for c in cm_pyu:
+                st.write("• " + c)
+
+        st.markdown("---")
+        st.markdown("**" + tt("Lenker til læreplan", "Links to curriculum") + "**")
+        st.markdown(f"- [BAT01-03 (oversikt)]({LK20_BASE})")
+        st.markdown(f"- [Arbeidsmiljø og dokumentasjon – kompetansemål]({LK20_AMD})")
+        st.markdown(f"- [Praktisk yrkesutøvelse – kompetansemål]({LK20_PYU})")
 
 
 # ============================
@@ -2809,7 +3194,6 @@ CALC_LABELS = {
     "Fall": ("Fall", "Slope"),
     "Prosent": ("Prosent", "Percent"),
     "Diagonal (Pytagoras)": ("Diagonal (Pytagoras)", "Diagonal (Pythagoras)"),
-    "Vinkler": ("Vinkler", "Angles"),
     "Økonomi": ("Økonomi", "Economy"),
 }
 
@@ -2956,7 +3340,6 @@ tabs = st.tabs(
         "📉 " + tt("Fall", "Slope"),
         "🧮 " + tt("Prosent", "Percent"),
         "📐 " + tt("Diagonal (Pytagoras)", "Diagonal (Pythagoras)"),
-        "📐 " + tt("Vinkler", "Angles"),
         "💰 " + tt("Økonomi", "Economy"),
         "📊 " + tt("Historikk", "History"),
     ]
@@ -3355,128 +3738,6 @@ with tabs[8]:
 
 # ---- Økonomi ----
 with tabs[9]:
-    st.subheader("📐 " + tt("Vinkler", "Angles"))
-
-    st.caption(
-        tt(
-            "I byggfag møter du vinkler i tak (sperrer), avstivning, kapping/gering og oppmerking. "
-            "I en rettvinklet trekant kan du finne en vinkel ved hjelp av forhold mellom sidene og "
-            "trigonometriske funksjoner.",
-            "In construction you meet angles in roofs, bracing, mitre cuts and layout. "
-            "In a right triangle you can find an angle using side ratios and trigonometric functions.",
-        )
-    )
-
-    if is_school_mode():
-        # Valgfri illustrasjon dersom du legger inn assets/vinkler.png
-        render_school_illustration("angles")
-
-    method = st.selectbox(
-        tt("Velg formel (rettvinklet trekant)", "Choose formula (right triangle)"),
-        options=[
-            tt("tan⁻¹(motstående / naboside)", "atan(opposite / adjacent)"),
-            tt("sin⁻¹(motstående / hypotenus)", "asin(opposite / hypotenuse)"),
-            tt("cos⁻¹(naboside / hypotenus)", "acos(adjacent / hypotenuse)"),
-        ],
-        index=0,
-        key="ang_method",
-    )
-
-    unit = st.selectbox(
-        tt("Enhet for inndata (samme enhet på begge sider)", "Input unit (same unit for both sides)"),
-        ["mm", "cm", "m"],
-        index=2,
-        key="ang_unit",
-    )
-
-    c1, c2, c3 = st.columns([1, 1, 1])
-    with c1:
-        opposite = st.number_input(
-            tt("Motstående side", "Opposite side"),
-            min_value=0.0,
-            value=2.0,
-            step=0.1,
-            key="ang_opposite",
-        )
-    with c2:
-        adjacent = st.number_input(
-            tt("Naboside", "Adjacent side"),
-            min_value=0.0,
-            value=4.0,
-            step=0.1,
-            key="ang_adjacent",
-        )
-    with c3:
-        hypotenuse = st.number_input(
-            tt("Hypotenus (valgfri)", "Hypotenuse (optional)"),
-            min_value=0.0,
-            value=0.0,
-            step=0.1,
-            key="ang_hyp",
-        )
-
-    # Konverter til samme "basis" (mm) for robusthet, men ratio gjør at enhet egentlig kansellerer ut
-    opp_mm = to_mm(float(opposite), unit)
-    adj_mm = to_mm(float(adjacent), unit)
-    hyp_mm = to_mm(float(hypotenuse), unit) if float(hypotenuse) > 0 else 0.0
-
-    angle_deg = None
-    err = None
-
-    try:
-        if "tan" in method or "atan" in method:
-            if adj_mm <= 0:
-                err = tt("Naboside må være > 0 for tan-formelen.", "Adjacent must be > 0 for the tan formula.")
-            else:
-                angle_deg = math.degrees(math.atan(opp_mm / adj_mm))
-        elif "sin" in method or "asin" in method:
-            if hyp_mm <= 0:
-                err = tt("Du må fylle inn hypotenus (> 0) for sin-formelen.", "You must enter the hypotenuse (> 0) for the sin formula.")
-            elif opp_mm > hyp_mm:
-                err = tt("Motstående kan ikke være større enn hypotenusen.", "Opposite cannot be larger than the hypotenuse.")
-            else:
-                angle_deg = math.degrees(math.asin(opp_mm / hyp_mm))
-        else:  # cos
-            if hyp_mm <= 0:
-                err = tt("Du må fylle inn hypotenus (> 0) for cos-formelen.", "You must enter the hypotenuse (> 0) for the cos formula.")
-            elif adj_mm > hyp_mm:
-                err = tt("Naboside kan ikke være større enn hypotenusen.", "Adjacent cannot be larger than the hypotenuse.")
-            else:
-                angle_deg = math.degrees(math.acos(adj_mm / hyp_mm))
-    except Exception:
-        err = tt("Kunne ikke beregne vinkel – sjekk at du har gyldige tall.", "Could not compute angle – check that your numbers are valid.")
-
-    if err:
-        st.warning(err)
-    elif angle_deg is not None:
-        angle2 = 90.0 - angle_deg
-        st.success(tt(f"Vinkel ≈ {angle_deg:.2f}°", f"Angle ≈ {angle_deg:.2f}°"))
-        st.write(tt(f"Den andre spisse vinkelen i trekanten: {angle2:.2f}°", f"The other acute angle: {angle2:.2f}°"))
-
-        with st.expander(tt("Vis utregning / formel", "Show steps / formula"), expanded=True):
-            if "tan" in method or "atan" in method:
-                st.markdown(r"**Formel:**  \( \theta = \arctan(\frac{motstående}{naboside}) \)")
-                st.markdown(rf"**Satt inn:**  \( \theta = \arctan(\frac{{{float(opposite):.4g}}}{{{float(adjacent):.4g}}}) \)")
-            elif "sin" in method or "asin" in method:
-                st.markdown(r"**Formel:**  \( \theta = \arcsin(\frac{motstående}{hypotenus}) \)")
-                st.markdown(rf"**Satt inn:**  \( \theta = \arcsin(\frac{{{float(opposite):.4g}}}{{{float(hypotenuse):.4g}}}) \)")
-            else:
-                st.markdown(r"**Formel:**  \( \theta = \arccos(\frac{naboside}{hypotenus}) \)")
-                st.markdown(rf"**Satt inn:**  \( \theta = \arccos(\frac{{{float(adjacent):.4g}}}{{{float(hypotenuse):.4g}}}) \)")
-            st.markdown(rf"**Svar:**  \( \theta \approx {angle_deg:.2f}^\circ \)")
-
-    st.divider()
-
-    st.markdown("#### " + tt("Ekstra: grader ↔ radianer", "Extra: degrees ↔ radians"))
-    c1, c2 = st.columns(2)
-    with c1:
-        deg_in = st.number_input(tt("Grader (°)", "Degrees (°)"), value=45.0, step=1.0, key="deg_in")
-        st.write(tt(f"{deg_in:.2f}° = {math.radians(float(deg_in)):.6f} rad", f"{deg_in:.2f}° = {math.radians(float(deg_in)):.6f} rad"))
-    with c2:
-        rad_in = st.number_input(tt("Radianer (rad)", "Radians (rad)"), value=0.785398, step=0.01, format="%.6f", key="rad_in")
-        st.write(tt(f"{rad_in:.6f} rad = {math.degrees(float(rad_in)):.2f}°", f"{rad_in:.6f} rad = {math.degrees(float(rad_in)):.2f}°"))
-
-with tabs[10]:
     st.subheader("💰 " + tt("Økonomi", "Economy"))
     if is_school_mode():
         render_school_illustration("economy")
@@ -3499,7 +3760,7 @@ with tabs[10]:
         show_result(calc_time_estimate(q, prod))
         
 # ---- Historikk ----
-with tabs[11]:
+with tabs[10]:
     st.subheader(tt("Historikk", "History"))
 
     if not st.session_state.history:
