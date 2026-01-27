@@ -239,8 +239,8 @@ ILLUSTRATIONS = {
         "A = 6,0 m × 2,0 m = 12,0 m²",
     ]),
     "perimeter": ("perimeter.png", tt("Omkrets (rektangel)", "Perimeter (rectangle)"), [
-        "O = 2 × (lengde + bredde)",
-        "O = 2 × (6,0 + 2,0) = 16,0 m",
+        "O = Lengde + lengde + bredde + bredde",
+        "O = 2 + 2 + 2 + 2 = 8,0 m",
     ]),
     "volume": ("volume.png", tt("Volum (plate)", "Volume (slab)"), [
         "100 mm = 0,10 m",
@@ -268,7 +268,7 @@ ILLUSTRATIONS = {
     ]),
     "percent": ("percent.png", tt("Prosent", "Percent"), [
         "Del = prosent × helhet",
-        "Eksempel: 25 % av 800 kr = 0,25 × 800 = 200 kr",
+        "Eksempel: 40 % av 699 kr = 0,40 × 699 = 279,6 kr. 699 - 279,6 = 419,4 kr",
     ]),
     "economy": ("economy.png", tt("Økonomi (sum)", "Economy (total)"), [
         "Sum = materialer + (timer × timepris)",
