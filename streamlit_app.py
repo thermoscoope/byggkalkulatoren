@@ -1366,6 +1366,7 @@ def show_pro_screen():
             3. Dokumentasjon av eget arbeid
             4.TEK-krav – hva og hvorfor
             5. Lese og forstå tegning"
+            
             "Her får du nivåbasert trening (1–3) per tema, med egenvurdering, quiz og dokumentasjon.",
             "Pro is built for apprenticeship/workshop and school assessment. "
             "You get level-based training (1–3) per topic, with self-assessment, quizzes and documentation.",
