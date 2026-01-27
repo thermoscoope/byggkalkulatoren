@@ -342,6 +342,7 @@ def render_school_illustration(key: str) -> None:
         "percent": "prosent.png",
         "slope": "fall.png",
         "economy": "okonomi.png",
+        "angles": "vinkler.png",
         # Valgfrie (hvis du legger dem i assets/)
         "cladding": "kledning.png",
         "tiles": "flis.png",
@@ -2808,6 +2809,7 @@ CALC_LABELS = {
     "Fall": ("Fall", "Slope"),
     "Prosent": ("Prosent", "Percent"),
     "Diagonal (Pytagoras)": ("Diagonal (Pytagoras)", "Diagonal (Pythagoras)"),
+    "Vinkler": ("Vinkler", "Angles"),
     "Økonomi": ("Økonomi", "Economy"),
 }
 
@@ -2954,6 +2956,7 @@ tabs = st.tabs(
         "📉 " + tt("Fall", "Slope"),
         "🧮 " + tt("Prosent", "Percent"),
         "📐 " + tt("Diagonal (Pytagoras)", "Diagonal (Pythagoras)"),
+        "📐 " + tt("Vinkler", "Angles"),
         "💰 " + tt("Økonomi", "Economy"),
         "📊 " + tt("Historikk", "History"),
     ]
@@ -3352,6 +3355,128 @@ with tabs[8]:
 
 # ---- Økonomi ----
 with tabs[9]:
+    st.subheader("📐 " + tt("Vinkler", "Angles"))
+
+    st.caption(
+        tt(
+            "I byggfag møter du vinkler i tak (sperrer), avstivning, kapping/gering og oppmerking. "
+            "I en rettvinklet trekant kan du finne en vinkel ved hjelp av forhold mellom sidene og "
+            "trigonometriske funksjoner.",
+            "In construction you meet angles in roofs, bracing, mitre cuts and layout. "
+            "In a right triangle you can find an angle using side ratios and trigonometric functions.",
+        )
+    )
+
+    if is_school_mode():
+        # Valgfri illustrasjon dersom du legger inn assets/vinkler.png
+        render_school_illustration("angles")
+
+    method = st.selectbox(
+        tt("Velg formel (rettvinklet trekant)", "Choose formula (right triangle)"),
+        options=[
+            tt("tan⁻¹(motstående / naboside)", "atan(opposite / adjacent)"),
+            tt("sin⁻¹(motstående / hypotenus)", "asin(opposite / hypotenuse)"),
+            tt("cos⁻¹(naboside / hypotenus)", "acos(adjacent / hypotenuse)"),
+        ],
+        index=0,
+        key="ang_method",
+    )
+
+    unit = st.selectbox(
+        tt("Enhet for inndata (samme enhet på begge sider)", "Input unit (same unit for both sides)"),
+        ["mm", "cm", "m"],
+        index=2,
+        key="ang_unit",
+    )
+
+    c1, c2, c3 = st.columns([1, 1, 1])
+    with c1:
+        opposite = st.number_input(
+            tt("Motstående side", "Opposite side"),
+            min_value=0.0,
+            value=2.0,
+            step=0.1,
+            key="ang_opposite",
+        )
+    with c2:
+        adjacent = st.number_input(
+            tt("Naboside", "Adjacent side"),
+            min_value=0.0,
+            value=4.0,
+            step=0.1,
+            key="ang_adjacent",
+        )
+    with c3:
+        hypotenuse = st.number_input(
+            tt("Hypotenus (valgfri)", "Hypotenuse (optional)"),
+            min_value=0.0,
+            value=0.0,
+            step=0.1,
+            key="ang_hyp",
+        )
+
+    # Konverter til samme "basis" (mm) for robusthet, men ratio gjør at enhet egentlig kansellerer ut
+    opp_mm = to_mm(float(opposite), unit)
+    adj_mm = to_mm(float(adjacent), unit)
+    hyp_mm = to_mm(float(hypotenuse), unit) if float(hypotenuse) > 0 else 0.0
+
+    angle_deg = None
+    err = None
+
+    try:
+        if "tan" in method or "atan" in method:
+            if adj_mm <= 0:
+                err = tt("Naboside må være > 0 for tan-formelen.", "Adjacent must be > 0 for the tan formula.")
+            else:
+                angle_deg = math.degrees(math.atan(opp_mm / adj_mm))
+        elif "sin" in method or "asin" in method:
+            if hyp_mm <= 0:
+                err = tt("Du må fylle inn hypotenus (> 0) for sin-formelen.", "You must enter the hypotenuse (> 0) for the sin formula.")
+            elif opp_mm > hyp_mm:
+                err = tt("Motstående kan ikke være større enn hypotenusen.", "Opposite cannot be larger than the hypotenuse.")
+            else:
+                angle_deg = math.degrees(math.asin(opp_mm / hyp_mm))
+        else:  # cos
+            if hyp_mm <= 0:
+                err = tt("Du må fylle inn hypotenus (> 0) for cos-formelen.", "You must enter the hypotenuse (> 0) for the cos formula.")
+            elif adj_mm > hyp_mm:
+                err = tt("Naboside kan ikke være større enn hypotenusen.", "Adjacent cannot be larger than the hypotenuse.")
+            else:
+                angle_deg = math.degrees(math.acos(adj_mm / hyp_mm))
+    except Exception:
+        err = tt("Kunne ikke beregne vinkel – sjekk at du har gyldige tall.", "Could not compute angle – check that your numbers are valid.")
+
+    if err:
+        st.warning(err)
+    elif angle_deg is not None:
+        angle2 = 90.0 - angle_deg
+        st.success(tt(f"Vinkel ≈ {angle_deg:.2f}°", f"Angle ≈ {angle_deg:.2f}°"))
+        st.write(tt(f"Den andre spisse vinkelen i trekanten: {angle2:.2f}°", f"The other acute angle: {angle2:.2f}°"))
+
+        with st.expander(tt("Vis utregning / formel", "Show steps / formula"), expanded=True):
+            if "tan" in method or "atan" in method:
+                st.markdown(r"**Formel:**  \( \theta = \arctan(\frac{motstående}{naboside}) \)")
+                st.markdown(rf"**Satt inn:**  \( \theta = \arctan(\frac{{{float(opposite):.4g}}}{{{float(adjacent):.4g}}}) \)")
+            elif "sin" in method or "asin" in method:
+                st.markdown(r"**Formel:**  \( \theta = \arcsin(\frac{motstående}{hypotenus}) \)")
+                st.markdown(rf"**Satt inn:**  \( \theta = \arcsin(\frac{{{float(opposite):.4g}}}{{{float(hypotenuse):.4g}}}) \)")
+            else:
+                st.markdown(r"**Formel:**  \( \theta = \arccos(\frac{naboside}{hypotenus}) \)")
+                st.markdown(rf"**Satt inn:**  \( \theta = \arccos(\frac{{{float(adjacent):.4g}}}{{{float(hypotenuse):.4g}}}) \)")
+            st.markdown(rf"**Svar:**  \( \theta \approx {angle_deg:.2f}^\circ \)")
+
+    st.divider()
+
+    st.markdown("#### " + tt("Ekstra: grader ↔ radianer", "Extra: degrees ↔ radians"))
+    c1, c2 = st.columns(2)
+    with c1:
+        deg_in = st.number_input(tt("Grader (°)", "Degrees (°)"), value=45.0, step=1.0, key="deg_in")
+        st.write(tt(f"{deg_in:.2f}° = {math.radians(float(deg_in)):.6f} rad", f"{deg_in:.2f}° = {math.radians(float(deg_in)):.6f} rad"))
+    with c2:
+        rad_in = st.number_input(tt("Radianer (rad)", "Radians (rad)"), value=0.785398, step=0.01, format="%.6f", key="rad_in")
+        st.write(tt(f"{rad_in:.6f} rad = {math.degrees(float(rad_in)):.2f}°", f"{rad_in:.6f} rad = {math.degrees(float(rad_in)):.2f}°"))
+
+with tabs[10]:
     st.subheader("💰 " + tt("Økonomi", "Economy"))
     if is_school_mode():
         render_school_illustration("economy")
@@ -3374,7 +3499,7 @@ with tabs[9]:
         show_result(calc_time_estimate(q, prod))
         
 # ---- Historikk ----
-with tabs[10]:
+with tabs[11]:
     st.subheader(tt("Historikk", "History"))
 
     if not st.session_state.history:
