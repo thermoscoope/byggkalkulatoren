@@ -340,7 +340,6 @@ def render_school_illustration(key: str) -> None:
         "volume": "volum.png",
         "scale": "malestokk.png",
         "percent": "prosent.png",
-        "angles": "vinkler.png",
         "slope": "fall.png",
         "economy": "okonomi.png",
         # Valgfrie (hvis du legger dem i assets/)
@@ -1129,7 +1128,7 @@ def calc_tiles_wall(
     )
 
 # ============================================================
-# Offline AI-robot (tekst + regnestykker, uten internett)
+# Offline  (tekst + regnestykker, uten internett)
 # ============================================================
 
 _ALLOWED_BINOPS = {
@@ -3550,8 +3549,8 @@ if "history" not in st.session_state:
 if "show_pro" not in st.session_state:
     st.session_state.show_pro = False
 
-if "show_ai" not in st.session_state:
-    st.session_state.show_ai = False
+if "" not in st.session_state:
+    st.session_state. = False
 
 if "show_play" not in st.session_state:
     st.session_state.show_play = False
@@ -3566,7 +3565,7 @@ if "play_state" not in st.session_state:
 
 
 # ============================================================
-# Topmeny: Hjem + Lek og lær + AI-robot + Innstillinger
+# Topmeny: Hjem + Lek og lær +  + Innstillinger
 # ============================================================
 
 # Trekker topmenyen tett opp mot headeren (komprimert, men uten å skjule logo/tekst)
@@ -3576,7 +3575,7 @@ bar1, bar2, bar3, bar4 = st.columns([1.2, 1.4, 1.4, 1.8])
 
 with bar1:
     if st.button("🏠 " + tt("Hjem", "Home"), key="btn_home_top", use_container_width=True):
-        st.session_state.show_ai = False
+        st.session_state. = False
         st.session_state.show_pro = False
         st.session_state.show_play = False
         st.rerun()
@@ -3586,13 +3585,13 @@ with bar2:
     play_disabled = not is_school_mode()
     if st.button("🎯 " + tt("Test deg selv", "Test yourself"), key="btn_play_top", use_container_width=True, disabled=play_disabled):
         st.session_state.show_play = True
-        st.session_state.show_ai = False
+        st.session_state. = False
         st.session_state.show_pro = False
         st.rerun()
 
 with bar3:
-    if st.button("🤖 " + tt("Spør AI (BETA)", "Ask AI (BETA)"), key="btn_ai_top", use_container_width=True):
-        st.session_state.show_ai = True
+    if st.button("🤖 " + tt(" (BETA)", "Ask "), key="_top", use_container_width=True):
+        st.session_state. = True
         st.session_state.show_pro = False
         st.session_state.show_play = False
         st.rerun()
@@ -3630,7 +3629,7 @@ with bar4:
               "Pro adds extra features for learning, documentation, and export."))
         if st.button(tt("⭐ Oppgrader til Pro (BETA)", "⭐ Upgrade to Pro (BETA)"), key="btn_pro_settings", use_container_width=True):
             st.session_state.show_pro = True
-            st.session_state.show_ai = False
+            st.session_state. = False
             st.session_state.show_play = False
             st.rerun()
 
@@ -3652,13 +3651,13 @@ if st.session_state.show_pro:
     show_pro_screen()
     st.stop()
 
-if st.session_state.get("show_ai", False):
+if st.session_state.get("", False):
     st.divider()
     st.subheader("🤖 " + tt("Spør din verksmester!", "Ask your foreman!"))
     st.caption(tt("Skriv både tekst og regnestykker. Eksempel: 'areal 4 x 6' eller '2*(3+5)'.",
               "Type both text and calculations. Example: 'area 4 x 6' or '2*(3+5)'."))
 
-    q = st.text_input(tt("Spør AI-roboten", "Ask the AI bot"), key="ai_input_top")
+    q = st.text_input(tt("-roboten", "Ask the AI bot"), key="ai_input_top")
     if q:
         res = ai_math_bot(q)
         if res["ok"]:
@@ -3669,8 +3668,8 @@ if st.session_state.get("show_ai", False):
         else:
             st.warning(res["answer"])
 
-    if st.button(tt("Lukk AI-robot", "Close AI bot")):
-        st.session_state.show_ai = False
+    if st.button(tt("Lukk ", "Close AI bot")):
+        st.session_state. = False
         st.session_state.show_play = False
         st.rerun()
 
@@ -3847,7 +3846,7 @@ if rec:
                     if st.button("🎯 " + _lab(TOPIC_LABELS, topic_key), key=f"start_play_{picked_key}_{topic_key}", use_container_width=True):
                         st.session_state.play_selected_topic = topic_key  # intern nøkkel (NO)
                         st.session_state.show_play = True
-                        st.session_state.show_ai = False
+                        st.session_state. = False
                         st.session_state.show_pro = False
                         st.rerun()
 else:
@@ -4250,7 +4249,7 @@ with tabs[8]:
     subtab_vinkler, subtab_diagonal = st.tabs(
         [
             "📐 " + tt("Vinkler", "Angles"),
-            "📐 " + tt("Diagonal/pytagoras", "Angles/Pytagoras"),
+            "📐 " + tt("Vinkler", "Angles"),
         ]
     )
 
@@ -4266,7 +4265,7 @@ with tabs[8]:
             # Valgfritt illustrasjonsbilde dersom du legger det i assets/ (krasjer ikke om det mangler)
             render_school_illustration("angles")
 
-        st.subheader("📐 " + tt("Vinkler", "Angles (right triangle)"))
+        st.subheader("📐 " + tt("Vinkler (rettvinklet trekant)", "Angles (right triangle)"))
 
         st.markdown(
             """
