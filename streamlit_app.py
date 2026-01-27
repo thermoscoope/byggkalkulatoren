@@ -1369,7 +1369,13 @@ def show_pro_screen():
         st.markdown("**" + tt("Lyst til å bli en bedre yrkesutøver?", "Want to become a better craftsperson?") + "**")
         st.write(
             tt(
-                "Få tilgang til øvingsoppgaver, HMS, verktøyopplæring, dokumentasjon, TEK og tegning – koblet til LK20.",
+                "Få tilgang til 
+                1. Få tilgang til øvingsoppgaver med fasit
+                2. HMS - Hvorfor er HMS viktig?
+                3. Hvorfor er verktøyopplæring viktig?
+                4. Dokumentasjon av eget arbeid
+                5. Hva er TEK, og hvorfor er dette et sentralt begrep?
+                6. Forståelse av tegning",
                 "Get access to practice tasks, HSE, tool training, documentation, TEK and drawings – aligned to LK20.",
             )
         )
