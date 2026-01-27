@@ -4265,7 +4265,7 @@ with tabs[8]:
             # Valgfritt illustrasjonsbilde dersom du legger det i assets/ (krasjer ikke om det mangler)
             render_school_illustration("angles")
 
-        st.subheader("📐 " + tt("Vinkler (rettvinklet trekant)", "Angles (right triangle)"))
+        st.subheader("📐 " + tt("Vinkler", "Angles (right triangle)"))
 
         st.markdown(
             """
