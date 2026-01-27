@@ -3549,8 +3549,8 @@ if "history" not in st.session_state:
 if "show_pro" not in st.session_state:
     st.session_state.show_pro = False
 
-if "show_play" not in st.session_state:
-    st.session_state.show_play = False
+if "" not in st.session_state:
+    # AI state removed
 
 if "show_play" not in st.session_state:
     st.session_state.show_play = False
@@ -3575,7 +3575,7 @@ bar1, bar2, bar3, bar4 = st.columns([1.2, 1.4, 1.4, 1.8])
 
 with bar1:
     if st.button("🏠 " + tt("Hjem", "Home"), key="btn_home_top", use_container_width=True):
-        st.session_state. = False
+        # AI state removed
         st.session_state.show_pro = False
         st.session_state.show_play = False
         st.rerun()
@@ -3585,11 +3585,18 @@ with bar2:
     play_disabled = not is_school_mode()
     if st.button("🎯 " + tt("Test deg selv", "Test yourself"), key="btn_play_top", use_container_width=True, disabled=play_disabled):
         st.session_state.show_play = True
-        st.session_state. = False
+        # AI state removed
         st.session_state.show_pro = False
         st.rerun()
 
 with bar3:
+    if st.button("🤖 " + tt(" (BETA)", "Ask "), key="_top", use_container_width=True):
+        # removed invalid session_state assignment True
+        st.session_state.show_pro = False
+        st.session_state.show_play = False
+        st.rerun()
+
+with bar4:
     with st.popover("⚙️ " + tt("Innstillinger", "Settings"), use_container_width=True):
         st.subheader(tt("Innstillinger", "Settings"))
         st.markdown("**" + tt("Språk", "Language") + "**")
@@ -3622,7 +3629,7 @@ with bar3:
               "Pro adds extra features for learning, documentation, and export."))
         if st.button(tt("⭐ Oppgrader til Pro (BETA)", "⭐ Upgrade to Pro (BETA)"), key="btn_pro_settings", use_container_width=True):
             st.session_state.show_pro = True
-            st.session_state. = False
+            # AI state removed
             st.session_state.show_play = False
             st.rerun()
 
@@ -3662,7 +3669,7 @@ if st.session_state.get("", False):
             st.warning(res["answer"])
 
     if st.button(tt("Lukk ", "Close AI bot")):
-        st.session_state. = False
+        # AI state removed
         st.session_state.show_play = False
         st.rerun()
 
@@ -3839,7 +3846,7 @@ if rec:
                     if st.button("🎯 " + _lab(TOPIC_LABELS, topic_key), key=f"start_play_{picked_key}_{topic_key}", use_container_width=True):
                         st.session_state.play_selected_topic = topic_key  # intern nøkkel (NO)
                         st.session_state.show_play = True
-                        st.session_state. = False
+                        # AI state removed
                         st.session_state.show_pro = False
                         st.rerun()
 else:
