@@ -340,6 +340,7 @@ def render_school_illustration(key: str) -> None:
         "volume": "volum.png",
         "scale": "malestokk.png",
         "percent": "prosent.png",
+        "angels": "vinkler.png",
         "slope": "fall.png",
         "economy": "okonomi.png",
         # Valgfrie (hvis du legger dem i assets/)
