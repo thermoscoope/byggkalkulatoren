@@ -3549,8 +3549,8 @@ if "history" not in st.session_state:
 if "show_pro" not in st.session_state:
     st.session_state.show_pro = False
 
-if "" not in st.session_state:
-    st.session_state. = False
+if "show_play" not in st.session_state:
+    st.session_state.show_play = False
 
 if "show_play" not in st.session_state:
     st.session_state.show_play = False
