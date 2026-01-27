@@ -252,7 +252,7 @@ ILLUSTRATIONS = {
     ]),
     "diagonal": ("diagonal.png", tt("Diagonal (Pytagoras)", "Diagonal (Pythagoras)"), [
         "c² = a² + b²",
-        "c = √(6,0² + 2,0²) ≈ 6,32 m",
+        "c = √(2,0² + 2,0²) ≈ 2,82 m",
     ]),
     "cladding": ("cladding.png", tt("Tømmermannskledning (bredde)", "Wood cladding (width)"), [
         "Dekketøy per bord ≈ (under + over) − omlegg",
