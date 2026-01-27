@@ -1333,25 +1333,34 @@ def label_for(key: str) -> str:
 # "Bli en profesjonell yrkesutøver!" skjerm (Streamlit)
 # ============================
 
+
 def show_pro_screen():
-    """Pro-skjerm (BETA): vurderingsrettet innhold koblet til LK20 (Vg1 BA, BAT01-03).
+    """Pro-skjerm (BETA): nivåbasert, vurderingsrettet innhold koblet til LK20 (Vg1 BA, BAT01-03).
 
     Tilgang:
-      - Pilotbetaling (dummy-knapp) eller
-      - Lærerkode = 2150
+      - Pilotknapp (dummy) viser infoside (gir IKKE tilgang)
+      - Lærerkode = 2150 gir tilgang + lærerpanel
     """
 
-    # ---- Tilgang ----
+    import datetime
+
+    # -------------------------
+    # Tilgang / modus
+    # -------------------------
     if "pro_access" not in st.session_state:
         st.session_state.pro_access = False
     if "payment_clicked" not in st.session_state:
         st.session_state.payment_clicked = False
+    if "pro_teacher_mode" not in st.session_state:
+        st.session_state.pro_teacher_mode = False
 
     st.subheader(tt("⭐ Oppgrader til Pro (BETA)", "⭐ Upgrade to Pro (BETA)"))
     st.caption(
         tt(
-            "Pro er laget for lærlingtid/verksted og vurderingsarbeid i skole. Innholdet er koblet til LK20 (BAT01-03).",
-            "Pro is built for apprenticeship/workshop and assessment in school. Content is aligned to LK20 (BAT01-03).",
+            "Pro er laget for lærlingtid/verksted og vurderingsarbeid i skole. "
+            "Her får du nivåbasert trening (1–3) per tema, med egenvurdering, quiz og dokumentasjon.",
+            "Pro is built for apprenticeship/workshop and school assessment. "
+            "You get level-based training (1–3) per topic, with self-assessment, quizzes and documentation.",
         )
     )
 
@@ -1359,26 +1368,21 @@ def show_pro_screen():
         st.markdown("**" + tt("Lyst til å bli en bedre yrkesutøver?", "Want to become a better craftsperson?") + "**")
         st.write(
             tt(
-                "Få tilgang til øvingsoppgaver, HMS, dokumentasjon, TEK og tegning.",
-                "Get access to practice tasks, HSE, documentation, TEK and drawings.",
+                "Få tilgang til øvingsoppgaver, HMS, verktøyopplæring, dokumentasjon, TEK og tegning – koblet til LK20.",
+                "Get access to practice tasks, HSE, tool training, documentation, TEK and drawings – aligned to LK20.",
             )
         )
 
         c1, c2 = st.columns([1, 1])
         with c1:
-            if st.button(
-                tt("29 kr / mnd (pilot)", "29 NOK / month (pilot)"),
-                use_container_width=True,
-                key="pro_pay_btn",
-            ):
-                # OBS: Dette er en pilot/dummy – ikke ekte betaling.
-                # Skal ikke gi tilgang, kun vise infoside.
+            if st.button(tt("29 kr / mnd (pilot)", "29 NOK / month (pilot)"), use_container_width=True, key="pro_pay_btn"):
                 st.session_state.payment_clicked = True
 
         with c2:
             teacher_code = st.text_input(tt("Lærerkode", "Teacher code"), type="password", key="pro_teacher_code")
             if teacher_code == "2150":
                 st.session_state.pro_access = True
+                st.session_state.pro_teacher_mode = True
 
     # --- Betalings-infoside (pilot) ---
     if st.session_state.payment_clicked and not st.session_state.pro_access:
@@ -1396,417 +1400,926 @@ def show_pro_screen():
         st.stop()
 
     if not st.session_state.pro_access:
-        st.warning(tt("Du må betale eller bruke lærerkode for å åpne Pro-innholdet.", "You must pay or use a teacher code to unlock Pro content."))
+        st.warning(tt("Du må ha lærerkode for å åpne Pro-innholdet i pilotperioden.", "You need a teacher code to unlock Pro content during the pilot."))
         return
 
-    # ---- LK20: lenker + kompetansemål (BAT01-03) ----
-    LK20_BASE = "https://www.udir.no/lk20/bat01-03"
-    LK20_AMD = "https://www.udir.no/lk20/bat01-03/kompetansemaal-og-vurdering/kv249"  # Arbeidsmiljø og dokumentasjon
+    # -------------------------
+    # LK20: Lenker + kompetansemål (BAT01-03)
+    # -------------------------
     LK20_PYU = "https://www.udir.no/lk20/bat01-03/kompetansemaal-og-vurdering/kv250"  # Praktisk yrkesutøvelse
+    LK20_AMD = "https://www.udir.no/lk20/bat01-03/kompetansemaal-og-vurdering/kv249"  # Arbeidsmiljø og dokumentasjon
 
-    cm_amd = [
-        "vurdere risiko og utføre forebyggende tiltak",
-        "gjennomføre og dokumentere arbeid i samsvar med gjeldende bestemmelser for HMS, og rapportere om uønskede hendelser",
-        "utføre livreddende førstehjelp",
-        "gjøre rede for varme arbeider som brannårsak, gjennomføre sikkerhetstiltak og hindre brann",
-        "anvende sikkerhetsdatablad og følge anvisninger ved bruk av kjemikalier",
-        "beskrive og bruke arbeidsteknikker og arbeidsstillinger som forebygger helseskader",
-        "gjøre rede for betydningen av orden på bygge- og anleggsplasser og følge rutiner for dette",
-        "planlegge, gjennomføre, vurdere og dokumentere eget arbeid",
-        "vedlikeholde maskiner og verktøy",
-        "kildesortere avfall etter gitte retningslinjer og reflektere over konsekvenser av feilhåndtering av avfall",
-        "kommunisere og formidle budskap tilpasset ulike målgrupper",
-        "forstå og bruke fagterminologi i samhandling med ulike målgrupper",
-    ]
+    # En bevisst "operasjonalisering" – vi kobler tema -> vurderingsfokus -> aktuelle mål
+    LK20_MAP = {
+        "Øvingsoppgaver": {
+            "program": "PYU",
+            "aims": [
+                "bruke digitale ressurser til å beregne, måle opp og merke etter beskrivelse og tegning",
+                "forstå og arbeide etter tegninger og beskrivelser",
+                "tegne skisser og konstruksjoner i målestokk",
+                "beskrive krav og forventninger til en profesjonell yrkesutøver, og reflektere over egen praksis",
+            ],
+            "link": LK20_PYU,
+        },
+        "HMS": {
+            "program": "AMD",
+            "aims": [
+                "vurdere risiko og utføre forebyggende tiltak",
+                "gjennomføre og dokumentere arbeid i samsvar med gjeldende bestemmelser for HMS, og rapportere om uønskede hendelser",
+                "beskrive og bruke arbeidsteknikker og arbeidsstillinger som forebygger helseskader",
+                "gjøre rede for betydningen av orden på bygge- og anleggsplasser og følge rutiner for dette",
+            ],
+            "link": LK20_AMD,
+        },
+        "Verktøyopplæring": {
+            "program": "PYU/AMD",
+            "aims": [
+                "velge og bruke maskiner og verktøy til ulike arbeidsoppdrag og følge anvisning for bruk og håndtering",
+                "vedlikeholde maskiner og verktøy",
+                "velge ut og bruke personlig verneutstyr og vurdere konsekvenser av feilbruk",
+            ],
+            "link": LK20_PYU,
+        },
+        "Dokumentasjon": {
+            "program": "AMD",
+            "aims": [
+                "planlegge, gjennomføre, vurdere og dokumentere eget arbeid",
+                "kommunisere og formidle budskap tilpasset ulike målgrupper",
+                "forstå og bruke fagterminologi i samhandling med ulike målgrupper",
+            ],
+            "link": LK20_AMD,
+        },
+        "TEK-krav": {
+            "program": "PYU/AMD",
+            "aims": [
+                "forstå og arbeide etter tegninger og beskrivelser",
+                "planlegge og bygge en konstruksjon",
+                "planlegge, gjennomføre, vurdere og dokumentere eget arbeid",
+            ],
+            "link": LK20_PYU,
+        },
+        "Tegningsforståelse": {
+            "program": "PYU",
+            "aims": [
+                "forstå og arbeide etter tegninger og beskrivelser",
+                "tegne skisser og konstruksjoner i målestokk",
+                "bruke digitale ressurser til å beregne, måle opp og merke etter beskrivelse og tegning",
+            ],
+            "link": LK20_PYU,
+        },
+    }
 
-    cm_pyu = [
-        "forstå og arbeide etter tegninger og beskrivelser",
-        "tegne skisser og konstruksjoner i målestokk",
-        "velge og bruke maskiner og verktøy til ulike arbeidsoppdrag og følge anvisning for bruk og håndtering",
-        "velge ut og bruke personlig verneutstyr og vurdere konsekvenser av feilbruk",
-        "oppbevare, beregne og behandle materialer på en miljøvennlig, faglig og økonomisk måte",
-        "bruke digitale ressurser til å beregne, måle opp og merke etter beskrivelse og tegning",
-        "bruke enkel tredimensjonal modellering i arbeidsoppdrag",
-        "planlegge og bygge en konstruksjon",
-        "beskrive krav og forventninger til en profesjonell yrkesutøver, og reflektere over egen praksis",
-    ]
-
-    def _lk20_box(title_no: str, title_en: str, body_no: str, body_en: str, links: list):
-        with st.expander(tt(title_no, title_en), expanded=False):
-            st.write(tt(body_no, body_en))
-            st.markdown("**" + tt("Lenker", "Links") + "**")
-            for label, url in links:
-                st.markdown(f"- [{label}]({url})")
-
-    def _rubric(criteria: list):
-        """En enkel vurderingsmatrise (kjennetegn på måloppnåelse)."""
-        levels = [
-            ("Lav måloppnåelse", "Begynner", "Nivå 1"),
-            ("Middels måloppnåelse", "På vei", "Nivå 2"),
-            ("Høy måloppnåelse", "Sikker", "Nivå 3"),
-        ]
-        # Vi viser som markdown for kompatibilitet (st.table er ofte trangt på mobil)
-        st.markdown("**" + tt("Vurderingskriterier (kjennetegn)", "Assessment criteria (descriptors)") + "**")
-        for c in criteria:
-            st.markdown(f"**{c}**")
+    def _lk20_alignment_box(topic_key: str):
+        info = LK20_MAP.get(topic_key, None)
+        if not info:
+            return
+        with st.expander(tt("LK20-kobling og vurderingsgrunnlag", "LK20 alignment and assessment basis"), expanded=False):
             st.write(
-                f"- {tt(levels[0][0], levels[0][1])}: {tt('Trenger mye støtte / mangler viktige deler.', 'Needs significant support / missing key parts.')}"
+                tt(
+                    "Dette temaet vurderes opp mot relevante kompetansemål i BAT01-03. "
+                    "Bruk kriteriene under til egenvurdering og lærerens framovermelding.",
+                    "This topic is assessed against relevant competence aims in BAT01-03. "
+                    "Use the criteria below for self-assessment and teacher feedback.",
+                )
             )
-            st.write(
-                f"- {tt(levels[1][0], levels[1][1])}: {tt('Gjennomfører det meste, men med noe feil/variasjon.', 'Completes most parts, but with some errors/variation.')}"
-            )
-            st.write(
-                f"- {tt(levels[2][0], levels[2][1])}: {tt('Gjennomfører selvstendig, sikkert og med begrunnelser.', 'Independent, accurate and with clear reasoning.')}"
-            )
-            st.markdown("---")
+            st.markdown(f"- **{tt('Programområde', 'Programme')}:** {info['program']}")
+            st.markdown(f"- **{tt('Udir', 'Udir')}:** [{topic_key}]({info['link']})")
+            st.markdown("**" + tt("Aktuelle kompetansemål (utdrag)", "Relevant competence aims (excerpt)") + "**")
+            for a in info["aims"]:
+                st.markdown(f"- {a}")
+
+    # -------------------------
+    # Vurdering: kjennetegn
+    # -------------------------
+    def _rubric_block(criteria_title: str, level1: str, level2: str, level3: str):
+        st.markdown("**" + tt("Vurderingskriterier", "Assessment criteria") + "**")
+        st.markdown(f"**{criteria_title}**")
+        st.write(f"- {tt('Nivå 1 (Begynner)', 'Level 1 (Novice)')}: {level1}")
+        st.write(f"- {tt('Nivå 2 (På vei)', 'Level 2 (Developing)')}: {level2}")
+        st.write(f"- {tt('Nivå 3 (Sikker)', 'Level 3 (Proficient)')}: {level3}")
+
+    # -------------------------
+    # Progresjon + logg
+    # -------------------------
+    if "pro_progress" not in st.session_state:
+        st.session_state.pro_progress = {}  # topic -> max_level_completed (int)
+
+    if "pro_records" not in st.session_state:
+        st.session_state.pro_records = []  # historikk for lærerpanel/eksport
+
+    # Elev/gruppe-ident (lettvekts, men nyttig)
+    st.divider()
+    meta_cols = st.columns([1, 1, 1, 1])
+    with meta_cols[0]:
+        student_name = st.text_input(tt("Elev/lærling (navn)", "Student/apprentice (name)"), key="pro_student_name")
+    with meta_cols[1]:
+        student_group = st.text_input(tt("Gruppe/lag", "Group/team"), key="pro_student_group")
+    with meta_cols[2]:
+        student_class = st.text_input(tt("Klasse / avdeling", "Class / department"), key="pro_student_class")
+    with meta_cols[3]:
+        workplace = st.text_input(tt("Bedrift/verksted (valgfritt)", "Company/workshop (optional)"), key="pro_workplace")
+
+    # -------------------------
+    # Eksport (PDF/CSV) – kun lærerpanel, men vi lager generator her
+    # -------------------------
+    def _records_df() -> pd.DataFrame:
+        if not st.session_state.pro_records:
+            return pd.DataFrame(columns=[
+                "timestamp", "name", "group", "class", "workplace",
+                "topic", "level", "quiz_score", "quiz_total",
+                "confidence", "challenge", "reflection"
+            ])
+        return pd.DataFrame(st.session_state.pro_records)
+
+    def _make_pdf_bytes(df: pd.DataFrame) -> bytes:
+        # PDF via reportlab hvis tilgjengelig
+        try:
+            from reportlab.lib.pagesizes import A4
+            from reportlab.lib.units import mm
+            from reportlab.pdfgen import canvas
+        except Exception:
+            return b""
+
+        import io
+        buff = io.BytesIO()
+        c = canvas.Canvas(buff, pagesize=A4)
+        width, height = A4
+
+        x = 18 * mm
+        y = height - 18 * mm
+
+        c.setFont("Helvetica-Bold", 14)
+        c.drawString(x, y, "Byggmatte – Pro logg (pilot)")
+        y -= 10 * mm
+
+        c.setFont("Helvetica", 9)
+        c.drawString(x, y, f"Generert: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}")
+        y -= 8 * mm
+
+        # Skriv rader (enkelt og robust)
+        max_rows_per_page = 34
+        c.setFont("Helvetica-Bold", 9)
+        headers = ["Tid", "Navn", "Tema", "Nivå", "Score"]
+        c.drawString(x, y, " | ".join(headers))
+        y -= 5 * mm
+        c.setFont("Helvetica", 8)
+
+        rows = df.fillna("").to_dict(orient="records")
+        row_count = 0
+        for r in rows:
+            line = f"{r.get('timestamp','')[:16]} | {r.get('name','')} | {r.get('topic','')} | {r.get('level','')} | {r.get('quiz_score','')}/{r.get('quiz_total','')}"
+            c.drawString(x, y, line[:140])
+            y -= 4.6 * mm
+            row_count += 1
+            if row_count >= max_rows_per_page:
+                c.showPage()
+                y = height - 18 * mm
+                c.setFont("Helvetica", 8)
+                row_count = 0
+
+        c.showPage()
+        c.save()
+        buff.seek(0)
+        return buff.read()
+
+    # -------------------------
+    # Nivåmotor: låsing + fullføring
+    # -------------------------
+    def _max_unlocked(topic_key: str) -> int:
+        # nivå 1 alltid åpent. nivå 2 åpner når 1 er fullført osv.
+        completed = int(st.session_state.pro_progress.get(topic_key, 0))
+        return min(3, completed + 1)
+
+    def _mark_completed(topic_key: str, level: int, quiz_score: int, quiz_total: int,
+                        confidence: int, challenge: str, reflection: str):
+        # oppdater progresjon
+        current = int(st.session_state.pro_progress.get(topic_key, 0))
+        if level > current:
+            st.session_state.pro_progress[topic_key] = level
+
+        # logg til lærerpanel
+        ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+        st.session_state.pro_records.append({
+            "timestamp": ts,
+            "name": student_name.strip(),
+            "group": student_group.strip(),
+            "class": student_class.strip(),
+            "workplace": workplace.strip(),
+            "topic": topic_key,
+            "level": level,
+            "quiz_score": quiz_score,
+            "quiz_total": quiz_total,
+            "confidence": confidence,
+            "challenge": challenge,
+            "reflection": reflection.strip(),
+        })
 
     def _self_assessment(prefix: str):
-        st.markdown("**" + tt("Egenvurdering (før du får veiledning)", "Self-assessment (before feedback)") + "**")
-        a = st.slider(tt("Hvor trygg var du på svaret?", "How confident were you?"), 1, 5, 3, key=f"{prefix}_conf")
-        b = st.selectbox(tt("Hva var mest utfordrende?", "What was most challenging?"),
-                         [tt("Enheter", "Units"), tt("Målestokk/tegning", "Scale/drawing"), tt("Formel/framgangsmåte", "Method"), tt("HMS/risiko", "HSE/risk"), tt("Annet", "Other")],
-                         key=f"{prefix}_hard")
-        c = st.text_area(tt("Kort refleksjon (2–4 setninger)", "Short reflection (2–4 sentences)"),
-                         key=f"{prefix}_refl", height=90)
-        st.session_state[f"{prefix}_self"] = {"confidence": a, "challenge": b, "reflection": c}
+        st.markdown("**" + tt("Egenvurdering", "Self-assessment") + "**")
+        confidence = st.slider(tt("Hvor trygg var du?", "How confident were you?"), 1, 5, 3, key=f"{prefix}_conf")
+        challenge = st.selectbox(
+            tt("Hva var mest utfordrende?", "What was most challenging?"),
+            [tt("Enheter", "Units"), tt("Mål/tegning", "Measures/drawing"), tt("Metode", "Method"), tt("HMS/risiko", "HSE/risk"), tt("Annet", "Other")],
+            key=f"{prefix}_chall",
+        )
+        reflection = st.text_area(tt("Kort refleksjon (2–5 setninger)", "Short reflection (2–5 sentences)"),
+                                 height=110, key=f"{prefix}_refl")
+        return confidence, challenge, reflection
 
-    st.divider()
+    def _quiz(prefix: str, questions: List[Tuple[str, List[str], int]]) -> Tuple[int, int]:
+        """Return (score, total). Each question: (question_text, options, correct_index)."""
+        st.markdown("**" + tt("Sjekk (quiz)", "Check (quiz)") + "**")
+        score = 0
+        total = len(questions)
+        for i, (q, opts, correct) in enumerate(questions, start=1):
+            ans = st.radio(f"{i}. {q}", opts, index=0, key=f"{prefix}_q{i}")
+            if opts.index(ans) == correct:
+                score += 1
+        return score, total
 
-    # ---- Faner ----
+    # -------------------------
+    # UI: hovedfaner + nivå per tema
+    # -------------------------
     tabs = st.tabs([
-        tt("Øvingsoppgaver", "Practice tasks"),
+        tt("Øvingsoppgaver", "Practice"),
         tt("HMS", "HSE"),
         tt("Verktøyopplæring", "Tool training"),
         tt("Dokumentasjon", "Documentation"),
-        tt("TEK-krav", "TEK requirements"),
-        tt("Tegningsforståelse", "Drawing literacy"),
-        tt("Lærer / vurdering", "Teacher / assessment"),
+        tt("TEK-krav", "TEK"),
+        tt("Tegningsforståelse", "Drawings"),
+        tt("Lærerpanel", "Teacher panel"),
     ])
 
-    # 1) Øvingsoppgaver
+    # =========================
+    # 1) Øvingsoppgaver (nivå 1–3)
+    # =========================
     with tabs[0]:
-        st.markdown("### " + tt("Øvingsoppgaver med skjult fasit", "Practice tasks with hidden answers"))
-        st.caption(tt("Bruk dette som mikrotrening på arbeidsplassen: regn først – sjekk fasit etterpå.",
-                      "Use this as micro-practice at work: calculate first – then check."))
+        topic = "Øvingsoppgaver"
+        st.markdown("### " + tt("Øvingsoppgaver (nivå 1–3)", "Practice tasks (levels 1–3)"))
+        _lk20_alignment_box(topic)
 
-        _lk20_box(
-            "LK20-kobling (BAT01-03)",
-            "LK20 alignment (BAT01-03)",
-            "Dette støtter særlig kompetansemål om digitale beregninger, målestokk og arbeid etter tegning.",
-            "Supports competence aims on digital calculations, scale and working from drawings.",
-            links=[
-                ("BAT01-03 – Praktisk yrkesutøvelse", LK20_PYU),
-                ("BAT01-03 – Arbeidsmiljø og dokumentasjon", LK20_AMD),
-            ],
-        )
+        unlocked = _max_unlocked(topic)
+        level = st.selectbox(tt("Velg nivå", "Choose level"), [1, 2, 3], index=0, key="lvl_practice")
+        if level > unlocked:
+            st.warning(tt("Dette nivået er låst. Fullfør forrige nivå først.", "This level is locked. Complete the previous level first."))
+            st.stop()
 
-        st.markdown("**" + tt("Velg oppgave", "Choose a task") + "**")
-        task = st.selectbox(
-            tt("Oppgavetype", "Task type"),
-            [
-                tt("Areal – vegg", "Area – wall"),
-                tt("Volum – betong", "Volume – concrete"),
-                tt("Fall – sluk", "Slope – drain"),
-                tt("Målestokk 1:50", "Scale 1:50"),
-                tt("Enheter mm↔m", "Units mm↔m"),
-            ],
-            key="pro_task_select",
-        )
+        if level == 1:
+            st.write(tt("**Nivå 1:** Grunnleggende enheter + areal/volum med kontroll av rimelighet.",
+                        "**Level 1:** Basic units + area/volume with reasonableness check."))
+            st.info(tt("Oppgave: Regn ut areal av vegg 4,8 m × 2,4 m.", "Task: Calculate wall area 4.8 m × 2.4 m."))
+            st.markdown("- " + tt("Skriv mellomregning.", "Write your steps."))
+            st.markdown("- " + tt("Avslutt med enhetskontroll (m²).", "Finish with a unit check (m²)."))
 
-        # Oppgavedata
-        if "pro_task_log" not in st.session_state:
-            st.session_state.pro_task_log = []
+            score, total = _quiz("practice_l1", [
+                (tt("Hvilken enhet har areal?", "What unit does area use?"),
+                 ["m", "m²", "m³"], 1),
+                (tt("4,8 × 2,4 = ?", "4.8 × 2.4 = ?"),
+                 ["11,52", "10,24", "12,00"], 0),
+                (tt("Hvorfor sjekker vi rimelighet?", "Why do we check reasonableness?"),
+                 [tt("For å oppdage feil", "To catch errors"), tt("For å regne raskere", "To calculate faster"), tt("Det er ikke nødvendig", "Not needed")], 0),
+            ])
 
-        if task == tt("Areal – vegg", "Area – wall"):
-            st.write(tt("Du skal kle en vegg som er 4,8 m bred og 2,4 m høy. Hva er arealet i m²?",
-                        "You will clad a wall 4.8 m wide and 2.4 m high. What is the area (m²)?"))
-            _self_assessment("area_wall")
-            if st.button(tt("Vis fasit", "Show answer"), key="ans_area_wall"):
-                st.success("4,8 × 2,4 = 11,52 m²")
-                st.session_state.pro_task_log.append({"task": "Areal vegg", "answer": "11,52 m²"})
-
-        elif task == tt("Volum – betong", "Volume – concrete"):
-            st.write(tt("Du støper en såle: 6,0 m × 0,6 m × 0,12 m. Hva er volumet i m³?",
-                        "You pour a slab: 6.0 m × 0.6 m × 0.12 m. What is the volume (m³)?"))
-            _self_assessment("vol_conc")
-            if st.button(tt("Vis fasit", "Show answer"), key="ans_vol_conc"):
-                st.success("6,0 × 0,6 × 0,12 = 0,432 m³")
-                st.session_state.pro_task_log.append({"task": "Volum såle", "answer": "0,432 m³"})
-
-        elif task == tt("Fall – sluk", "Slope – drain"):
-            st.write(tt("Du trenger fall 1:50 på en lengde på 3,2 m. Hvor mange mm fall blir det?",
-                        "You need slope 1:50 over 3.2 m. How many mm fall is that?"))
-            _self_assessment("slope")
-            if st.button(tt("Vis fasit", "Show answer"), key="ans_slope"):
-                # 1:50 betyr 1/50 av lengden
-                st.success("3,2 m / 50 = 0,064 m = 64 mm")
-                st.session_state.pro_task_log.append({"task": "Fall 1:50", "answer": "64 mm"})
-
-        elif task == tt("Målestokk 1:50", "Scale 1:50"):
-            st.write(tt("På tegning (1:50) måler en vegg 72 mm. Hvor lang er veggen i virkeligheten?",
-                        "On a drawing (1:50), a wall measures 72 mm. What is the real length?"))
-            _self_assessment("scale")
-            if st.button(tt("Vis fasit", "Show answer"), key="ans_scale"):
-                st.success("72 mm × 50 = 3600 mm = 3,6 m")
-                st.session_state.pro_task_log.append({"task": "Målestokk 1:50", "answer": "3,6 m"})
-
-        else:
-            st.write(tt("Gjør om 2400 mm til meter.", "Convert 2400 mm to meters."))
-            _self_assessment("units")
-            if st.button(tt("Vis fasit", "Show answer"), key="ans_units"):
-                st.success("2400 mm = 2,4 m")
-                st.session_state.pro_task_log.append({"task": "Enheter", "answer": "2,4 m"})
-
-        _rubric([
-            tt("Framgangsmåte", "Method"),
-            tt("Enheter og rimelighet", "Units and reasonableness"),
-            tt("Refleksjon/egenkontroll", "Reflection/self-check"),
-        ])
-
-    # 2) HMS
-    with tabs[1]:
-        st.markdown("### " + tt("HMS – hvorfor er HMS viktig?", "HSE – why is it important?"))
-        st.write(tt(
-            "HMS handler om å forebygge ulykker, helseskader og feil. Det er profesjonelt håndverk å jobbe trygt – hver dag.",
-            "HSE is about preventing accidents, injuries and defects. Professional craft means working safely—every day.",
-        ))
-
-        _lk20_box(
-            "LK20-kobling (Arbeidsmiljø og dokumentasjon)",
-            "LK20 alignment (Work environment & documentation)",
-            "Dette treffer direkte kompetansemål om risikovurdering, forebyggende tiltak, rapportering og dokumentasjon.",
-            "Directly aligns to competence aims on risk assessment, preventive measures, reporting and documentation.",
-            links=[("Kompetansemål – Arbeidsmiljø og dokumentasjon", LK20_AMD)],
-        )
-
-        st.markdown("**" + tt("Mini-ROS (risikovurdering)", "Mini risk assessment") + "**")
-        hazard = st.text_area(tt("Hva kan gå galt i arbeidsoperasjonen?", "What can go wrong?"), height=90, key="pro_hms_hazard")
-        measures = st.text_area(tt("Hvilke tiltak reduserer risikoen?", "Which measures reduce the risk?"), height=90, key="pro_hms_measures")
-        report = st.selectbox(tt("Hvis noe skjer, hva gjør du?", "If something happens, what do you do?"),
-                              [tt("Stopper arbeidet og varsler", "Stop work and notify"),
-                               tt("Gir førstehjelp og varsler 113 ved behov", "Provide first aid and call emergency if needed"),
-                               tt("Rapporterer avvik/hendelse", "Report deviation/incident")],
-                              key="pro_hms_report")
-
-        _self_assessment("hms")
-        _rubric([
-            tt("Risikovurdering (reelle farer)", "Risk assessment (real hazards)"),
-            tt("Tiltak (konkrete og relevante)", "Measures (concrete & relevant)"),
-            tt("Dokumentasjon/avvik", "Documentation/deviation reporting"),
-        ])
-
-    # 3) Verktøyopplæring
-    with tabs[2]:
-        st.markdown("### " + tt("Verktøyopplæring – trygghet og kvalitet", "Tool training – safety and quality"))
-
-        _lk20_box(
-            "LK20-kobling",
-            "LK20 alignment",
-            "Kobles til kompetansemål om å velge og bruke maskiner/verktøy, vedlikehold og HMS-rutiner.",
-            "Aligned to competence aims on selecting/using tools, maintenance and HSE routines.",
-            links=[
-                ("Kompetansemål – Praktisk yrkesutøvelse", LK20_PYU),
-                ("Kompetansemål – Arbeidsmiljø og dokumentasjon", LK20_AMD),
-            ],
-        )
-
-        tool = st.selectbox(
-            tt("Velg verktøy", "Choose a tool"),
-            [tt("Sirkelsag", "Circular saw"), tt("Kapp-/gjærsag", "Mitre saw"), tt("Gjerdesag", "Table saw"), tt("Stikksag", "Jigsaw")],
-            key="pro_tool_select",
-        )
-
-        st.markdown("**" + tt("Sjekkliste før bruk", "Pre-use checklist") + "**")
-        checks = [
-            tt("Verneutstyr (briller/hørsel/støv)", "PPE (eye/ear/dust)"),
-            tt("Sjekk blad/bit og vern", "Check blade/bit and guards"),
-            tt("Sjekk kabel/batteri og arbeidsområde", "Check cable/battery and work area"),
-            tt("Fast oppspenning/underlag", "Secure workpiece/support"),
-            tt("Riktig innstilling og prøvekutt", "Correct settings and test cut"),
-        ]
-        checked = {c: st.checkbox(c, key=f"pro_tool_chk_{hash(c)}") for c in checks}
-
-        st.markdown("**" + tt("Kort forklaring (til vurdering)", "Short explanation (for assessment)") + "**")
-        st.text_area(
-            tt("Skriv 3–5 setninger: Hvordan bruker du dette verktøyet trygt og presist?", "Write 3–5 sentences: How do you use this tool safely and accurately?"),
-            key="pro_tool_explain",
-            height=110,
-        )
-
-        _self_assessment("tool")
-        _rubric([
-            tt("Sikker bruk (rutiner/verneutstyr)", "Safe use (routines/PPE)"),
-            tt("Presisjon (måling/merking/utførelse)", "Accuracy (measure/mark/execute)"),
-            tt("Vedlikehold og orden", "Maintenance and order"),
-        ])
-
-    # 4) Dokumentasjon
-    with tabs[3]:
-        st.markdown("### " + tt("Dokumentasjon av eget arbeid", "Documentation of your work"))
-
-        _lk20_box(
-            "LK20-kobling (Arbeidsmiljø og dokumentasjon)",
-            "LK20 alignment (Work environment & documentation)",
-            "Dette treffer direkte kompetansemål om å planlegge, gjennomføre, vurdere og dokumentere eget arbeid – og fagterminologi/kommunikasjon.",
-            "Directly aligns to competence aims on planning, executing, evaluating and documenting work—plus communication/terminology.",
-            links=[("Kompetansemål – Arbeidsmiljø og dokumentasjon", LK20_AMD)],
-        )
-
-        st.markdown("**" + tt("Dokumentasjonsmal (mini)", "Mini documentation template") + "**")
-        st.text_input(tt("Oppdrag / arbeidsoperasjon", "Task / work operation"), key="doc_task")
-        st.text_area(tt("Plan (hva skal gjøres, i hvilken rekkefølge?)", "Plan (what and in what order?)"), key="doc_plan", height=90)
-        st.text_area(tt("Gjennomføring (hva gjorde du?)", "Execution (what did you do?)"), key="doc_do", height=90)
-        st.text_area(tt("Kontroll (hvordan sjekket du kvalitet?)", "Quality control (how did you verify?)"), key="doc_check", height=90)
-        st.text_area(tt("Vurdering/refleksjon (hva lærte du?)", "Evaluation/reflection (what did you learn?)"), key="doc_eval", height=90)
-
-        _rubric([
-            tt("Planlegging (tydelig rekkefølge)", "Planning (clear sequence)"),
-            tt("Kvalitetskontroll (måling/krav)", "Quality control (measure/requirements)"),
-            tt("Fagterminologi og refleksjon", "Terminology and reflection"),
-        ])
-
-    # 5) TEK-krav
-    with tabs[4]:
-        st.markdown("### " + tt("TEK-krav – hvorfor vi må følge kravene", "TEK – why we must comply"))
-
-        st.info(
-            tt(
-                "TEK17 er byggteknisk forskrift. Den angir minstekrav til sikkerhet, helse og kvalitet i bygg. "
-                "I praksis må du ofte forholde deg til prosjekteringsgrunnlag, leverandørkrav og løsninger som dokumenterer oppfyllelse.",
-                "TEK17 is the Norwegian building regulation. It sets minimum requirements for safety, health and quality. "
-                "In practice you follow project specs, supplier requirements and documented solutions.",
+            conf, chall, refl = _self_assessment("practice_l1")
+            _rubric_block(
+                tt("Beregning og egenkontroll", "Calculation and self-check"),
+                tt("Trenger støtte, blander enheter eller mangler mellomregning.", "Needs support, mixes units or misses steps."),
+                tt("Riktig metode, men småfeil/uklarheter i enheter eller forklaring.", "Right method, but minor unit/explanation issues."),
+                tt("Riktig, tydelig og kan begrunne valg + rimelighet.", "Correct, clear and can justify choices + reasonableness."),
             )
-        )
 
-        st.markdown("**" + tt("Oppdatert status", "Up-to-date status") + "**")
-        st.markdown("- " + tt("Endringshistorikk (veiledning) hos DiBK.", "Change history (guidance) at DiBK."))
-        st.markdown("- " + tt("Sjekk alltid siste versjon før du bruker dette som kilde i innlevering.", "Always check the latest version before using as a submission source."))
-        st.markdown("- " + tt("Lenke: Endringshistorikk TEK17.", "Link: TEK17 change history."))
-        st.markdown("- [DiBK – Endringshistorikk TEK17](https://www.dibk.no/regelverk/endringshistorikk-tek17)")
+            can_complete = (score >= 2) and (len(refl.strip()) >= 20)
+            if st.button(tt("Marker nivå 1 som fullført", "Mark level 1 as completed"), key="complete_practice_l1", disabled=not can_complete):
+                _mark_completed(topic, 1, score, total, conf, chall, refl)
+                st.success(tt("Nivå 1 er registrert som fullført.", "Level 1 recorded as completed."))
 
-        st.markdown("**" + tt("Vurderingsoppgave", "Assessment task") + "**")
-        st.write(tt(
-            "Velg én situasjon og skriv kort: (1) hvilke krav/risikoer er relevante, (2) hvordan sikrer du dokumentasjon, (3) hvordan kontrollerer du utførelse.",
-            "Choose one situation and write briefly: (1) which requirements/risks matter, (2) how you document compliance, (3) how you verify execution.",
-        ))
-        case = st.selectbox(
-            tt("Situasjon", "Situation"),
-            [tt("Våtrom (fall/tetthet)", "Wet room (slope/watertightness)"),
-             tt("Rekkverk/trapp", "Guardrails/stairs"),
-             tt("Brannsikring (gjennomføringer)", "Fire safety (penetrations)")],
-            key="tek_case",
-        )
-        st.text_area(tt("Svar (6–10 setninger)", "Answer (6–10 sentences)"), key="tek_answer", height=140)
+        elif level == 2:
+            st.write(tt("**Nivå 2:** Fall og omregning i mm/m + praktisk kontroll.",
+                        "**Level 2:** Slope and unit conversion mm/m + practical checks."))
+            st.info(tt("Oppgave: Fall 1:50 på 3,2 m. Finn fall i mm.", "Task: Slope 1:50 over 3.2 m. Find fall in mm."))
 
-        _rubric([
-            tt("Kravforståelse (hva og hvorfor)", "Requirement understanding (what & why)"),
-            tt("Dokumentasjon (hva kan vises)", "Documentation (what can be shown)"),
-            tt("Kontroll (hvordan du sjekker)", "Verification (how you check)"),
-        ])
+            score, total = _quiz("practice_l2", [
+                (tt("1:50 betyr…", "1:50 means…"),
+                 [tt("1/50 av lengden", "1/50 of the length"), tt("50 mm per meter", "50 mm per meter"), tt("1 mm per 50 m", "1 mm per 50 m")], 0),
+                (tt("3,2 m / 50 = ?", "3.2 m / 50 = ?"),
+                 ["0,064 m", "0,32 m", "0,016 m"], 0),
+                (tt("0,064 m = … mm", "0.064 m = … mm"),
+                 ["6,4 mm", "64 mm", "640 mm"], 1),
+            ])
+            conf, chall, refl = _self_assessment("practice_l2")
 
-    # 6) Tegningsforståelse
-    with tabs[5]:
-        st.markdown("### " + tt("Lese og forstå tegning", "Read and understand drawings"))
+            _rubric_block(
+                tt("Omregning og tolkning", "Conversion and interpretation"),
+                tt("Forveksler forhold/enheter, trenger mye støtte.", "Confuses ratios/units; needs much support."),
+                tt("Gjennomfører med enkelte feil eller usikker tolkning.", "Completes with some errors/uncertain interpretation."),
+                tt("Sikker, forklarer framgangsmåte og sjekker mot praksis.", "Proficient; explains method and checks vs practice."),
+            )
 
-        _lk20_box(
-            "LK20-kobling (Praktisk yrkesutøvelse)",
-            "LK20 alignment (Practical vocational practice)",
-            "Kobles direkte til kompetansemål om å arbeide etter tegninger, tegne i målestokk og bruke digitale ressurser for oppmåling/merking.",
-            "Directly aligns to competence aims on working from drawings, drawing to scale and using digital tools for measuring/marking.",
-            links=[("Kompetansemål – Praktisk yrkesutøvelse", LK20_PYU)],
-        )
+            can_complete = (score >= 2) and (len(refl.strip()) >= 20)
+            if st.button(tt("Marker nivå 2 som fullført", "Mark level 2 as completed"), key="complete_practice_l2", disabled=not can_complete):
+                _mark_completed(topic, 2, score, total, conf, chall, refl)
+                st.success(tt("Nivå 2 er registrert som fullført.", "Level 2 recorded as completed."))
 
-        st.markdown("**" + tt("Mini-oppgave: målestokk", "Mini task: scale") + "**")
-        scale = st.selectbox(tt("Målestokk", "Scale"), ["1:20", "1:25", "1:50", "1:100"], key="drw_scale")
-        mm = st.number_input(tt("Målt på tegning (mm)", "Measured on drawing (mm)"), min_value=0.0, value=50.0, step=1.0, key="drw_mm")
-        factor = int(scale.split(":")[1])
-        real_mm = mm * factor
-        st.write(tt(f"Virkelig lengde: {real_mm:.0f} mm = {real_mm/1000:.2f} m",
-                    f"Real length: {real_mm:.0f} mm = {real_mm/1000:.2f} m"))
-
-        st.text_area(tt("Forklar med egne ord hva målestokk betyr her.", "Explain in your own words what scale means here."), key="drw_explain", height=100)
-
-        _rubric([
-            tt("Målestokk og enheter", "Scale and units"),
-            tt("Tolkning (hva betyr målene?)", "Interpretation (what do the dimensions mean?)"),
-            tt("Fagterminologi", "Terminology"),
-        ])
-
-    # 7) Lærer / vurdering
-    with tabs[6]:
-        st.markdown("### " + tt("Lærer / vurdering", "Teacher / assessment"))
-        st.caption(tt(
-            "Her får du et enkelt vurderingsgrunnlag fra Pro-aktivitetene (lokalt i denne økten).",
-            "Here you get a simple assessment basis from Pro activity (local to this session).",
-        ))
-
-        st.markdown("**" + tt("LK20 – underveisvurdering i app-format", "LK20 – formative assessment in app format") + "**")
-        st.write(tt(
-            "Bruk dette som: (1) tydelige kriterier, (2) elevens egenvurdering, (3) lærerens framovermelding.",
-            "Use this as: (1) clear criteria, (2) student self-assessment, (3) teacher feedforward.",
-        ))
-
-        # Samle "logger" fra økten
-        log = st.session_state.get("pro_task_log", [])
-        st.markdown("**" + tt("Gjennomførte oppgaver (i denne økten)", "Completed tasks (this session)") + "**")
-        if log:
-            st.table(log)
         else:
-            st.info(tt("Ingen oppgaver logget ennå.", "No tasks logged yet."))
+            st.write(tt("**Nivå 3:** Tegningsmålestokk + beregning fra tegning til virkelighet (og motsatt).",
+                        "**Level 3:** Drawing scale + calculating from drawing to real (and back)."))
+            st.info(tt("Oppgave: På 1:50 er lengden 72 mm. Finn virkelighet i meter.", "Task: On 1:50 the length is 72 mm. Find real length in meters."))
 
-        st.markdown("**" + tt("Lærerkommentar (framovermelding)", "Teacher feedback (feedforward)") + "**")
-        st.text_area(tt("Skriv én konkret framovermelding", "Write one concrete feedforward comment"), key="teacher_feedforward", height=110)
+            score, total = _quiz("practice_l3", [
+                (tt("72 mm × 50 = … mm", "72 mm × 50 = … mm"),
+                 ["3600", "7200", "1800"], 0),
+                (tt("3600 mm = … m", "3600 mm = … m"),
+                 ["0,36 m", "3,6 m", "36 m"], 1),
+                (tt("Hva er en god kontroll?", "What is a good check?"),
+                 [tt("Sjekke om svaret virker realistisk i bygg", "Check if it is realistic in construction"),
+                  tt("Sjekke om man brukte mange desimaler", "Check decimals"),
+                  tt("Ingen kontroll", "No check")], 0),
+            ])
+            conf, chall, refl = _self_assessment("practice_l3")
 
-        st.markdown("**" + tt("Forslag til vurderingsgrunnlag (standpunkt)", "Suggested basis for grading") + "**")
+            _rubric_block(
+                tt("Tegningsforståelse + beregning", "Drawing literacy + calculation"),
+                tt("Mangler forståelse av målestokk/omregning.", "Lacks understanding of scale/conversion."),
+                tt("Kan beregne med noe støtte; forklaring delvis.", "Can calculate with some support; partial explanation."),
+                tt("Sikker, forklarer, og kobler til tegning/praksis.", "Proficient; explains and connects to drawing/practice."),
+            )
+
+            can_complete = (score >= 2) and (len(refl.strip()) >= 20)
+            if st.button(tt("Marker nivå 3 som fullført", "Mark level 3 as completed"), key="complete_practice_l3", disabled=not can_complete):
+                _mark_completed(topic, 3, score, total, conf, chall, refl)
+                st.success(tt("Nivå 3 er registrert som fullført.", "Level 3 recorded as completed."))
+
+    # =========================
+    # 2) HMS
+    # =========================
+    with tabs[1]:
+        topic = "HMS"
+        st.markdown("### " + tt("HMS (nivå 1–3)", "HSE (levels 1–3)"))
+        _lk20_alignment_box(topic)
+
+        unlocked = _max_unlocked(topic)
+        level = st.selectbox(tt("Velg nivå", "Choose level"), [1, 2, 3], index=0, key="lvl_hms")
+        if level > unlocked:
+            st.warning(tt("Dette nivået er låst. Fullfør forrige nivå først.", "This level is locked. Complete the previous level first."))
+            st.stop()
+
+        if level == 1:
+            st.write(tt("**Nivå 1:** Se risiko + velg grunnleggende tiltak.", "**Level 1:** Identify risk + choose basic measures."))
+            hazard = st.text_area(tt("Hva kan gå galt?", "What can go wrong?"), height=90, key="hms_l1_hazard")
+            measures = st.text_area(tt("Tiltak (minst 2)", "Measures (at least 2)"), height=90, key="hms_l1_measures")
+            score, total = _quiz("hms_l1", [
+                (tt("Hva gjør du ved usikker situasjon?", "What do you do in an unsafe situation?"),
+                 [tt("Stopper og avklarer", "Stop and clarify"), tt("Jobber videre", "Continue working"), tt("Ignorerer", "Ignore")], 0),
+                (tt("Hvorfor bruker vi PVU?", "Why use PPE?"),
+                 [tt("Reduserer risiko for skade", "Reduces injury risk"), tt("Ser proft ut", "Looks professional"), tt("Er valgfritt", "Optional")], 0),
+                (tt("Orden/ryddighet påvirker…", "Housekeeping affects…"),
+                 [tt("Sikkerhet og flyt", "Safety and workflow"), tt("Kun estetikk", "Only aesthetics"), tt("Ikke noe", "Nothing")], 0),
+            ])
+            conf, chall, refl = _self_assessment("hms_l1")
+
+            _rubric_block(
+                tt("Risikovurdering og tiltak", "Risk assessment and measures"),
+                tt("Vage farer/tiltak, lite kobling til situasjon.", "Vague hazards/measures; little context."),
+                tt("Relevante farer/tiltak, men noe mangler.", "Relevant hazards/measures, but incomplete."),
+                tt("Konkret, realistisk og forebyggende med begrunnelse.", "Concrete, realistic, preventive with reasoning."),
+            )
+
+            can_complete = (score >= 2) and (len(hazard.strip()) >= 10) and (len(measures.strip()) >= 10) and (len(refl.strip()) >= 20)
+            if st.button(tt("Marker nivå 1 som fullført", "Mark level 1 as completed"), key="complete_hms_l1", disabled=not can_complete):
+                _mark_completed(topic, 1, score, total, conf, chall, refl)
+                st.success(tt("Nivå 1 er registrert som fullført.", "Level 1 recorded as completed."))
+
+        elif level == 2:
+            st.write(tt("**Nivå 2:** Mini-ROS + avvik/rapportering.", "**Level 2:** Mini risk assessment looks like ROS + reporting."))
+            incident = st.text_area(tt("Beskriv en hendelse/nestenulykke (kort)", "Describe an incident/near miss (short)"), height=90, key="hms_l2_inc")
+            action = st.text_area(tt("Hva gjør du – steg for steg?", "What do you do—step by step?"), height=90, key="hms_l2_act")
+
+            score, total = _quiz("hms_l2", [
+                (tt("Avvik rapporteres fordi…", "Deviations are reported because…"),
+                 [tt("Vi lærer og forebygger", "We learn and prevent"), tt("Det tar tid", "It takes time"), tt("Det er bare for ledelsen", "Only for management")], 0),
+                (tt("Førstehjelp: første prioritet er…", "First aid: first priority is…"),
+                 [tt("Egen sikkerhet", "Your own safety"), tt("Video", "Video"), tt("Ringe etterpå", "Call later")], 0),
+                (tt("HMS-ansvar ligger…", "HSE responsibility lies…"),
+                 [tt("Hos alle", "With everyone"), tt("Kun lærer", "Only teacher"), tt("Kun lærling", "Only apprentice")], 0),
+            ])
+            conf, chall, refl = _self_assessment("hms_l2")
+
+            _rubric_block(
+                tt("Hendelse, tiltak og læring", "Incident, actions and learning"),
+                tt("Uklart hva som skjedde og hva man gjør.", "Unclear incident and actions."),
+                tt("Beskriver hendelse og tiltak, men mangler struktur.", "Describes incident/actions but lacks structure."),
+                tt("Tydelig, strukturert og viser forebyggende læring.", "Clear, structured, shows preventive learning."),
+            )
+
+            can_complete = (score >= 2) and (len(incident.strip()) >= 15) and (len(action.strip()) >= 15) and (len(refl.strip()) >= 20)
+            if st.button(tt("Marker nivå 2 som fullført", "Mark level 2 as completed"), key="complete_hms_l2", disabled=not can_complete):
+                _mark_completed(topic, 2, score, total, conf, chall, refl)
+                st.success(tt("Nivå 2 er registrert som fullført.", "Level 2 recorded as completed."))
+
+        else:
+            st.write(tt("**Nivå 3:** Planlegg en operasjon: risiko → tiltak → kontrollpunkt.",
+                        "**Level 3:** Plan an operation: risk → measures → control points."))
+            plan = st.text_area(tt("Arbeidsoperasjon (kort plan)", "Work operation (short plan)"), height=110, key="hms_l3_plan")
+            controls = st.text_area(tt("Kontrollpunkter før/under/etter", "Control points before/during/after"), height=110, key="hms_l3_ctrl")
+
+            score, total = _quiz("hms_l3", [
+                (tt("Et kontrollpunkt bør være…", "A control point should be…"),
+                 [tt("Målbart og konkret", "Measurable and concrete"), tt("Vagt", "Vague"), tt("Uten ansvar", "Without responsibility")], 0),
+                (tt("Når er det riktig å stoppe arbeid?", "When is it right to stop work?"),
+                 [tt("Når risikoen ikke er kontrollert", "When risk is not controlled"), tt("Aldri", "Never"), tt("Bare ved ulykke", "Only after an accident")], 0),
+                (tt("HMS dokumentasjon brukes til…", "HSE documentation is used to…"),
+                 [tt("Læring og kvalitet", "Learning and quality"), tt("Pynt", "Decoration"), tt("Skjule feil", "Hide errors")], 0),
+            ])
+            conf, chall, refl = _self_assessment("hms_l3")
+
+            _rubric_block(
+                tt("Planlegging og kontroll", "Planning and control"),
+                tt("Plan uten tydelige tiltak/kontroll.", "Plan without clear measures/controls."),
+                tt("Plan med tiltak, men kontrollpunkter delvis.", "Plan with measures; partial control points."),
+                tt("Helhetlig plan + kontrollpunkter som forebygger.", "Holistic plan + preventive control points."),
+            )
+
+            can_complete = (score >= 2) and (len(plan.strip()) >= 30) and (len(controls.strip()) >= 30) and (len(refl.strip()) >= 20)
+            if st.button(tt("Marker nivå 3 som fullført", "Mark level 3 as completed"), key="complete_hms_l3", disabled=not can_complete):
+                _mark_completed(topic, 3, score, total, conf, chall, refl)
+                st.success(tt("Nivå 3 er registrert som fullført.", "Level 3 recorded as completed."))
+
+    # =========================
+    # 3) Verktøyopplæring
+    # =========================
+    with tabs[2]:
+        topic = "Verktøyopplæring"
+        st.markdown("### " + tt("Verktøyopplæring (nivå 1–3)", "Tool training (levels 1–3)"))
+        _lk20_alignment_box(topic)
+
+        unlocked = _max_unlocked(topic)
+        level = st.selectbox(tt("Velg nivå", "Choose level"), [1, 2, 3], index=0, key="lvl_tools")
+        if level > unlocked:
+            st.warning(tt("Dette nivået er låst. Fullfør forrige nivå først.", "This level is locked. Complete the previous level first."))
+            st.stop()
+
+        tool = st.selectbox(tt("Velg verktøy", "Choose tool"),
+                            [tt("Sirkelsag", "Circular saw"), tt("Kapp-/gjærsag", "Mitre saw"), tt("Stikksag", "Jigsaw"), tt("Bor/skrumaskin", "Drill/driver")],
+                            key="tool_choice")
+
+        if level == 1:
+            st.write(tt("**Nivå 1:** Sjekkliste før bruk (sikkerhet + innstilling).",
+                        "**Level 1:** Pre-use checklist (safety + setup)."))
+            checklist = st.multiselect(
+                tt("Kryss av hva du alltid sjekker", "Tick what you always check"),
+                [
+                    tt("Strøm/kabel/batteri OK", "Power/cable/battery OK"),
+                    tt("Riktig blad/tilbehør", "Correct blade/accessory"),
+                    tt("Verneutstyr (PVU)", "PPE"),
+                    tt("Arbeidsområde ryddig", "Workspace tidy"),
+                    tt("Emnet festet/støttet", "Workpiece secured/supported"),
+                ],
+                key="tools_l1_check",
+            )
+            score, total = _quiz("tools_l1", [
+                (tt("Hvorfor sjekke blad/tilbehør?", "Why check blade/accessory?"),
+                 [tt("Sikkerhet og kvalitet", "Safety and quality"), tt("Kun hastighet", "Only speed"), tt("Ikke nødvendig", "Not needed")], 0),
+                (tt("Når skal PVU brukes?", "When should PPE be used?"),
+                 [tt("Når risiko tilsier det (ofte alltid)", "When risk requires it (often always)"), tt("Bare ved eksamen", "Only for exams"), tt("Aldri", "Never")], 0),
+                (tt("Ryddighet reduserer…", "Housekeeping reduces…"),
+                 [tt("Snublefare og feil", "Trips and mistakes"), tt("Lyd", "Noise"), tt("Mål", "Measurements")], 0),
+            ])
+            conf, chall, refl = _self_assessment("tools_l1")
+
+            _rubric_block(
+                tt("Sikker oppstart og rutine", "Safe start and routine"),
+                tt("Mangler sentrale sjekkpunkter.", "Missing key checklist items."),
+                tt("Har sjekkpunkter, men ufullstendig/uklar begrunnelse.", "Has checklist; incomplete reasoning."),
+                tt("Systematisk sjekk + kan forklare hvorfor.", "Systematic checks + can explain why."),
+            )
+
+            can_complete = (score >= 2) and (len(checklist) >= 3) and (len(refl.strip()) >= 20)
+            if st.button(tt("Marker nivå 1 som fullført", "Mark level 1 as completed"), key="complete_tools_l1", disabled=not can_complete):
+                _mark_completed(topic, 1, score, total, conf, chall, refl)
+                st.success(tt("Nivå 1 er registrert som fullført.", "Level 1 recorded as completed."))
+
+        elif level == 2:
+            st.write(tt("**Nivå 2:** Utførelse: arbeidsstilling, anlegg, kontroll av kutt/boring.",
+                        "**Level 2:** Execution: posture, support, quality control of cut/drilling."))
+            quality = st.text_area(tt("Hvordan sikrer du kvalitet i utførelsen? (minst 3 punkter)", "How do you ensure quality? (min 3 points)"),
+                                   height=110, key="tools_l2_quality")
+            score, total = _quiz("tools_l2", [
+                (tt("Arbeidsstilling handler om…", "Posture is about…"),
+                 [tt("Sikkerhet og belastning", "Safety and strain"), tt("Hastighet", "Speed"), tt("Stil", "Style")], 0),
+                (tt("Emnestøtte/festing reduserer…", "Securing the workpiece reduces…"),
+                 [tt("Kickback og feil", "Kickback and errors"), tt("Farge", "Color"), tt("Pris", "Price")], 0),
+                (tt("Kontroll etter kutt betyr…", "Control after cut means…"),
+                 [tt("Måle, sjekke vinkel/finish", "Measure, check angle/finish"), tt("Legge fra seg", "Put away"), tt("Bare se", "Only look")], 0),
+            ])
+            conf, chall, refl = _self_assessment("tools_l2")
+
+            _rubric_block(
+                tt("Utførelse og kvalitet", "Execution and quality"),
+                tt("Få/uklare kvalitetsgrep.", "Few/unclear quality actions."),
+                tt("Relevante grep, men mangler kontroll/struktur.", "Relevant actions; missing control/structure."),
+                tt("Systematisk kvalitetssikring og trygg utførelse.", "Systematic quality assurance and safe execution."),
+            )
+
+            can_complete = (score >= 2) and (len(quality.strip()) >= 30) and (len(refl.strip()) >= 20)
+            if st.button(tt("Marker nivå 2 som fullført", "Mark level 2 as completed"), key="complete_tools_l2", disabled=not can_complete):
+                _mark_completed(topic, 2, score, total, conf, chall, refl)
+                st.success(tt("Nivå 2 er registrert som fullført.", "Level 2 recorded as completed."))
+
+        else:
+            st.write(tt("**Nivå 3:** Avvik/feil: Hva gikk galt? Hvordan forebygge neste gang?",
+                        "**Level 3:** Deviations/errors: what went wrong and how to prevent next time?"))
+            deviation = st.text_area(tt("Beskriv et avvik du kan få med dette verktøyet (kort)", "Describe a possible deviation (short)"),
+                                     height=90, key="tools_l3_dev")
+            prevent = st.text_area(tt("Forebygging: rutine/tiltak", "Prevention: routine/measures"),
+                                   height=110, key="tools_l3_prev")
+
+            score, total = _quiz("tools_l3", [
+                (tt("Avvik bør…", "Deviations should…"),
+                 [tt("Dokumenteres og brukes til læring", "Be documented and used for learning"), tt("Skjules", "Be hidden"), tt("Ignoreres", "Be ignored")], 0),
+                (tt("Vedlikehold handler om…", "Maintenance is about…"),
+                 [tt("Sikkerhet og levetid", "Safety and lifespan"), tt("Kun utseende", "Only looks"), tt("Ingen ting", "Nothing")], 0),
+                (tt("Riktig anvisning betyr…", "Correct instructions mean…"),
+                 [tt("Følge manual/rutine", "Follow manual/routine"), tt("Gjøre som man vil", "Do as you like"), tt("Spørre etterpå", "Ask afterwards")], 0),
+            ])
+            conf, chall, refl = _self_assessment("tools_l3")
+
+            _rubric_block(
+                tt("Profesjonell læring av feil", "Professional learning from errors"),
+                tt("Vage beskrivelser, lite forebygging.", "Vague descriptions; little prevention."),
+                tt("Beskriver avvik og tiltak, men ikke systematisk.", "Describes deviation and measures; not systematic."),
+                tt("Tydelig avvik + rotårsak + forebyggende rutine.", "Clear deviation + root cause + preventive routine."),
+            )
+
+            can_complete = (score >= 2) and (len(deviation.strip()) >= 15) and (len(prevent.strip()) >= 30) and (len(refl.strip()) >= 20)
+            if st.button(tt("Marker nivå 3 som fullført", "Mark level 3 as completed"), key="complete_tools_l3", disabled=not can_complete):
+                _mark_completed(topic, 3, score, total, conf, chall, refl)
+                st.success(tt("Nivå 3 er registrert som fullført.", "Level 3 recorded as completed."))
+
+    # =========================
+    # 4) Dokumentasjon
+    # =========================
+    with tabs[3]:
+        topic = "Dokumentasjon"
+        st.markdown("### " + tt("Dokumentasjon (nivå 1–3)", "Documentation (levels 1–3)"))
+        _lk20_alignment_box(topic)
+
+        unlocked = _max_unlocked(topic)
+        level = st.selectbox(tt("Velg nivå", "Choose level"), [1, 2, 3], index=0, key="lvl_doc")
+        if level > unlocked:
+            st.warning(tt("Dette nivået er låst. Fullfør forrige nivå først.", "This level is locked. Complete the previous level first."))
+            st.stop()
+
+        if level == 1:
+            st.write(tt("**Nivå 1:** Dokumenter før/under/etter med korte notater.",
+                        "**Level 1:** Document before/during/after with short notes."))
+            before = st.text_area(tt("Før: Hva er planen/tegningen?", "Before: What is the plan/drawing?"),
+                                  height=70, key="doc_l1_before")
+            during = st.text_area(tt("Under: Hva gjorde du (2–3 punkter)?", "During: What did you do (2–3 points)?"),
+                                  height=80, key="doc_l1_during")
+            after = st.text_area(tt("Etter: Resultat + hva ville du gjort annerledes?", "After: Result + what would you do differently?"),
+                                 height=90, key="doc_l1_after")
+
+            score, total = _quiz("doc_l1", [
+                (tt("Dokumentasjon brukes til…", "Documentation is used for…"),
+                 [tt("Kvalitet og læring", "Quality and learning"), tt("Bare pynt", "Only decoration"), tt("Skjule feil", "Hide errors")], 0),
+                (tt("God dokumentasjon er…", "Good documentation is…"),
+                 [tt("Kort, konkret og relevant", "Short, concrete, relevant"), tt("Lang og uklar", "Long and unclear"), tt("Ingen bilder", "No images")], 0),
+                (tt("Hvem har nytte av den?", "Who benefits?"),
+                 [tt("Deg, lærer, bedrift og kunde", "You, teacher, company, client"), tt("Kun deg", "Only you"), tt("Kun lærer", "Only teacher")], 0),
+            ])
+            conf, chall, refl = _self_assessment("doc_l1")
+
+            _rubric_block(
+                tt("Dokumentasjon som faglig bevis", "Documentation as evidence"),
+                tt("Mangler struktur (før/under/etter) eller er lite relevant.", "Missing structure or not relevant."),
+                tt("Har struktur, men kunne vært mer konkret/tydelig.", "Has structure; could be more concrete/clear."),
+                tt("Presis, relevant og kobler til kvalitet/HMS.", "Precise, relevant and links to quality/HSE."),
+            )
+
+            can_complete = (score >= 2) and (len(before.strip()) >= 10) and (len(during.strip()) >= 10) and (len(after.strip()) >= 15) and (len(refl.strip()) >= 20)
+            if st.button(tt("Marker nivå 1 som fullført", "Mark level 1 as completed"), key="complete_doc_l1", disabled=not can_complete):
+                _mark_completed(topic, 1, score, total, conf, chall, refl)
+                st.success(tt("Nivå 1 er registrert som fullført.", "Level 1 recorded as completed."))
+
+        elif level == 2:
+            st.write(tt("**Nivå 2:** Egenkontroll: mål, vinkel, toleranse + avvik.",
+                        "**Level 2:** Self-check: measures, angle, tolerance + deviations."))
+            control = st.text_area(tt("Egenkontroll (mål/vinkel/toleranse)", "Self-check (measures/angle/tolerance)"),
+                                   height=110, key="doc_l2_ctrl")
+            deviation = st.text_area(tt("Avvik (hvis noe): hva og hvorfor?", "Deviation (if any): what and why?"),
+                                     height=90, key="doc_l2_dev")
+            score, total = _quiz("doc_l2", [
+                (tt("Egenkontroll betyr…", "Self-check means…"),
+                 [tt("Sjekke arbeidet mot krav/tegning", "Check work vs requirements/drawing"), tt("Bare se", "Only look"), tt("Spørre andre", "Ask others")], 0),
+                (tt("Avvik bør…", "Deviations should…"),
+                 [tt("Dokumenteres", "Be documented"), tt("Skjules", "Be hidden"), tt("Ignoreres", "Be ignored")], 0),
+                (tt("Toleranse handler om…", "Tolerance is about…"),
+                 [tt("Hvor mye variasjon som er akseptabel", "Acceptable variation"), tt("Pris", "Price"), tt("Farge", "Color")], 0),
+            ])
+            conf, chall, refl = _self_assessment("doc_l2")
+
+            _rubric_block(
+                tt("Egenkontroll og avvik", "Self-check and deviations"),
+                tt("Lite målbart, uklare avvik.", "Not measurable; unclear deviations."),
+                tt("Noe struktur og måling, men mangler forklaring.", "Some structure and measurement; missing explanation."),
+                tt("Målbart, tydelig avvik + tiltak/læring.", "Measurable; clear deviation + action/learning."),
+            )
+
+            can_complete = (score >= 2) and (len(control.strip()) >= 30) and (len(refl.strip()) >= 20)
+            if st.button(tt("Marker nivå 2 som fullført", "Mark level 2 as completed"), key="complete_doc_l2", disabled=not can_complete):
+                _mark_completed(topic, 2, score, total, conf, chall, refl)
+                st.success(tt("Nivå 2 er registrert som fullført.", "Level 2 recorded as completed."))
+
+        else:
+            st.write(tt("**Nivå 3:** Kort fagrapport: mål, metode, kontroll, HMS og forbedring.",
+                        "**Level 3:** Short professional report: aim, method, controls, HSE and improvement."))
+            report = st.text_area(tt("Skriv en kort rapport (6–10 setninger)", "Write a short report (6–10 sentences)"),
+                                  height=160, key="doc_l3_report")
+
+            score, total = _quiz("doc_l3", [
+                (tt("En fagrapport bør inneholde…", "A professional report should include…"),
+                 [tt("Mål, metode, kontroll og refleksjon", "Aim, method, control, reflection"), tt("Bare resultat", "Only result"), tt("Kun bilder", "Only photos")], 0),
+                (tt("Fagspråk betyr…", "Professional terminology means…"),
+                 [tt("Presise fagbegrep", "Precise terms"), tt("Slang", "Slang"), tt("Uklare ord", "Vague words")], 0),
+                (tt("Dokumentasjon er viktig for…", "Documentation is important for…"),
+                 [tt("Sporbarhet og kvalitet", "Traceability and quality"), tt("Å fylle tid", "Killing time"), tt("Uten grunn", "No reason")], 0),
+            ])
+            conf, chall, refl = _self_assessment("doc_l3")
+
+            _rubric_block(
+                tt("Faglig rapportering", "Professional reporting"),
+                tt("Kort/uklart, mangler struktur og fagspråk.", "Short/unclear; missing structure and terminology."),
+                tt("Forståelig, men kunne vært mer presis og strukturert.", "Understandable; could be more precise/structured."),
+                tt("Presis, strukturert og knytter til kvalitet/HMS.", "Precise, structured, links to quality/HSE."),
+            )
+
+            can_complete = (score >= 2) and (len(report.strip()) >= 80) and (len(refl.strip()) >= 20)
+            if st.button(tt("Marker nivå 3 som fullført", "Mark level 3 as completed"), key="complete_doc_l3", disabled=not can_complete):
+                _mark_completed(topic, 3, score, total, conf, chall, refl)
+                st.success(tt("Nivå 3 er registrert som fullført.", "Level 3 recorded as completed."))
+
+    # =========================
+    # 5) TEK-krav (beholdt, men vurderingsrettet nivåstruktur)
+    # =========================
+    with tabs[4]:
+        topic = "TEK-krav"
+        st.markdown("### " + tt("TEK-krav (nivå 1–3)", "TEK requirements (levels 1–3)"))
+        _lk20_alignment_box(topic)
+
+        unlocked = _max_unlocked(topic)
+        level = st.selectbox(tt("Velg nivå", "Choose level"), [1, 2, 3], index=0, key="lvl_tek")
+        if level > unlocked:
+            st.warning(tt("Dette nivået er låst. Fullfør forrige nivå først.", "This level is locked. Complete the previous level first."))
+            st.stop()
+
         st.write(tt(
-            "Når du setter standpunkt i programfagene, bør du vurdere samlet kompetanse over tid: "
-            "planlegge → gjennomføre → vurdere → dokumentere. Appen kan støtte dette ved å samle elevens tekster, svar og refleksjoner.",
-            "When grading, assess overall competence over time: plan → execute → evaluate → document. "
-            "The app can support this by collecting student texts, answers and reflections.",
+            "Merk: Dette er en **forenklet læringsdel**. Sjekk alltid gjeldende krav og prosjekteringsgrunnlag i bedriften.",
+            "Note: This is a **simplified learning section**. Always check current requirements and project basis in your company.",
         ))
 
-        with st.expander(tt("Vis relevante kompetansemål (utdrag)", "Show relevant competence aims (excerpt)"), expanded=False):
-            st.markdown("**Arbeidsmiljø og dokumentasjon**")
-            for c in cm_amd:
-                st.write("• " + c)
-            st.markdown("**Praktisk yrkesutøvelse**")
-            for c in cm_pyu:
-                st.write("• " + c)
+        if level == 1:
+            st.write(tt("**Nivå 1:** Hva er TEK og hvorfor følger vi krav?", "**Level 1:** What is TEK and why follow it?"))
+            msg = st.text_area(tt("Forklar med egne ord (3–5 setninger)", "Explain in your own words (3–5 sentences)"),
+                               height=120, key="tek_l1_explain")
+            score, total = _quiz("tek_l1", [
+                (tt("TEK er…", "TEK is…"),
+                 [tt("Minimumskrav til bygg", "Minimum requirements for buildings"), tt("Et verktøymerke", "A tool brand"), tt("En matematikkformel", "A math formula")], 0),
+                (tt("Hvorfor følger vi TEK?", "Why follow TEK?"),
+                 [tt("Sikkerhet, helse, kvalitet", "Safety, health, quality"), tt("Bare tradisjon", "Only tradition"), tt("Ingen grunn", "No reason")], 0),
+                (tt("Hva styrer alltid i prosjektet?", "What always governs a project?"),
+                 [tt("Tegning + beskrivelser + krav", "Drawings + specs + requirements"), tt("Magefølelse", "Gut feeling"), tt("Hastighet", "Speed")], 0),
+            ])
+            conf, chall, refl = _self_assessment("tek_l1")
 
-        st.markdown("---")
-        st.markdown("**" + tt("Lenker til læreplan", "Links to curriculum") + "**")
-        st.markdown(f"- [BAT01-03 (oversikt)]({LK20_BASE})")
-        st.markdown(f"- [Arbeidsmiljø og dokumentasjon – kompetansemål]({LK20_AMD})")
-        st.markdown(f"- [Praktisk yrkesutøvelse – kompetansemål]({LK20_PYU})")
+            _rubric_block(
+                tt("Forståelse av krav", "Understanding requirements"),
+                tt("Uklart hva TEK er og hvorfor.", "Unclear what TEK is and why."),
+                tt("Forstår hovedpoeng, men lite eksempel.", "Understands main idea; limited example."),
+                tt("Forklarer tydelig med praksiseksempel.", "Explains clearly with practical example."),
+            )
+
+            can_complete = (score >= 2) and (len(msg.strip()) >= 40) and (len(refl.strip()) >= 20)
+            if st.button(tt("Marker nivå 1 som fullført", "Mark level 1 as completed"), key="complete_tek_l1", disabled=not can_complete):
+                _mark_completed(topic, 1, score, total, conf, chall, refl)
+                st.success(tt("Nivå 1 er registrert som fullført.", "Level 1 recorded as completed."))
+
+        elif level == 2:
+            st.write(tt("**Nivå 2:** Knytt krav til utførelse (kvalitet og dokumentasjon).",
+                        "**Level 2:** Link requirements to execution (quality and documentation)."))
+            example = st.text_area(tt("Gi et eksempel: Et krav → hva betyr det i utførelse?", "Give an example: a requirement → what it means in execution?"),
+                                   height=140, key="tek_l2_ex")
+            score, total = _quiz("tek_l2", [
+                (tt("Et krav påvirker ofte…", "A requirement often affects…"),
+                 [tt("Materialvalg og metode", "Materials and method"), tt("Kun farge", "Only color"), tt("Ingenting", "Nothing")], 0),
+                (tt("Hvorfor dokumentere mot krav?", "Why document against requirements?"),
+                 [tt("Sporbarhet og kvalitet", "Traceability and quality"), tt("Fordi", "Because"), tt("Unødvendig", "Unnecessary")], 0),
+                (tt("God praksis er å…", "Good practice is to…"),
+                 [tt("Sjekke krav før du bygger", "Check requirements before building"), tt("Sjekke etterpå", "Check after"), tt("Ikke sjekke", "Not check")], 0),
+            ])
+            conf, chall, refl = _self_assessment("tek_l2")
+
+            _rubric_block(
+                tt("Krav → utførelse", "Requirement → execution"),
+                tt("Gir ikke tydelig sammenheng.", "No clear link."),
+                tt("Noe sammenheng, men lite konkret.", "Some link; not concrete."),
+                tt("Tydelig sammenheng + konkrete tiltak.", "Clear link + concrete actions."),
+            )
+
+            can_complete = (score >= 2) and (len(example.strip()) >= 60) and (len(refl.strip()) >= 20)
+            if st.button(tt("Marker nivå 2 som fullført", "Mark level 2 as completed"), key="complete_tek_l2", disabled=not can_complete):
+                _mark_completed(topic, 2, score, total, conf, chall, refl)
+                st.success(tt("Nivå 2 er registrert som fullført.", "Level 2 recorded as completed."))
+
+        else:
+            st.write(tt("**Nivå 3:** Egenkontrollpunkt: hvordan bekrefte at kravet er oppfylt?",
+                        "**Level 3:** Control point: how do you confirm the requirement is met?"))
+            ctrl = st.text_area(tt("Skriv 3 kontrollpunkter (målbar)", "Write 3 measurable control points"),
+                                height=140, key="tek_l3_ctrl")
+            score, total = _quiz("tek_l3", [
+                (tt("Kontrollpunkt bør være…", "Control point should be…"),
+                 [tt("Målbart", "Measurable"), tt("Vagt", "Vague"), tt("Skjult", "Hidden")], 0),
+                (tt("Kvalitet sikres best ved…", "Quality is best ensured by…"),
+                 [tt("Plan → utførelse → kontroll → dokumentasjon", "Plan → execution → control → documentation"), tt("Hastighet", "Speed"), tt("Flaks", "Luck")], 0),
+                (tt("Når bør du avklare uklarheter?", "When to clarify unclear points?"),
+                 [tt("Før du bygger", "Before you build"), tt("Etterpå", "Afterwards"), tt("Aldri", "Never")], 0),
+            ])
+            conf, chall, refl = _self_assessment("tek_l3")
+
+            _rubric_block(
+                tt("Kontroll og dokumentasjon", "Control and documentation"),
+                tt("Kontrollpunkter er ikke målbare.", "Control points not measurable."),
+                tt("Noen målbare, men ufullstendig.", "Some measurable; incomplete."),
+                tt("Tre tydelige, målbare kontrollpunkter.", "Three clear measurable control points."),
+            )
+
+            can_complete = (score >= 2) and (len(ctrl.strip()) >= 60) and (len(refl.strip()) >= 20)
+            if st.button(tt("Marker nivå 3 som fullført", "Mark level 3 as completed"), key="complete_tek_l3", disabled=not can_complete):
+                _mark_completed(topic, 3, score, total, conf, chall, refl)
+                st.success(tt("Nivå 3 er registrert som fullført.", "Level 3 recorded as completed."))
+
+    # =========================
+    # 6) Tegningsforståelse
+    # =========================
+    with tabs[5]:
+        topic = "Tegningsforståelse"
+        st.markdown("### " + tt("Tegningsforståelse (nivå 1–3)", "Drawing literacy (levels 1–3)"))
+        _lk20_alignment_box(topic)
+
+        unlocked = _max_unlocked(topic)
+        level = st.selectbox(tt("Velg nivå", "Choose level"), [1, 2, 3], index=0, key="lvl_draw")
+        if level > unlocked:
+            st.warning(tt("Dette nivået er låst. Fullfør forrige nivå først.", "This level is locked. Complete the previous level first."))
+            st.stop()
+
+        if level == 1:
+            st.write(tt("**Nivå 1:** Finn informasjon på tegning (mål, symbol, målestokk).",
+                        "**Level 1:** Find info on a drawing (dimensions, symbols, scale)."))
+            info = st.text_area(tt("Hvilke 3 ting sjekker du først på en tegning?", "Which 3 things do you check first on a drawing?"),
+                                height=120, key="draw_l1_info")
+            score, total = _quiz("draw_l1", [
+                (tt("Målestokk forteller…", "Scale tells…"),
+                 [tt("Forhold tegning–virkelighet", "Drawing–real ratio"), tt("Fargevalg", "Color"), tt("Pris", "Price")], 0),
+                (tt("Et snitt viser…", "A section shows…"),
+                 [tt("Oppbygning i gjennomskjæring", "Construction in cut-through"), tt("Kun høyde", "Only height"), tt("Kun bredde", "Only width")], 0),
+                (tt("Symboler brukes for…", "Symbols are used for…"),
+                 [tt("Standardisert info raskt", "Standardized info quickly"), tt("Pynt", "Decoration"), tt("Forvirring", "Confusion")], 0),
+            ])
+            conf, chall, refl = _self_assessment("draw_l1")
+
+            _rubric_block(
+                tt("Orientering på tegning", "Orienting on drawings"),
+                tt("Sjekker få/feil ting først.", "Checks few/wrong first items."),
+                tt("Sjekker riktig, men mangler forklaring.", "Checks correctly; lacks explanation."),
+                tt("Sjekker systematisk og forklarer hvorfor.", "Systematic checks and explains why."),
+            )
+
+            can_complete = (score >= 2) and (len(info.strip()) >= 30) and (len(refl.strip()) >= 20)
+            if st.button(tt("Marker nivå 1 som fullført", "Mark level 1 as completed"), key="complete_draw_l1", disabled=not can_complete):
+                _mark_completed(topic, 1, score, total, conf, chall, refl)
+                st.success(tt("Nivå 1 er registrert som fullført.", "Level 1 recorded as completed."))
+
+        elif level == 2:
+            st.write(tt("**Nivå 2:** Overfør fra tegning til oppmerking (mål, referanse, kontroll).",
+                        "**Level 2:** Transfer from drawing to marking out (dimensions, references, checks)."))
+            plan = st.text_area(tt("Beskriv framgangsmåte for oppmerking (4–6 punkter)", "Describe marking-out method (4–6 points)"),
+                                height=140, key="draw_l2_plan")
+            score, total = _quiz("draw_l2", [
+                (tt("God oppmerking starter med…", "Good marking-out starts with…"),
+                 [tt("Referanselinje/nullpunkt", "Reference line/zero point"), tt("Random punkt", "Random point"), tt("Midt i rommet", "Middle of room")], 0),
+                (tt("Kontrollmåling brukes for…", "Control measurements are used to…"),
+                 [tt("Oppdage feil tidlig", "Catch errors early"), tt("Bruke tid", "Waste time"), tt("Unngå ansvar", "Avoid responsibility")], 0),
+                (tt("Digitale ressurser kan hjelpe med…", "Digital tools help with…"),
+                 [tt("Måling, beregning og dokumentasjon", "Measuring, calculating, documenting"), tt("Bare spill", "Only games"), tt("Ingenting", "Nothing")], 0),
+            ])
+            conf, chall, refl = _self_assessment("draw_l2")
+
+            _rubric_block(
+                tt("Oppmerking og kontroll", "Marking-out and control"),
+                tt("Ustrukturert oppmerking uten kontroll.", "Unstructured; no controls."),
+                tt("Noe struktur, men få kontrollpunkter.", "Some structure; few controls."),
+                tt("Systematisk oppmerking + kontrollmålinger.", "Systematic marking-out + control checks."),
+            )
+
+            can_complete = (score >= 2) and (len(plan.strip()) >= 60) and (len(refl.strip()) >= 20)
+            if st.button(tt("Marker nivå 2 som fullført", "Mark level 2 as completed"), key="complete_draw_l2", disabled=not can_complete):
+                _mark_completed(topic, 2, score, total, conf, chall, refl)
+                st.success(tt("Nivå 2 er registrert som fullført.", "Level 2 recorded as completed."))
+
+        else:
+            st.write(tt("**Nivå 3:** Feiltolkning: hva kan gå galt, og hvordan forebygge?",
+                        "**Level 3:** Misinterpretation: what can go wrong and how to prevent?"))
+            mistakes = st.text_area(tt("Nevn 3 typiske tegning-feil/misforståelser", "Name 3 typical drawing mistakes/misunderstandings"),
+                                    height=120, key="draw_l3_mis")
+            prevent = st.text_area(tt("Tiltak for å forebygge (minst 3)", "Prevention measures (min 3)"),
+                                   height=120, key="draw_l3_prev")
+            score, total = _quiz("draw_l3", [
+                (tt("Når skal du spørre?", "When should you ask?"),
+                 [tt("Når noe er uklart – før du bygger", "When unclear—before building"), tt("Etterpå", "After"), tt("Aldri", "Never")], 0),
+                (tt("Feiltolkning kan føre til…", "Misinterpretation can lead to…"),
+                 [tt("Feil og ekstra kost", "Errors and extra cost"), tt("Bedre kvalitet", "Better quality"), tt("Ingen ting", "Nothing")], 0),
+                (tt("En god vane er å…", "A good habit is to…"),
+                 [tt("Les tegning med sjekkliste", "Read drawings with a checklist"), tt("Hoppe over detaljer", "Skip details"), tt("Gjette", "Guess")], 0),
+            ])
+            conf, chall, refl = _self_assessment("draw_l3")
+
+            _rubric_block(
+                tt("Profesjonell tegninglesing", "Professional drawing reading"),
+                tt("Få tiltak og lite forståelse for konsekvenser.", "Few measures; weak understanding of consequences."),
+                tt("Noen tiltak, men mangler systematikk.", "Some measures; lacks systematic approach."),
+                tt("Systematisk, forebyggende og kommuniserer avklaringer.", "Systematic, preventive and communicates clarifications."),
+            )
+
+            can_complete = (score >= 2) and (len(mistakes.strip()) >= 30) and (len(prevent.strip()) >= 30) and (len(refl.strip()) >= 20)
+            if st.button(tt("Marker nivå 3 som fullført", "Mark level 3 as completed"), key="complete_draw_l3", disabled=not can_complete):
+                _mark_completed(topic, 3, score, total, conf, chall, refl)
+                st.success(tt("Nivå 3 er registrert som fullført.", "Level 3 recorded as completed."))
+
+    # =========================
+    # 7) Lærerpanel (logg + eksport)
+    # =========================
+    with tabs[6]:
+        st.markdown("### " + tt("Lærerpanel (pilot)", "Teacher panel (pilot)"))
+
+        if not st.session_state.get("pro_teacher_mode", False):
+            st.info(tt("Lærerpanel er kun tilgjengelig med lærerkode.", "Teacher panel requires the teacher code."))
+            st.stop()
+
+        df = _records_df()
+
+        c1, c2, c3 = st.columns([1, 1, 1])
+        with c1:
+            flt_class = st.text_input(tt("Filter: klasse", "Filter: class"), key="tp_flt_class")
+        with c2:
+            flt_name = st.text_input(tt("Filter: navn", "Filter: name"), key="tp_flt_name")
+        with c3:
+            flt_topic = st.selectbox(tt("Filter: tema", "Filter: topic"), ["(alle)"] + list(LK20_MAP.keys()), key="tp_flt_topic")
+
+        fdf = df.copy()
+        if flt_class.strip():
+            fdf = fdf[fdf["class"].astype(str).str.contains(flt_class.strip(), case=False, na=False)]
+        if flt_name.strip():
+            fdf = fdf[fdf["name"].astype(str).str.contains(flt_name.strip(), case=False, na=False)]
+        if flt_topic != "(alle)":
+            fdf = fdf[fdf["topic"] == flt_topic]
+
+        st.dataframe(fdf, use_container_width=True, hide_index=True)
+
+        st.markdown("**" + tt("Framovermelding (lærer)", "Feedforward (teacher)") + "**")
+        st.write(tt("Bruk dette som kort vurderingsnotat etter muntlig veiledning.", "Use this as a short assessment note after oral feedback."))
+        note = st.text_area(tt("Notat (ikke lagret i pilot)", "Note (not saved in pilot)"), height=90, key="tp_note")
+
+        st.divider()
+        st.markdown("**" + tt("Eksport", "Export") + "**")
+
+        csv_bytes = fdf.to_csv(index=False).encode("utf-8")
+        st.download_button(
+            tt("Last ned CSV (klasseoversikt)", "Download CSV (class overview)"),
+            data=csv_bytes,
+            file_name="byggmatte_pro_logg.csv",
+            mime="text/csv",
+            use_container_width=True,
+            key="dl_csv",
+        )
+
+        pdf_bytes = _make_pdf_bytes(fdf)
+        if pdf_bytes:
+            st.download_button(
+                tt("Last ned PDF (logg)", "Download PDF (log)"),
+                data=pdf_bytes,
+                file_name="byggmatte_pro_logg.pdf",
+                mime="application/pdf",
+                use_container_width=True,
+                key="dl_pdf",
+            )
+        else:
+            st.warning(tt("PDF-eksport er ikke tilgjengelig i denne kjøringen.", "PDF export is not available in this run."))
+
+        st.divider()
+        st.markdown("**" + tt("Progresjon (låsing)", "Progress (locking)") + "**")
+        st.write(tt("Dette viser høyeste nivå fullført per tema (i denne økten).", "Shows highest completed level per topic (this session)."))
+        st.json(st.session_state.pro_progress)
 
 
-# ============================
-# Integrasjon: legg "Bli en profesjonell yrkesutøver?" i sidepanelet
-# ============================
-
-# Sett default state
-if "show_pro" not in st.session_state:
-    st.session_state.show_pro = False
-
-
-# Vis Pro-skjerm øverst i appen når brukeren klikker
-if st.session_state.get("show_pro", False):
-    st.divider()
-    show_pro_screen()
-    if st.button(tt("Lukk Pro-skjerm", "Close Pro screen")):
-        st.session_state.show_pro = False
-    st.stop()
-
-
-# ============================================================
-# Lek og lær (nivåbasert trening i skolemodus)
-# ============================================================
-
-# --- Persistens av progresjon (Streamlit Cloud) ---
-# Denne løsningen bruker Supabase (Postgres) via st.secrets.
-# Hvis secrets/avhengighet mangler, faller appen tilbake til vanlig session_state.
-
-@st.cache_resource
 def _get_supabase_client():
     if create_client is None:
         return None
@@ -3809,4 +4322,3 @@ with tabs[10]:
         if st.button(tt("Tøm historikk", "Clear history")):
             st.session_state.history = []
             st.success(tt("Historikk tømt.", "History cleared."))
-
