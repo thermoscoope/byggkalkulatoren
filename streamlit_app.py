@@ -3590,13 +3590,6 @@ with bar2:
         st.rerun()
 
 with bar3:
-    if st.button("🤖 " + tt(" (BETA)", "Ask "), key="_top", use_container_width=True):
-        st.session_state. = True
-        st.session_state.show_pro = False
-        st.session_state.show_play = False
-        st.rerun()
-
-with bar4:
     with st.popover("⚙️ " + tt("Innstillinger", "Settings"), use_container_width=True):
         st.subheader(tt("Innstillinger", "Settings"))
         st.markdown("**" + tt("Språk", "Language") + "**")
