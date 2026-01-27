@@ -1358,7 +1358,14 @@ def show_pro_screen():
     st.subheader(tt("⭐ Oppgrader til Pro (BETA)", "⭐ Upgrade to Pro (BETA)"))
     st.caption(
         tt(
-            "Pro er laget for lærlingtid/verksted og vurderingsarbeid i skole. "
+            "Pro er laget for lærlingtid/verksted og vurderingsarbeid i skole.
+            Dette får du om du betaler for pro-versjonen:
+            Øvingsoppgaver (skjult fasit)
+            1. HMS – hvorfor er HMS viktig?
+            2. Verktøyopplæring
+            3. Dokumentasjon av eget arbeid
+            4.TEK-krav – hva og hvorfor
+            5. Lese og forstå tegning"
             "Her får du nivåbasert trening (1–3) per tema, med egenvurdering, quiz og dokumentasjon.",
             "Pro is built for apprenticeship/workshop and school assessment. "
             "You get level-based training (1–3) per topic, with self-assessment, quizzes and documentation.",
