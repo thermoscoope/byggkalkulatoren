@@ -1370,6 +1370,7 @@ def show_pro_screen():
         st.write(
             tt(
                 "Få tilgang til"
+                
                 "Get access to practice tasks, HSE, tool training, documentation, TEK and drawings – aligned to LK20.",
             )
         )
