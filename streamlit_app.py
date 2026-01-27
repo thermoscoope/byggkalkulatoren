@@ -340,7 +340,6 @@ def render_school_illustration(key: str) -> None:
         "volume": "volum.png",
         "scale": "malestokk.png",
         "percent": "prosent.png",
-        "angles": "vinkler.png",
         "slope": "fall.png",
         "economy": "okonomi.png",
         # Valgfrie (hvis du legger dem i assets/)
@@ -1358,7 +1357,7 @@ def show_pro_screen():
     st.subheader(tt("⭐ Oppgrader til Pro (BETA)", "⭐ Upgrade to Pro (BETA)"))
     st.caption(
         tt(
-            "Pro er laget for lærlingtid/verksted og vurderingsarbeid i skole."
+            "Pro er laget for lærlingtid/verksted og vurderingsarbeid i skole. "
             "Her får du nivåbasert trening (1–3) per tema, med egenvurdering, quiz og dokumentasjon.",
             "Pro is built for apprenticeship/workshop and school assessment. "
             "You get level-based training (1–3) per topic, with self-assessment, quizzes and documentation.",
@@ -1369,8 +1368,7 @@ def show_pro_screen():
         st.markdown("**" + tt("Lyst til å bli en bedre yrkesutøver?", "Want to become a better craftsperson?") + "**")
         st.write(
             tt(
-                "Få tilgang til"
-                
+                "Få tilgang til øvingsoppgaver, HMS, verktøyopplæring, dokumentasjon, TEK og tegning – koblet til LK20.",
                 "Get access to practice tasks, HSE, tool training, documentation, TEK and drawings – aligned to LK20.",
             )
         )
@@ -3551,8 +3549,8 @@ if "history" not in st.session_state:
 if "show_pro" not in st.session_state:
     st.session_state.show_pro = False
 
-if "show_ai" not in st.session_state:
-    st.session_state.show_ai = False
+if "" not in st.session_state:
+    # AI state removed
 
 if "show_play" not in st.session_state:
     st.session_state.show_play = False
@@ -3592,6 +3590,13 @@ with bar2:
         st.rerun()
 
 with bar3:
+    if st.button("🤖 " + tt(" (BETA)", "Ask "), key="_top", use_container_width=True):
+        # removed invalid session_state assignment True
+        st.session_state.show_pro = False
+        st.session_state.show_play = False
+        st.rerun()
+
+with bar4:
     with st.popover("⚙️ " + tt("Innstillinger", "Settings"), use_container_width=True):
         st.subheader(tt("Innstillinger", "Settings"))
         st.markdown("**" + tt("Språk", "Language") + "**")
@@ -3861,10 +3866,10 @@ tabs = st.tabs(
         "⬛ " + tt("Areal", "Area"),
         "🧵 " + tt("Omkrets", "Perimeter"),
         "🧱 " + tt("Volum", "Volume"),
-        "📏 " + tt("Målestokk", "Scale"),
-        "🧮 " + tt("Beregninger", "Calculations"),
+        "📐 " + tt("Målestokk", "Scale"),
+        "🪵 " + tt("Beregninger", "Calculations"),
         "📉 " + tt("Fall", "Slope"),
-        "💯 " + tt("Prosent", "Percent"),
+        "🧮 " + tt("Prosent", "Percent"),
         "📐 " + tt("Vinkler", "Angles"),
         "💰 " + tt("Økonomi", "Economy"),
         "📊 " + tt("Historikk", "History"),
@@ -4244,7 +4249,7 @@ with tabs[8]:
     subtab_vinkler, subtab_diagonal = st.tabs(
         [
             "📐 " + tt("Vinkler", "Angles"),
-            "📐 " + tt("Diagonal/pytagoras", "Angles/pytagoras"),
+            "📐 " + tt("Vinkler", "Angles"),
         ]
     )
 
