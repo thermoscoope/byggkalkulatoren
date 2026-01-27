@@ -340,6 +340,7 @@ def render_school_illustration(key: str) -> None:
         "volume": "volum.png",
         "scale": "malestokk.png",
         "percent": "prosent.png",
+        "angles": "vinkler.png",
         "slope": "fall.png",
         "economy": "okonomi.png",
         # Valgfrie (hvis du legger dem i assets/)
@@ -1128,7 +1129,7 @@ def calc_tiles_wall(
     )
 
 # ============================================================
-# Offline AI-robot (tekst + regnestykker, uten internett)
+# Offline  (tekst + regnestykker, uten internett)
 # ============================================================
 
 _ALLOWED_BINOPS = {
@@ -1365,11 +1366,30 @@ def show_pro_screen():
     )
 
     with st.container(border=True):
-        st.markdown("**" + tt("Lyst til å bli en bedre yrkesutøver?", "Want to become a better craftsperson?") + "**")
-        st.write(
+        st.markdown(
+            "**"
+            + tt("Lyst til å bli en bedre yrkesutøver?", "Want to become a better craftsperson?")
+            + "**"
+        )
+
+        st.markdown(
             tt(
-                "Få tilgang til øvingsoppgaver, HMS, verktøyopplæring, dokumentasjon, TEK og tegning – koblet til LK20.",
-                "Get access to practice tasks, HSE, tool training, documentation, TEK and drawings – aligned to LK20.",
+                """
+1. Få tilgang til øvingsoppgaver med fasit  
+2. HMS – hvorfor er HMS viktig?  
+3. Hvorfor er verktøyopplæring viktig?  
+4. Dokumentasjon av eget arbeid  
+5. Hva er TEK, og hvorfor er dette et sentralt begrep?  
+6. Forståelse av tegning
+                """,
+                """
+1. Get access to practice tasks with solutions  
+2. HSE – why is HSE important?  
+3. Why is tool training important?  
+4. Documentation of your own work  
+5. What is TEK, and why is it a key concept?  
+6. Understanding drawings
+                """
             )
         )
 
@@ -3565,7 +3585,7 @@ if "play_state" not in st.session_state:
 
 
 # ============================================================
-# Topmeny: Hjem + Lek og lær + AI-robot + Innstillinger
+# Topmeny: Hjem + Lek og lær +  + Innstillinger
 # ============================================================
 
 # Trekker topmenyen tett opp mot headeren (komprimert, men uten å skjule logo/tekst)
@@ -3575,7 +3595,7 @@ bar1, bar2, bar3, bar4 = st.columns([1.2, 1.4, 1.4, 1.8])
 
 with bar1:
     if st.button("🏠 " + tt("Hjem", "Home"), key="btn_home_top", use_container_width=True):
-        st.session_state.show_ai = False
+        # AI state removed
         st.session_state.show_pro = False
         st.session_state.show_play = False
         st.rerun()
@@ -3585,18 +3605,11 @@ with bar2:
     play_disabled = not is_school_mode()
     if st.button("🎯 " + tt("Test deg selv", "Test yourself"), key="btn_play_top", use_container_width=True, disabled=play_disabled):
         st.session_state.show_play = True
-        st.session_state.show_ai = False
+        # AI state removed
         st.session_state.show_pro = False
         st.rerun()
 
 with bar3:
-    if st.button("🤖 " + tt("Spør AI (BETA)", "Ask AI (BETA)"), key="btn_ai_top", use_container_width=True):
-        st.session_state.show_ai = True
-        st.session_state.show_pro = False
-        st.session_state.show_play = False
-        st.rerun()
-
-with bar4:
     with st.popover("⚙️ " + tt("Innstillinger", "Settings"), use_container_width=True):
         st.subheader(tt("Innstillinger", "Settings"))
         st.markdown("**" + tt("Språk", "Language") + "**")
@@ -3629,7 +3642,7 @@ with bar4:
               "Pro adds extra features for learning, documentation, and export."))
         if st.button(tt("⭐ Oppgrader til Pro (BETA)", "⭐ Upgrade to Pro (BETA)"), key="btn_pro_settings", use_container_width=True):
             st.session_state.show_pro = True
-            st.session_state.show_ai = False
+            # AI state removed
             st.session_state.show_play = False
             st.rerun()
 
@@ -3651,13 +3664,13 @@ if st.session_state.show_pro:
     show_pro_screen()
     st.stop()
 
-if st.session_state.get("show_ai", False):
+if st.session_state.get("", False):
     st.divider()
     st.subheader("🤖 " + tt("Spør din verksmester!", "Ask your foreman!"))
     st.caption(tt("Skriv både tekst og regnestykker. Eksempel: 'areal 4 x 6' eller '2*(3+5)'.",
               "Type both text and calculations. Example: 'area 4 x 6' or '2*(3+5)'."))
 
-    q = st.text_input(tt("Spør AI-roboten", "Ask the AI bot"), key="ai_input_top")
+    q = st.text_input(tt("-roboten", "Ask the AI bot"), key="ai_input_top")
     if q:
         res = ai_math_bot(q)
         if res["ok"]:
@@ -3668,8 +3681,8 @@ if st.session_state.get("show_ai", False):
         else:
             st.warning(res["answer"])
 
-    if st.button(tt("Lukk AI-robot", "Close AI bot")):
-        st.session_state.show_ai = False
+    if st.button(tt("Lukk ", "Close AI bot")):
+        # AI state removed
         st.session_state.show_play = False
         st.rerun()
 
@@ -3723,6 +3736,7 @@ CALC_LABELS = {
     "Beregninger": ("Beregninger", "Calculations"),
     "Fall": ("Fall", "Slope"),
     "Prosent": ("Prosent", "Percent"),
+    "Vinkler": ("Vinkler", "Angles"),
     "Diagonal (Pytagoras)": ("Diagonal (Pytagoras)", "Diagonal (Pythagoras)"),
     "Økonomi": ("Økonomi", "Economy"),
 }
@@ -3845,7 +3859,7 @@ if rec:
                     if st.button("🎯 " + _lab(TOPIC_LABELS, topic_key), key=f"start_play_{picked_key}_{topic_key}", use_container_width=True):
                         st.session_state.play_selected_topic = topic_key  # intern nøkkel (NO)
                         st.session_state.show_play = True
-                        st.session_state.show_ai = False
+                        # AI state removed
                         st.session_state.show_pro = False
                         st.rerun()
 else:
@@ -3869,7 +3883,7 @@ tabs = st.tabs(
         "🪵 " + tt("Beregninger", "Calculations"),
         "📉 " + tt("Fall", "Slope"),
         "🧮 " + tt("Prosent", "Percent"),
-        "📐 " + tt("Diagonal (Pytagoras)", "Diagonal (Pythagoras)"),
+        "📐 " + tt("Vinkler", "Angles"),
         "💰 " + tt("Økonomi", "Economy"),
         "📊 " + tt("Historikk", "History"),
     ]
@@ -4240,31 +4254,136 @@ with tabs[7]:
 
 
 
-# ---- Diagonal (Pytagoras) ----
-# ---- Diagonal (Pytagoras) ----
+
+# ---- Vinkler + Diagonal ----
 with tabs[8]:
-    if is_school_mode():
-        st.caption("Pytagoras brukes i rettvinklede trekanter: c = √(a² + b²). Sjekk alltid enhet før du regner.")
-        render_school_illustration("diagonal")
+    # Denne fanen samler både vinkelberegning og Pytagoras, slik at elevene finner alt om "vinkel" på samme sted.
 
-    st.subheader(tt("Diagonal (Pytagoras)", "Diagonal (Pythagoras)"))
+    subtab_vinkler, subtab_diagonal = st.tabs(
+        [
+            "📐 " + tt("Vinkler", "Angles"),
+            "📐 " + tt("Diagonal/pytagoras", "Angles"),
+        ]
+    )
 
-    unit = st.selectbox("Enhet for inndata", ["mm", "cm", "m"], index=2, key="pyt_unit")
+    # ============================
+    # Subtab: Vinkler
+    # ============================
+    with subtab_vinkler:
+        if is_school_mode():
+            st.caption(
+                "Bruk vinkel-formler i en rettvinklet trekant. "
+                "Vi bruker sidene A, B og C (samme enhet)."
+            )
+            # Valgfritt illustrasjonsbilde dersom du legger det i assets/ (krasjer ikke om det mangler)
+            render_school_illustration("angles")
 
-    c1, c2 = st.columns(2)
-    with c1:
-        a = st.number_input("Side a", min_value=0.0, value=3000.0 if unit == "mm" else (300.0 if unit == "cm" else 3.0),
-                            step=1.0 if unit != "m" else 0.1, key="pyt_a_any")
-    with c2:
-        b = st.number_input("Side b", min_value=0.0, value=4000.0 if unit == "mm" else (400.0 if unit == "cm" else 4.0),
-                            step=1.0 if unit != "m" else 0.1, key="pyt_b_any")
+        st.subheader("📐 " + tt("Vinkler (rettvinklet trekant)", "Angles (right triangle)"))
 
-    # Konverter til meter før beregning
-    a_m = to_mm(float(a), unit) / 1000.0
-    b_m = to_mm(float(b), unit) / 1000.0
+        st.markdown(
+            """
+            **Forklaring**
+            - **A** og **B** er kateter  
+            - **C** er hypotenusen  
+            - **α (alfa)** er vinkelen vi regner ut
+            """
+        )
 
-    if st.button(tt("Beregn diagonal", "Calculate diagonal"), key="btn_pyt_any"):
-        show_result(calc_pythagoras(a_m, b_m))
+        formelvalg = st.selectbox(
+            tt("Velg formel", "Choose formula"),
+            [
+                "tan⁻¹(A / B)",
+                "sin⁻¹(A / C)",
+                "cos⁻¹(B / C)",
+            ],
+            key="angle_formula",
+        )
+
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            A = st.number_input("A", min_value=0.0, step=0.01, key="angle_A")
+        with c2:
+            B = st.number_input("B", min_value=0.0, step=0.01, key="angle_B")
+        with c3:
+            C = st.number_input("C", min_value=0.0, step=0.01, key="angle_C")
+
+        if st.button(tt("Beregn vinkel", "Calculate angle"), key="btn_angle", use_container_width=True):
+            warnings, steps = [], []
+            angle = None
+
+            if formelvalg == "tan⁻¹(A / B)":
+                if A > 0 and B > 0:
+                    angle = math.degrees(math.atan(A / B))
+                    steps.append(f"α = tan⁻¹({A} / {B})")
+                else:
+                    warnings.append("A og B må være > 0.")
+
+            elif formelvalg == "sin⁻¹(A / C)":
+                if A > 0 and C > 0:
+                    if A <= C:
+                        angle = math.degrees(math.asin(A / C))
+                        steps.append(f"α = sin⁻¹({A} / {C})")
+                    else:
+                        warnings.append("A kan ikke være større enn C.")
+                else:
+                    warnings.append("A og C må være > 0.")
+
+            elif formelvalg == "cos⁻¹(B / C)":
+                if B > 0 and C > 0:
+                    if B <= C:
+                        angle = math.degrees(math.acos(B / C))
+                        steps.append(f"α = cos⁻¹({B} / {C})")
+                    else:
+                        warnings.append("B kan ikke være større enn C.")
+                else:
+                    warnings.append("B og C må være > 0.")
+
+            outputs = {}
+            if angle is not None:
+                outputs["vinkel_grader"] = round_sensible(angle, 2)
+                # Komplementær vinkel kan være nyttig (β = 90° - α)
+                outputs["andre_vinkel_grader"] = round_sensible(90.0 - angle, 2)
+
+                steps.append(f"β = 90° − α = 90° − {round_sensible(angle, 2)}° = {round_sensible(90.0 - angle, 2)}°")
+
+            show_result(
+                CalcResult(
+                    name="Vinkler",
+                    inputs={"A": A, "B": B, "C": C, "formel": formelvalg},
+                    outputs=outputs,
+                    steps=steps if steps else [],
+                    warnings=warnings,
+                    timestamp=make_timestamp(),
+                )
+            )
+
+    # ============================
+    # Subtab: Diagonal (Pytagoras)
+    # ============================
+    with subtab_diagonal:
+        if is_school_mode():
+            st.caption("Pytagoras brukes i rettvinklede trekanter: c = √(a² + b²). Sjekk alltid enhet før du regner.")
+            render_school_illustration("diagonal")
+    
+        st.subheader(tt("Diagonal (Pytagoras)", "Diagonal (Pythagoras)"))
+    
+        unit = st.selectbox("Enhet for inndata", ["mm", "cm", "m"], index=2, key="pyt_unit")
+    
+        c1, c2 = st.columns(2)
+        with c1:
+            a = st.number_input("Side a", min_value=0.0, value=3000.0 if unit == "mm" else (300.0 if unit == "cm" else 3.0),
+                                step=1.0 if unit != "m" else 0.1, key="pyt_a_any")
+        with c2:
+            b = st.number_input("Side b", min_value=0.0, value=4000.0 if unit == "mm" else (400.0 if unit == "cm" else 4.0),
+                                step=1.0 if unit != "m" else 0.1, key="pyt_b_any")
+    
+        # Konverter til meter før beregning
+        a_m = to_mm(float(a), unit) / 1000.0
+        b_m = to_mm(float(b), unit) / 1000.0
+    
+        if st.button(tt("Beregn diagonal", "Calculate diagonal"), key="btn_pyt_any"):
+            show_result(calc_pythagoras(a_m, b_m))
+
 
 # ---- Økonomi ----
 with tabs[9]:
