@@ -4249,7 +4249,7 @@ with tabs[8]:
     subtab_vinkler, subtab_diagonal = st.tabs(
         [
             "📐 " + tt("Vinkler", "Angles"),
-            "📐 " + tt("Vinkler", "Angles"),
+            "📐 " + tt("Diagonal/pytagoras", "Angles/Pytagoras"),
         ]
     )
 
