@@ -374,10 +374,10 @@ def show_learning_zones():
         formula_block(
             tt("Areal – vanlige formler", "Area – common formulas"),
             formulas=[
-                "A_rektangel = lengde × bredde",
-                "A_trekant = (grunnlinje × høyde) / 2",
-                "A_sirkel = π × r²",
-                "A_trapes = ((a + b) / 2) × h",
+                "Rektangel = lengde × bredde",
+                "Trekant = (grunnlinje × høyde) / 2",
+                "Sirkel = π × r²",
+                "Trapes = ((a + b) / 2) × h",
             ],
             notes=[
                 tt("Svar i m² når målene er i meter.", "Answer is in m² when measurements are in meters."),
@@ -397,9 +397,9 @@ def show_learning_zones():
         formula_block(
             tt("Omkrets – vanlige formler", "Perimeter – common formulas"),
             formulas=[
-                "O_rektangel = 2 × (lengde + bredde)",
-                "O_trekant = a + b + c",
-                "O_sirkel = 2 × π × r  (eller π × d)",
+                "Rektangel = 2 × (lengde + bredde)",
+                "Trekant = a + b + c",
+                "Sirkel = 2 × π × r  (eller π × d)",
             ],
             notes=[
                 tt("Svar i meter (m) når målene er i meter.", "Answer is in meters (m) when measurements are in meters."),
@@ -414,9 +414,9 @@ def show_learning_zones():
         formula_block(
             tt("Volum – vanlige formler", "Volume – common formulas"),
             formulas=[
-                "V_boks = lengde × bredde × høyde",
-                "V_plate = lengde × bredde × tykkelse",
-                "V_sylinder = π × r² × h",
+                "Boks = lengde × bredde × høyde",
+                "Plate = lengde × bredde × tykkelse",
+                "Sylinder = π × r² × h",
             ],
             notes=[
                 tt("Tykkelse står ofte i mm – gjør om til meter først.", "Thickness is often given in mm — convert to meters first."),
@@ -452,9 +452,9 @@ def show_learning_zones():
         formula_block(
             tt("Vinkler – vanlige formler", "Angles – common formulas"),
             formulas=[
-                "sin(θ) = motstående / hypotenus",
-                "cos(θ) = hosliggende / hypotenus",
-                "tan(θ) = motstående / hosliggende",
+                "sin A (θ) = motstående / hypotenus",
+                "cos B (θ) = hosliggende / hypotenus",
+                "tan C (θ) = motstående / hosliggende",
                 "θ = arctan(motstående / hosliggende)",
             ],
             notes=[
