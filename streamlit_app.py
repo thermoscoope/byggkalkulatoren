@@ -1,36 +1,11 @@
+
 import math
-import base64
-import time
-import random
-from dataclasses import dataclass
-from typing import Dict, Any, List, Tuple
 from pathlib import Path
-
-import pandas as pd
 import streamlit as st
-
-# Valgfri persistering (Streamlit Cloud): Supabase
-try:
-    from supabase import create_client  # type: ignore
-except Exception:  # pragma: no cover
-    create_client = None
 from PIL import Image
 
-# Illustrasjoner (skolemodus)
-try:
-    import matplotlib
-    matplotlib.use('Agg')
-    import matplotlib.pyplot as plt
-except Exception:  # pragma: no cover
-    plt = None
-
-import re
-import ast
-import operator as op
-
-
 # ============================================================
-# Streamlit side-oppsett (må komme før annen Streamlit-bruk)
+# Streamlit side-oppsett
 # ============================================================
 st.set_page_config(
     page_title="Byggmatte",
@@ -39,47 +14,37 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-# Komprimer vertikal luft (logo / toppmeny / tabs)
 st.markdown(
     """
     <style>
       .block-container { padding-top: 3.5rem; padding-bottom: 1.0rem; }
-      /* Litt strammere avstand mellom elementer */
       div[data-testid="stVerticalBlock"] { gap: 0.35rem; }
+      div[data-testid="stImage"] { margin-top: 0rem !important; margin-bottom: 0rem !important; }
+      div[data-testid="stImage"] > img { display:block; }
+
+      .bk-title-row { display:flex; align-items: baseline; gap: 10px; line-height: 1; margin: 0; padding: 0; }
+      .bk-title { font-size: 34px; font-weight: 900; color: #ff7a00; line-height: 1; }
+      .bk-sub { font-size: 15px; color: #9aa4ad; line-height: 1; white-space: nowrap; }
+      .bk-header-tight { margin-bottom: 8px; }
+
+      /* "kort" følelse uten for mye luft */
+      .bk-card p { margin: 0.25rem 0; }
     </style>
     """,
     unsafe_allow_html=True,
 )
 
-
 # ============================================================
-# Konfig + Logo (må ligge før all annen Streamlit-output)
+# Tilstand
 # ============================================================
-LOGO_PATH = Path(__file__).parent / "byggmattev2.png"
-if not LOGO_PATH.exists():
-    # Fallback dersom repoet bruker annet logonavn
-    alt1 = Path(__file__).parent / "logo.png"
-    alt2 = Path(__file__).parent / "byggmatte.png"
-    LOGO_PATH = alt1 if alt1.exists() else (alt2 if alt2.exists() else LOGO_PATH)
-
-page_icon = None
-# Profesjonell header med logo
-
-# ============================================================
-# App-navigasjon (Hjem / Pro)
-# ============================================================
-if "current_view" not in st.session_state:
-    st.session_state.current_view = "home"
-
-# ============================================================
-# Modus: Skole / Produksjon
-# ============================================================
-if "app_mode" not in st.session_state:
-    st.session_state.app_mode = "Øv"
-
-
 if "language" not in st.session_state:
     st.session_state.language = "NO"  # NO / EN
+
+if "view" not in st.session_state:
+    st.session_state.view = "Forside"
+
+if "show_calculators" not in st.session_state:
+    st.session_state.show_calculators = False
 
 
 def lang() -> str:
@@ -90,408 +55,88 @@ def tt(no: str, en: str) -> str:
     return en if lang() == "EN" else no
 
 
-def is_school_mode() -> bool:
-    """Legacy helper: True when user is in a learning-oriented mode."""
-    return st.session_state.get("app_mode", "Øv") in ["Øv", "Test"]
-
-
-def is_test_mode() -> bool:
-    return st.session_state.get("app_mode", "Øv") == "Test"
-
-
-def is_practice_mode() -> bool:
-    return st.session_state.get("app_mode", "Øv") == "Praksis"
-
-
 # ============================================================
-# Illustrasjoner for skolemodus (samme visuelle stil)
-# - Bildene genereres automatisk første gang appen kjører
-# - Lagring i ./.illustrations for å unngå ekstra filer i repo
-# - PIL brukes for maksimal kompatibilitet (matplotlib er ikke alltid tilgjengelig)
+# Logo + header
 # ============================================================
-
-ILLUSTRATION_DIR = Path(__file__).parent / ".illustrations"
-
-def _ensure_dir(p: Path) -> None:
-    try:
-        p.mkdir(parents=True, exist_ok=True)
-    except Exception:
-        pass
-
-def _pil_font(size: int = 28):
-    # Bruk systemfont hvis mulig, fall tilbake til PIL default
-    try:
-        from PIL import ImageFont
-        for candidate in [
-            "DejaVuSerif.ttf",
-            "DejaVuSans.ttf",
-            "LiberationSerif-Regular.ttf",
-            "LiberationSans-Regular.ttf",
-            "Arial.ttf",
-        ]:
-            try:
-                return ImageFont.truetype(candidate, size=size)
-            except Exception:
-                continue
-        return ImageFont.load_default()
-    except Exception:
-        return None
-
-def _save_pil(img, path: Path) -> None:
-    try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        img.save(path, format="PNG")
-    except Exception:
-        pass
-
-def _draw_rect_illustration(path: Path, w_label="6,0 m", h_label="2,0 m", show_diagonal=False, title_text=None, top_text=None):
-    # Ren teknisk stil: hvit bakgrunn, grå/svart linje, serif-aktig font
-    from PIL import Image, ImageDraw
-
-    W, H = 1400, 480
-    img = Image.new("RGB", (W, H), "white")
-    d = ImageDraw.Draw(img)
-
-    font_big = _pil_font(34)
-    font_mid = _pil_font(28)
-    font_small = _pil_font(22)
-
-    # Rammeområde for figuren
-    margin_left = 120
-    margin_top = 70
-    rect_w = 1050
-    rect_h = 300
-
-    x0, y0 = margin_left, margin_top
-    x1, y1 = x0 + rect_w, y0 + rect_h
-
-    # Rektangel
-    line_col = (45, 45, 45)
-    d.rectangle([x0, y0, x1, y1], outline=line_col, width=5)
-
-    # Diagonal (stiplet)
-    if show_diagonal:
-        dash = 18
-        gap = 12
-        # draw dashed line from A(x0,y1) to C(x1,y0)
-        # Note: koordinatsystemet i PIL har (0,0) oppe til venstre, så vi bruker A nederst-venstre og C øverst-høyre
-        ax, ay = x0, y1
-        cx, cy = x1, y0
-        import math
-        dx, dy = cx - ax, cy - ay
-        dist = math.hypot(dx, dy)
-        steps = int(dist // (dash + gap)) + 1
-        for i in range(steps):
-            t0 = (i * (dash + gap)) / dist
-            t1 = min((i * (dash + gap) + dash) / dist, 1.0)
-            sx0 = ax + dx * t0
-            sy0 = ay + dy * t0
-            sx1 = ax + dx * t1
-            sy1 = ay + dy * t1
-            d.line([sx0, sy0, sx1, sy1], fill=line_col, width=4)
-
-    # Punktnavn (A,B,C,D)
-    # A nederst-venstre, B nederst-høyre, C øverst-høyre, D øverst-venstre
-    d.text((x0-26, y1+6), "A", fill=line_col, font=font_big)
-    d.text((x1+10, y1+6), "B", fill=line_col, font=font_big)
-    d.text((x1+10, y0-44), "C", fill=line_col, font=font_big)
-    d.text((x0-26, y0-44), "D", fill=line_col, font=font_big)
-
-    # Dimensjonstekst (samme plassering som eksempel)
-    d.text(((x0+x1)/2 - 35, y1+40), w_label, fill=line_col, font=font_mid)
-    d.text((x1+35, (y0+y1)/2 - 18), h_label, fill=line_col, font=font_mid)
-
-    # Valgfri tittel / topptekst
-    if title_text:
-        d.text((40, 14), title_text, fill=line_col, font=font_small)
-    if top_text:
-        d.text(((x0+x1)/2 - 240, y0-55), top_text, fill=line_col, font=font_small)
-
-    _save_pil(img, path)
-
-def _draw_text_illustration(path: Path, lines, title=None):
-    from PIL import Image, ImageDraw
-    W, H = 1400, 360
-    img = Image.new("RGB", (W, H), "white")
-    d = ImageDraw.Draw(img)
-    col = (45, 45, 45)
-    font_title = _pil_font(30)
-    font_line = _pil_font(28)
-
-    y = 30
-    if title:
-        d.text((40, y), title, fill=col, font=font_title)
-        y += 60
-
-    for ln in lines:
-        d.text((40, y), ln, fill=col, font=font_line)
-        y += 48
-
-    _save_pil(img, path)
-
-ILLUSTRATIONS = {
-    "unit": ("unit.png", tt("Enhetsomregning", "Unit conversion"), [
-        "6000 mm → 600 cm → 6,0 m",
-        "mm → cm: ÷10, cm → m: ÷100, mm → m: ÷1000",
-    ]),
-    "area": ("area.png", tt("Areal (rektangel)", "Area (rectangle)"), [
-        "A = lengde × bredde",
-        "A = 6,0 m × 2,0 m = 12,0 m²",
-    ]),
-    "perimeter": ("perimeter.png", tt("Omkrets (rektangel)", "Perimeter (rectangle)"), [
-        "O = Lengde + lengde + bredde + bredde",
-        "O = 2 + 2 + 2 + 2 = 8,0 m",
-    ]),
-    "volume": ("volume.png", tt("Volum (plate)", "Volume (slab)"), [
-        "100 mm = 0,10 m",
-        "V = 6,0 × 2,0 × 0,10 = 1,2 m³",
-    ]),
-    "scale": ("scale.png", tt("Målestokk", "Scale"), [
-        "1 : 50 betyr: 1 cm på tegning = 50 cm i virkelighet",
-        "4,0 cm × 50 = 200 cm = 2,0 m",
-    ]),
-    "diagonal": ("diagonal.png", tt("Diagonal (Pytagoras)", "Diagonal (Pythagoras)"), [
-        "c² = a² + b²",
-        "c = √(2,0² + 2,0²) ≈ 2,82 m",
-    ]),
-    "cladding": ("cladding.png", tt("Tømmermannskledning (bredde)", "Wood cladding (width)"), [
-        "Dekketøy per bord ≈ (under + over) − omlegg",
-        "Antall bord ≈ veggbredde / dekkmål (avrundes opp)",
-    ]),
-    "tiles": ("tiles.png", tt("Fliser på vegg", "Wall tiles"), [
-        "Modulmål = flis + fuge",
-        "Antall = ceil(veggmål / modulmål) (i begge retninger)",
-    ]),
-    "slope": ("slope.png", tt("Fall (%)", "Slope (%)"), [
-        "Fall (%) = (fall / lengde) × 100",
-        "Eksempel: (0,08 / 4,0) × 100 = 2,0 %",
-    ]),
-    "percent": ("percent.png", tt("Prosent", "Percent"), [
-        "Del = prosent × helhet",
-        "Eksempel: 40 % av 699 kr = 0,40 × 699 = 279,6 kr. 699 - 279,6 = 419,4 kr",
-    ]),
-    "economy": ("economy.png", tt("Økonomi (sum)", "Economy (total)"), [
-        "Sum = materialer + (timer × timepris)",
-        "Eksempel: 1800 + (6,0 × 450) = 4500 kr",
-    ]),
-}
-
-def ensure_illustrations() -> None:
-    _ensure_dir(ILLUSTRATION_DIR)
-
-    # Rektangelbaserte
-    rect_jobs = {
-        "area": dict(show_diagonal=False, w_label="6,0 m", h_label="2,0 m"),
-        "perimeter": dict(show_diagonal=False, w_label="6,0 m", h_label="2,0 m"),
-        "diagonal": dict(show_diagonal=True, w_label="6,0 m", h_label="2,0 m"),
-        "volume": dict(show_diagonal=False, w_label="6,0 m", h_label="2,0 m", top_text="Tykkelse: 100 mm"),
-        "cladding": dict(show_diagonal=False, w_label="Vegg-bredde: 600 cm", h_label="", top_text="Bord: 148 mm + 58 mm, omlegg 2,0 cm"),
-        "tiles": dict(show_diagonal=False, w_label="Bredde: 3,0 m", h_label="Høyde: 2,0 m", top_text="Flis 20×20 cm, fuge 0,3 cm → modul 20,3 cm"),
-        "scale": dict(show_diagonal=False, w_label="4,0 cm (tegning)", h_label="1,3 cm", top_text="Målestokk 1 : 50"),
-    }
-
-    # Tekstbaserte
-    text_jobs = {
-        "unit": ["Eksempel:", "6000 mm  →  600 cm  →  6,0 m", "mm→cm: ÷10   cm→m: ÷100   mm→m: ÷1000"],
-        "percent": ["Eksempel:", "25 % av 800 kr", "0,25 × 800 = 200 kr"],
-        "economy": ["Eksempel:", "Materialer: 1 800 kr", "Timer: 6,0 t × 450 kr/t = 2 700 kr", "Sum = 4 500 kr"],
-        "slope": ["Eksempel:", "Lengde: 4,0 m", "Fall: 0,08 m", "Fall (%) = (fall / lengde) × 100 = 2,0 %"],
-    }
-
-    for key, (fname, title, _) in ILLUSTRATIONS.items():
-        fpath = ILLUSTRATION_DIR / fname
-        if fpath.exists():
-            continue
-        try:
-            if key in rect_jobs:
-                kw = rect_jobs[key]
-                # Noen trenger tom høyde-etikett
-                h_lab = kw.get("h_label", "2,0 m")
-                if not h_lab:
-                    # Tegn uten høyde-etikett: bruk liten font og legg ikke tekst
-                    _draw_rect_illustration(fpath, w_label=kw.get("w_label","6,0 m"), h_label=" ", show_diagonal=kw.get("show_diagonal", False),
-                                           top_text=kw.get("top_text"))
-                else:
-                    _draw_rect_illustration(fpath, w_label=kw.get("w_label","6,0 m"), h_label=h_lab, show_diagonal=kw.get("show_diagonal", False),
-                                           top_text=kw.get("top_text"))
-            elif key in text_jobs:
-                _draw_text_illustration(fpath, text_jobs[key], title=title)
-            else:
-                # Fallback: generer enkel tekst
-                _draw_text_illustration(fpath, ["Eksempel kommer"], title=title)
-        except Exception:
-            # Skal aldri stoppe appen hvis illustrasjon ikke lar seg generere
-            pass
-
-def render_school_illustration(key: str) -> None:
-    """Vis illustrasjon fra ./assets (kun i skolemodus).
-
-    Denne erstatter tidligere logikk som genererte/lagret illustrasjoner i .illustrations.
-    """
-    if not is_school_mode():
-        return
-
-    # Nøkkel -> foretrukket filnavn i assets/
-    key_to_asset = {
-        "unit": "enhetsomregner.png",
-        "area": "areal.png",
-        "perimeter": "omkrets.png",
-        "diagonal": "diagonal.png",
-        "volume": "volum.png",
-        "scale": "malestokk.png",
-        "percent": "prosent.png",
-        "angles": "vinkler.png",
-        "slope": "fall.png",
-        "economy": "okonomi.png",
-        # Valgfrie (hvis du legger dem i assets/)
-        "cladding": "kledning.png",
-        "tiles": "flis.png",
-    }
-
-    # Finn tittel + fasit/utregning fra eksisterende ILLUSTRATIONS (hvis definert)
-    title = None
-    steps = None
-    if "ILLUSTRATIONS" in globals() and isinstance(globals().get("ILLUSTRATIONS"), dict):
-        entry = globals()["ILLUSTRATIONS"].get(key)
-        if entry and isinstance(entry, tuple) and len(entry) == 3:
-            _fname, _title, _steps = entry
-            title = _title
-            steps = _steps
-
-    # Bildekandidater (nytt filnavn først, deretter evt. gammelt filnavn fra ILLUSTRATIONS)
-    candidates = []
-    preferred = key_to_asset.get(key)
-    if preferred:
-        candidates.append(preferred)
-    if "ILLUSTRATIONS" in globals() and isinstance(globals().get("ILLUSTRATIONS"), dict):
-        entry = globals()["ILLUSTRATIONS"].get(key)
-        if entry and isinstance(entry, tuple) and len(entry) >= 1:
-            old_fname = entry[0]
-            if isinstance(old_fname, str) and old_fname not in candidates:
-                candidates.append(old_fname)
-
-    assets_dir = Path(__file__).parent / "assets"
-
-    # Render
-    if title:
-        st.markdown(f"#### {title}")
-
-    img_path = None
-    for fname in candidates:
-        p = assets_dir / fname
-        if p.exists() and p.is_file() and p.stat().st_size > 0:
-            img_path = p
-            break
-
-    if img_path:
-        st.image(str(img_path), use_container_width=True)
-    else:
-        # Ikke crash dersom assets mangler/feil navn
-        if candidates:
-            st.warning(tt(
-                f"Mangler illustrasjonsbilde i assets/. Forventet ett av: {', '.join(candidates)}",
-                f"Missing illustration in assets/. Expected one of: {', '.join(candidates)}",
-            ))
-        else:
-            st.warning(tt(
-                "Mangler illustrasjonsbilde i assets/ for denne fanen.",
-                "Missing illustration in assets/ for this tab.",
-            ))
-
-    st.info(tt(
-        "Prøv å regne selv først. Bruk kalkulatoren under for å kontrollere svaret ditt.",
-        "Try to calculate first. Use the calculator below to verify your answer.",
-    ))
-
-    # FASIT SYNLIG (ikke expander)
-    if steps:
-        st.markdown("**Fasit / utregning:**")
-        st.markdown("\n".join([f"- {s}" for s in steps]))
-
-
-
-
-# ============================
-
-# Komprimert header (logo + tittel + undertittel på én linje)
-# ============================
-
 LOGO_PATH = Path(__file__).parent / "byggmattev2.png"
+if not LOGO_PATH.exists():
+    alt1 = Path(__file__).parent / "logo.png"
+    alt2 = Path(__file__).parent / "byggmatte.png"
+    LOGO_PATH = alt1 if alt1.exists() else (alt2 if alt2.exists() else LOGO_PATH)
 
-# Strammere CSS rundt bilder/kolonner slik at logoen faktisk kan ligge tett på topmenyen.
-st.markdown(
-    """
-    <style>
-      /* Fjern unødvendig luft rundt Streamlit-bilder */
-      div[data-testid="stImage"] { margin-top: 0rem !important; margin-bottom: 0rem !important; }
-      div[data-testid="stImage"] > img { display:block; }
-
-      /* Header-tekst: tittel + undertittel på én linje */
-      .bk-title-row { display:flex; align-items: baseline; gap: 8px; line-height: 1; margin: 0; padding: 0; }
-      .bk-title { font-size: 32px; font-weight: 800; color: #ff7a00; line-height: 1; }
-      .bk-sub { font-size: 15px; color: #9aa4ad; line-height: 1; white-space: nowrap; }
-
-      /* Trekk litt opp, men uten å overlappe */
-      .bk-header-tight { margin-bottom: 8px; }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
-
-# Header rad: logo til venstre, tittel+undertittel rett etter.
 header_left, header_right = st.columns([1.1, 5], gap="small")
-
 with header_left:
     try:
         img = Image.open(LOGO_PATH)
-        # Skaler ned slik at alt synes (logoen var for høy i tidligere versjoner)
         st.image(img, width=260)
     except Exception:
-        # Hvis logo mangler i deploy, ikke knekk appen
         st.write("")
 
 with header_right:
-    subtitle = tt("Fra skole til yrke – matematikk tilpasset yrkeslivet!",
-                  "From school to trade – practical math for the workplace!")
     st.markdown(
         f"""
         <div class="bk-header-tight">
           <div class="bk-title-row">
-            <div class="bk-title"></div>
-            <div class="bk-sub" style="margin-top:10px;">{subtitle}</div>
+            <div class="bk-title">Byggmatte</div>
+            <div class="bk-sub" style="margin-top:10px;">
+              {tt("Fra skole til yrke – matematikk tilpasset yrkeslivet!",
+                  "From school to trade – practical math for the workplace!")}
+            </div>
           </div>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-# Trekker toppmenyen litt opp mot headeren (uten overlapp)
 st.markdown("<div style='margin-top:-10px;'></div>", unsafe_allow_html=True)
 
+# ============================================================
+# Topmeny (didaktisk først)
+# ============================================================
+b1, b2, b3, b4 = st.columns([1.2, 1.6, 1.8, 2.0])
 
+with b1:
+    if st.button("🏠 " + tt("Forside", "Front page"), use_container_width=True):
+        st.session_state.view = "Forside"
+        st.rerun()
+
+with b2:
+    if st.button("📚 " + tt("Læringssoner", "Learning zones"), use_container_width=True):
+        st.session_state.view = "Læringssoner"
+        st.rerun()
+
+with b3:
+    if st.button("🧮 " + tt("Kalkulatorer", "Calculators"), use_container_width=True):
+        st.session_state.view = "Kalkulatorer"
+        st.rerun()
+
+with b4:
+    with st.popover("⚙️ " + tt("Innstillinger", "Settings"), use_container_width=True):
+        st.subheader(tt("Innstillinger", "Settings"))
+        st.markdown("**" + tt("Språk", "Language") + "**")
+        st.session_state.language = st.radio(
+            tt("Velg språk", "Select language"),
+            ["NO", "EN"],
+            horizontal=True,
+            index=0 if lang() == "NO" else 1,
+        )
+        st.divider()
+        st.session_state.show_calculators = st.toggle(
+            tt("Aktiver kalkulatorer i læringssonene", "Enable calculators inside learning zones"),
+            value=st.session_state.show_calculators,
+        )
+        st.caption(tt(
+            "Når denne er på, kan elevene åpne en enkel kalkulator nederst i hver sone for å kontrollere svaret.",
+            "When enabled, students can open a simple calculator at the bottom of each zone to verify answers."
+        ))
+
+st.divider()
 
 
 # ============================================================
-# Hjelpefunksjoner (enheter + formatering)
+# Små hjelpefunksjoner
 # ============================================================
-def mm_to_m(mm: float) -> float:
-    return mm / 1000.0
-
-
-def cm_to_m(cm: float) -> float:
-    return cm / 100.0
-
-
-def m_to_mm(m: float) -> float:
-    return m * 1000.0
-
-
-def round_sensible(x: float, decimals: int = 3) -> float:
-    return round(x, decimals)
-
-
 def to_mm(value: float, unit: str) -> float:
-    """Konverterer valgt enhet (mm/cm/m) til mm."""
     if unit == "mm":
         return value
     if unit == "cm":
@@ -501,3943 +146,461 @@ def to_mm(value: float, unit: str) -> float:
     return value
 
 
-def mm_to_all(mm: float) -> Dict[str, float]:
-    """Returnerer mm, cm og m fra mm."""
+def mm_to_all(mm: float):
     return {"mm": mm, "cm": mm / 10.0, "m": mm / 1000.0}
 
 
-def format_value(key: str, value: Any) -> str:
-    """Konsekvent formattering av outputverdier."""
-    if isinstance(value, (int, float)):
-        if key.endswith("_m3"):
-            return f"{value:.3f}"
-        if key.endswith("_m2"):
-            return f"{value:.3f}"
-        if key.endswith("_mm"):
-            return f"{value:.1f}"
-        if key.endswith("_cm"):
-            return f"{value:.2f}"
-        if key.endswith("_m"):
-            return f"{value:.3f}"
-        if "prosent" in key or key.endswith("_pct"):
-            return f"{value:.1f}"
-        return f"{value:.3f}".rstrip("0").rstrip(".")
-    return str(value)
+def render_asset_image(filename: str):
+    """Vis bilde hvis det finnes i ./assets."""
+    assets_dir = Path(__file__).parent / "assets"
+    p = assets_dir / filename
+    if p.exists() and p.is_file() and p.stat().st_size > 0:
+        st.image(str(p), use_container_width=True)
 
 
 # ============================================================
-# Resultatformat
+# FORSIDE (ferdig formulert)
 # ============================================================
-@dataclass
-class CalcResult:
-    name: str
-    inputs: Dict[str, Any]
-    outputs: Dict[str, Any]
-    steps: List[str]
-    warnings: List[str]
-    timestamp: str
-
-
-def make_timestamp() -> str:
-    return time.strftime("%Y-%m-%d %H:%M:%S")
-
-
-def warn_if(condition: bool, msg: str, warnings: List[str]):
-    if condition:
-        warnings.append(msg)
-
-
-# ============================================================
-# Kalkulatorer
-# ============================================================
-def calc_area_rectangle(length_m: float, width_m: float) -> CalcResult:
-    warnings, steps = [], []
-    warn_if(length_m <= 0 or width_m <= 0, "Lengde/bredde må være > 0.", warnings)
-    area = length_m * width_m
-
-    steps.append("Areal = lengde × bredde")
-    steps.append(f"Areal = {length_m} m × {width_m} m = {area} m²")
-
-    warn_if(area > 2000, "Uvanlig stort areal. Sjekk enheter (m vs mm).", warnings)
-    warn_if(area < 0.1, "Uvanlig lite areal. Sjekk målene.", warnings)
-
-    return CalcResult(
-        name="Areal (rektangel)",
-        inputs={"lengde_m": length_m, "bredde_m": width_m},
-        outputs={"areal_m2": round_sensible(area, 3)},
-        steps=steps,
-        warnings=warnings,
-        timestamp=make_timestamp(),
-    )
-
-
-def calc_area_with_waste(area_m2: float, waste_percent: float) -> CalcResult:
-    warnings, steps = [], []
-    warn_if(area_m2 <= 0, "Areal må være > 0.", warnings)
-    warn_if(waste_percent < 0 or waste_percent > 50, "Svinn% virker uvanlig (0–50%).", warnings)
-
-    factor = 1 + waste_percent / 100.0
-    order_area = area_m2 * factor
-
-    steps.append("Bestillingsareal = areal × (1 + svinn/100)")
-    steps.append(f"= {area_m2} × (1 + {waste_percent}/100) = {order_area} m²")
-
-    return CalcResult(
-        name="Areal + svinn",
-        inputs={"areal_m2": area_m2, "svinn_prosent": waste_percent},
-        outputs={"bestillingsareal_m2": round_sensible(order_area, 3)},
-        steps=steps,
-        warnings=warnings,
-        timestamp=make_timestamp(),
-    )
-
-
-def calc_area_composite(rectangles: List[Tuple[float, float]]) -> CalcResult:
-    warnings, steps = [], []
-    total = 0.0
-
-    if not rectangles:
-        warnings.append("Ingen delarealer lagt inn.")
-    else:
-        steps.append("Totalareal = sum(delareal_i), der delareal_i = lengde_i × bredde_i")
-
-    for i, (l, w) in enumerate(rectangles, start=1):
-        warn_if(l <= 0 or w <= 0, f"Del {i}: Lengde/bredde må være > 0.", warnings)
-        a = l * w
-        total += a
-        steps.append(f"Del {i}: {l} × {w} = {a} m²")
-
-    warn_if(total > 2000, "Uvanlig stort totalareal. Sjekk enheter.", warnings)
-
-    return CalcResult(
-        name="Areal (sammensatt av rektangler)",
-        inputs={"deler": [{"lengde_m": l, "bredde_m": w} for (l, w) in rectangles]},
-        outputs={"totalareal_m2": round_sensible(total, 3)},
-        steps=steps,
-        warnings=warnings,
-        timestamp=make_timestamp(),
-    )
-
-
-
-
-def calc_perimeter(shape: str, a_m: float = 0.0, b_m: float = 0.0, r_m: float = 0.0) -> CalcResult:
-    warnings, steps = [], []
-
-    if shape == "Rektangel":
-        warn_if(a_m <= 0 or b_m <= 0, "Begge sider må være > 0.", warnings)
-        p = 2.0 * (a_m + b_m)
-        steps.append("Omkrets (rektangel) = 2 × (a + b)")
-        steps.append(f"= 2 × ({a_m} + {b_m}) = {p} m")
-        return CalcResult(
-            name="Omkrets (rektangel)",
-            inputs={"a_m": a_m, "b_m": b_m},
-            outputs={"omkrets_m": round_sensible(p, 3)},
-            steps=steps,
-            warnings=warnings,
-            timestamp=make_timestamp(),
-        )
-
-    if shape == "Sirkel":
-        warn_if(r_m <= 0, "Radius må være > 0.", warnings)
-        p = 2.0 * math.pi * r_m
-        steps.append("Omkrets (sirkel) = 2 × π × r")
-        steps.append(f"= 2 × π × {r_m} = {p} m")
-        return CalcResult(
-            name="Omkrets (sirkel)",
-            inputs={"r_m": r_m},
-            outputs={"omkrets_m": round_sensible(p, 3)},
-            steps=steps,
-            warnings=warnings,
-            timestamp=make_timestamp(),
-        )
-
-    warnings.append("Ukjent figur.")
-    return CalcResult(
-        name="Omkrets",
-        inputs={"figur": shape},
-        outputs={},
-        steps=steps,
-        warnings=warnings,
-        timestamp=make_timestamp(),
-    )
-
-def calc_concrete_slab(length_m: float, width_m: float, thickness_mm: float) -> CalcResult:
-    warnings, steps = [], []
-    warn_if(length_m <= 0 or width_m <= 0, "Lengde/bredde må være > 0.", warnings)
-    warn_if(thickness_mm <= 0, "Tykkelse må være > 0.", warnings)
-    warn_if(thickness_mm < 50 or thickness_mm > 500, "Tykkelse (mm) virker uvanlig (50–500 mm).", warnings)
-
-    thickness_m = mm_to_m(thickness_mm)
-    volume = length_m * width_m * thickness_m
-
-    steps.append("Volum = lengde × bredde × tykkelse")
-    steps.append(f"Tykkelse = {thickness_mm} mm = {thickness_m} m")
-    steps.append(f"Volum = {length_m} × {width_m} × {thickness_m} = {volume} m³")
-
-    warn_if(volume > 200, "Uvanlig stort betongvolum. Sjekk enheter og mål.", warnings)
-
-    return CalcResult(
-        name="Betongplate (volum)",
-        inputs={"lengde_m": length_m, "bredde_m": width_m, "tykkelse_mm": thickness_mm},
-        outputs={"volum_m3": round_sensible(volume, 3)},
-        steps=steps,
-        warnings=warnings,
-        timestamp=make_timestamp(),
-    )
-
-
-def calc_strip_foundation(length_m: float, width_m: float, height_mm: float) -> CalcResult:
-    warnings, steps = [], []
-    warn_if(length_m <= 0 or width_m <= 0, "Lengde/bredde må være > 0.", warnings)
-    warn_if(height_mm <= 0, "Høyde må være > 0.", warnings)
-    warn_if(height_mm < 100 or height_mm > 2000, "Høyde (mm) virker uvanlig (100–2000 mm).", warnings)
-
-    height_m = mm_to_m(height_mm)
-    volume = length_m * width_m * height_m
-
-    steps.append("Volum = lengde × bredde × høyde")
-    steps.append(f"Høyde = {height_mm} mm = {height_m} m")
-    steps.append(f"Volum = {length_m} × {width_m} × {height_m} = {volume} m³")
-
-    return CalcResult(
-        name="Stripefundament (volum)",
-        inputs={"lengde_m": length_m, "bredde_m": width_m, "hoyde_mm": height_mm},
-        outputs={"volum_m3": round_sensible(volume, 3)},
-        steps=steps,
-        warnings=warnings,
-        timestamp=make_timestamp(),
-    )
-
-
-def calc_column_cylinder(diameter_mm: float, height_m: float) -> CalcResult:
-    warnings, steps = [], []
-    warn_if(diameter_mm <= 0 or height_m <= 0, "Diameter/høyde må være > 0.", warnings)
-    warn_if(diameter_mm < 80 or diameter_mm > 1500, "Diameter (mm) virker uvanlig (80–1500 mm).", warnings)
-
-    r_m = mm_to_m(diameter_mm) / 2.0
-    volume = math.pi * (r_m**2) * height_m
-
-    steps.append("Volum sylinder = π × r² × h")
-    steps.append(f"r = {diameter_mm} mm / 2 = {r_m} m")
-    steps.append(f"Volum = π × {r_m}² × {height_m} = {volume} m³")
-
-    return CalcResult(
-        name="Søyle (sylinder) (volum)",
-        inputs={"diameter_mm": diameter_mm, "hoyde_m": height_m},
-        outputs={"volum_m3": round_sensible(volume, 3)},
-        steps=steps,
-        warnings=warnings,
-        timestamp=make_timestamp(),
-    )
-
-
-def calc_fall(length_m: float, mode: str, value: float) -> CalcResult:
-    warnings, steps = [], []
-    warn_if(length_m <= 0, "Lengde må være > 0.", warnings)
-
-    if mode == "prosent":
-        warn_if(value < 0 or value > 20, "Prosentfall virker uvanlig (0–20%).", warnings)
-        mm_per_m = value / 100.0 * 1000.0
-        steps.append(f"mm per meter = ({value}/100) × 1000 = {mm_per_m} mm/m")
-    elif mode == "1:x":
-        warn_if(value <= 0, "x må være > 0.", warnings)
-        warn_if(value < 20 or value > 200, "1:x virker uvanlig (typisk 1:20 til 1:200).", warnings)
-        mm_per_m = 1000.0 / value
-        steps.append(f"mm per meter = 1000 / {value} = {mm_per_m} mm/m")
-    elif mode == "mm_per_m":
-        warn_if(value < 0 or value > 200, "mm per meter virker uvanlig (0–200).", warnings)
-        mm_per_m = value
-        steps.append(f"mm per meter = {mm_per_m} mm/m")
-    else:
-        warnings.append("Ugyldig modus for fall.")
-        mm_per_m = 0.0
-
-    height_diff_mm = mm_per_m * length_m
-    height_diff_m = mm_to_m(height_diff_mm)
-
-    steps.append(f"Høydeforskjell = {mm_per_m} × {length_m} = {height_diff_mm} mm = {height_diff_m} m")
-
-    return CalcResult(
-        name="Fallberegning",
-        inputs={"lengde_m": length_m, "modus": mode, "verdi": value},
-        outputs={
-            "mm_per_meter": round_sensible(mm_per_m, 2),
-            "hoydeforskjell_mm": round_sensible(height_diff_mm, 1),
-            "hoydeforskjell_m": round_sensible(height_diff_m, 3),
-        },
-        steps=steps,
-        warnings=warnings,
-        timestamp=make_timestamp(),
-    )
-
-
-def calc_scale_bidir(value: float, unit: str, scale_n: int, direction: str) -> CalcResult:
-    """
-    direction:
-      - "Tegning → virkelighet"
-      - "Virkelighet → tegning"
-
-    scale_n tolkes som målestokk 1:scale_n (1–100)
-    """
-    warnings, steps = [], []
-
-    warn_if(value <= 0, "Målet må være > 0.", warnings)
-    warn_if(scale_n < 1 or scale_n > 100, "Målestokk (n) må være mellom 1 og 100.", warnings)
-
-    input_mm = to_mm(value, unit)
-
-    if direction == "Tegning → virkelighet":
-        out_mm = input_mm * scale_n
-        out_all = mm_to_all(out_mm)
-
-        steps.append("Retning: Tegning → virkelighet")
-        steps.append(f"Målestokk: 1:{scale_n}")
-        steps.append(f"Inndata: {value} {unit} = {input_mm} mm")
-        steps.append(f"Virkelig mål = tegning × målestokk = {input_mm} × {scale_n} = {out_mm} mm")
-
-        return CalcResult(
-            name="Målestokk (tegning → virkelighet)",
-            inputs={"verdi": value, "enhet": unit, "malestokk_1_til_n": scale_n},
-            outputs={
-                "virkelig_mm": round_sensible(out_all["mm"], 1),
-                "virkelig_cm": round_sensible(out_all["cm"], 2),
-                "virkelig_m": round_sensible(out_all["m"], 3),
-            },
-            steps=steps,
-            warnings=warnings,
-            timestamp=make_timestamp(),
-        )
-
-    if direction == "Virkelighet → tegning":
-        out_mm = input_mm / scale_n if scale_n != 0 else 0.0
-        out_all = mm_to_all(out_mm)
-
-        steps.append("Retning: Virkelighet → tegning")
-        steps.append(f"Målestokk: 1:{scale_n}")
-        steps.append(f"Inndata: {value} {unit} = {input_mm} mm")
-        steps.append(f"Tegningsmål = virkelighet ÷ målestokk = {input_mm} ÷ {scale_n} = {out_mm} mm")
-
-        return CalcResult(
-            name="Målestokk (virkelighet → tegning)",
-            inputs={"verdi": value, "enhet": unit, "malestokk_1_til_n": scale_n},
-            outputs={
-                "tegning_mm": round_sensible(out_all["mm"], 1),
-                "tegning_cm": round_sensible(out_all["cm"], 2),
-                "tegning_m": round_sensible(out_all["m"], 3),
-            },
-            steps=steps,
-            warnings=warnings,
-            timestamp=make_timestamp(),
-        )
-
-    warnings.append("Ugyldig retning valgt.")
-    return CalcResult(
-        name="Målestokk",
-        inputs={"verdi": value, "enhet": unit, "malestokk_1_til_n": scale_n, "retning": direction},
-        outputs={},
-        steps=steps,
-        warnings=warnings,
-        timestamp=make_timestamp(),
-    )
-
-
-def calc_pythagoras(a_m: float, b_m: float) -> CalcResult:
-    warnings, steps = [], []
-    warn_if(a_m <= 0 or b_m <= 0, "Begge sider må være > 0.", warnings)
-
-    c = math.sqrt(a_m**2 + b_m**2)
-    steps.append("Diagonal c = √(a² + b²)")
-    steps.append(f"= √({a_m}² + {b_m}²) = {c} m")
-
-    return CalcResult(
-        name="Pytagoras (diagonal)",
-        inputs={"a_m": a_m, "b_m": b_m},
-        outputs={"diagonal_m": round_sensible(c, 3)},
-        steps=steps,
-        warnings=warnings,
-        timestamp=make_timestamp(),
-    )
-
-
-def calc_price(base_price: float, rabatt_prosent: float, paslag_prosent: float, mva_prosent: float) -> CalcResult:
-    warnings, steps = [], []
-    warn_if(base_price < 0, "Pris kan ikke være negativ.", warnings)
-    warn_if(rabatt_prosent < 0 or rabatt_prosent > 90, "Rabatt virker uvanlig (0–90%).", warnings)
-    warn_if(paslag_prosent < 0 or paslag_prosent > 200, "Påslag virker uvanlig (0–200%).", warnings)
-    warn_if(mva_prosent < 0 or mva_prosent > 50, "MVA virker uvanlig (0–50%).", warnings)
-
-    price_after_discount = base_price * (1 - rabatt_prosent / 100.0)
-    price_after_markup = price_after_discount * (1 + paslag_prosent / 100.0)
-    price_after_mva = price_after_markup * (1 + mva_prosent / 100.0)
-
-    steps.append(f"Etter rabatt: {base_price} × (1 - {rabatt_prosent}/100) = {price_after_discount}")
-    steps.append(f"Etter påslag: {price_after_discount} × (1 + {paslag_prosent}/100) = {price_after_markup}")
-    steps.append(f"Inkl. MVA: {price_after_markup} × (1 + {mva_prosent}/100) = {price_after_mva}")
-
-    return CalcResult(
-        name="Pris (rabatt/påslag/MVA)",
-        inputs={
-            "grunnpris": base_price,
-            "rabatt_prosent": rabatt_prosent,
-            "paslag_prosent": paslag_prosent,
-            "mva_prosent": mva_prosent,
-        },
-        outputs={
-            "etter_rabatt": round_sensible(price_after_discount, 2),
-            "etter_paslag": round_sensible(price_after_markup, 2),
-            "inkl_mva": round_sensible(price_after_mva, 2),
-        },
-        steps=steps,
-        warnings=warnings,
-        timestamp=make_timestamp(),
-    )
-
-
-def calc_time_estimate(quantity: float, productivity_per_hour: float) -> CalcResult:
-    warnings, steps = [], []
-    warn_if(quantity <= 0, "Mengde må være > 0.", warnings)
-    warn_if(productivity_per_hour <= 0, "Produksjon må være > 0.", warnings)
-
-    hours = quantity / productivity_per_hour
-    days_7_5h = hours / 7.5
-
-    steps.append(f"Timer = {quantity} / {productivity_per_hour} = {hours}")
-    steps.append(f"Dagsverk (7,5t) = {hours} / 7,5 = {days_7_5h}")
-
-    return CalcResult(
-        name="Tidsestimat",
-        inputs={"mengde": quantity, "produksjon_per_time": productivity_per_hour},
-        outputs={"timer": round_sensible(hours, 2), "dagsverk_7_5t": round_sensible(days_7_5h, 2)},
-        steps=steps,
-        warnings=warnings,
-        timestamp=make_timestamp(),
-    )
-
-
-def calc_deviation(projected: float, measured: float, tolerance_mm: float, unit: str) -> CalcResult:
-    warnings, steps = [], []
-
-    if unit == "m":
-        projected_mm = m_to_mm(projected)
-        measured_mm = m_to_mm(measured)
-        steps.append(f"Konverterer til mm: {projected} m = {projected_mm} mm, {measured} m = {measured_mm} mm")
-    else:
-        projected_mm = projected
-        measured_mm = measured
-
-    warn_if(tolerance_mm < 0, "Toleranse kan ikke være negativ.", warnings)
-
-    diff_mm = measured_mm - projected_mm
-    abs_diff_mm = abs(diff_mm)
-    ok = abs_diff_mm <= tolerance_mm
-
-    steps.append(f"Avvik = {measured_mm} - {projected_mm} = {diff_mm} mm")
-    steps.append(f"|Avvik| = {abs_diff_mm} mm")
-    steps.append(f"Innenfor toleranse? {'OK' if ok else 'IKKE OK'}")
-
-    return CalcResult(
-        name="Avvik / toleranse",
-        inputs={"prosjektert": projected, "malt": measured, "toleranse_mm": tolerance_mm, "enhet": unit},
-        outputs={
-            "avvik_mm": round_sensible(diff_mm, 1),
-            "abs_avvik_mm": round_sensible(abs_diff_mm, 1),
-            "status": "OK" if ok else "IKKE OK",
-        },
-        steps=steps,
-        warnings=warnings,
-        timestamp=make_timestamp(),
-    )
-
-
-def calc_tommermannskledning_width(
-    measure_cm: float,
-    overlap_cm: float,
-    under_width_mm: float,
-    over_width_mm: float,
-) -> CalcResult:
-    """
-    Avgrensning iht. dine krav:
-    - Kun: mål fra–til (cm), omlegg (cm), underliggerbredde (mm), overliggerbredde (mm).
-    - Underliggere antas kant-i-kant.
-    - Overliggere dekker skjøter: antall = underliggere - 1.
-    - Omlegg tolkes som overlapp inn på hver side -> min overliggerbredde = 2 * omlegg.
-    """
-    warnings, steps = [], []
-
-    warn_if(measure_cm <= 0, "Mål fra–til må være > 0 cm.", warnings)
-    warn_if(overlap_cm < 0, "Omlegg kan ikke være negativt.", warnings)
-    warn_if(under_width_mm <= 0, "Underliggerbredde må være > 0 mm.", warnings)
-    warn_if(over_width_mm <= 0, "Overliggerbredde må være > 0 mm.", warnings)
-
-    measure_mm = measure_cm * 10.0
-    overlap_mm = overlap_cm * 10.0
-
-    under_count = math.ceil(measure_mm / under_width_mm) if under_width_mm > 0 else 0
-    covered_mm = under_count * under_width_mm
-    overdekning_mm = covered_mm - measure_mm
-
-    over_count = max(under_count - 1, 0)
-
-    min_over_width_mm = 2.0 * overlap_mm
-    ok_over_width = over_width_mm >= min_over_width_mm
-
-    if not ok_over_width:
-        warnings.append(
-            f"Overligger ({over_width_mm} mm) er for smal for omlegg {overlap_cm} cm. "
-            f"Min anbefalt overliggerbredde er {min_over_width_mm:.0f} mm (2 × omlegg)."
-        )
-
-    steps.append("Konvertering: cm → mm")
-    steps.append(f"Mål fra–til: {measure_cm} cm = {measure_mm} mm")
-    steps.append(f"Omlegg: {overlap_cm} cm = {overlap_mm} mm")
-
-    steps.append("Antall underliggere: ceil(bredde / underbredde)")
-    steps.append(f"= ceil({measure_mm} / {under_width_mm}) = {under_count}")
-
-    steps.append("Dekket bredde = antall underliggere × underbredde")
-    steps.append(f"= {under_count} × {under_width_mm} = {covered_mm} mm")
-    steps.append(f"Overdekning = {covered_mm} - {measure_mm} = {overdekning_mm} mm")
-
-    steps.append("Antall overliggere (skjøter) = underliggere - 1")
-    steps.append(f"= {under_count} - 1 = {over_count}")
-
-    steps.append("Kontroll: Min overliggerbredde = 2 × omlegg")
-    steps.append(f"= 2 × {overlap_mm} = {min_over_width_mm:.0f} mm")
-    steps.append(f"Valgt overliggerbredde: {over_width_mm} mm → {'OK' if ok_over_width else 'IKKE OK'}")
-
-    return CalcResult(
-        name="Tømmermannskledning",
-        inputs={
-            "mal_fra_til_cm": measure_cm,
-            "omlegg_cm": overlap_cm,
-            "underligger_bredde_mm": under_width_mm,
-            "overligger_bredde_mm": over_width_mm,
-        },
-        outputs={
-            "underliggere_antall": under_count,
-            "overliggere_antall": over_count,
-            "dekket_bredde_mm": round_sensible(covered_mm, 1),
-            "overdekning_mm": round_sensible(overdekning_mm, 1),
-            "min_overligger_bredde_mm": round_sensible(min_over_width_mm, 0),
-            "overligger_ok_for_omlegg": "OK" if ok_over_width else "IKKE OK",
-        },
-        steps=steps,
-        warnings=warnings,
-        timestamp=make_timestamp(),
-    )
-
-def calc_tiles_wall(
-    tile_h: float,
-    tile_h_unit: str,
-    tile_w: float,
-    tile_w_unit: str,
-    grout: float,
-    grout_unit: str,
-    wall_h: float,
-    wall_h_unit: str,
-    wall_w: float,
-    wall_w_unit: str,
-    add_10_percent: bool,
-    price_per_tile: float,
-) -> CalcResult:
-    """
-    Fliskalkulator (vegg):
-    - Regner antall fliser i høyde og bredde basert på "modul" = flis + fuge.
-    - Total = antall_h * antall_b
-    - Valgfritt: +10% ekstra
-    - Valgfritt: pris per flis -> totalpris
-
-    Merk: Dette er en praktisk, robust tommelfingerregel for bestilling.
-    """
-
-    warnings, steps = [], []
-
-    # Validering
-    warn_if(tile_h <= 0 or tile_w <= 0, "Flisstørrelse må være > 0.", warnings)
-    warn_if(wall_h <= 0 or wall_w <= 0, "Vegg-mål må være > 0.", warnings)
-    warn_if(grout < 0, "Fugeavstand kan ikke være negativ.", warnings)
-    warn_if(price_per_tile < 0, "Pris kan ikke være negativ.", warnings)
-
-    # Konverter alt til mm
-    tile_h_mm = to_mm(float(tile_h), str(tile_h_unit))
-    tile_w_mm = to_mm(float(tile_w), str(tile_w_unit))
-    grout_mm = to_mm(float(grout), str(grout_unit))
-    wall_h_mm = to_mm(float(wall_h), str(wall_h_unit))
-    wall_w_mm = to_mm(float(wall_w), str(wall_w_unit))
-
-    # Modulmål (flis + fuge)
-    module_h = tile_h_mm + grout_mm
-    module_w = tile_w_mm + grout_mm
-
-    warn_if(module_h <= 0 or module_w <= 0, "Ugyldig modulmål (flis + fuge).", warnings)
-
-    # Antall i hver retning (enkel og robust metode)
-    # NB: I praksis kan det bli kutt på kantene. Derfor finnes +10% valget.
-    tiles_h = math.ceil(wall_h_mm / module_h) if module_h > 0 else 0
-    tiles_w = math.ceil(wall_w_mm / module_w) if module_w > 0 else 0
-    base_total = tiles_h * tiles_w
-
-    extra_total = math.ceil(base_total * 1.10) if add_10_percent else base_total
-
-    total_price = (extra_total * price_per_tile) if price_per_tile and price_per_tile > 0 else 0.0
-
-    # Stegvis forklaring (skolemodus)
-    steps.append("1) Gjør om alle mål til samme enhet (mm).")
-    steps.append(f"Flis (H×B): {tile_h} {tile_h_unit} × {tile_w} {tile_w_unit} = {tile_h_mm:.1f} mm × {tile_w_mm:.1f} mm")
-    steps.append(f"Fuge: {grout} {grout_unit} = {grout_mm:.1f} mm")
-    steps.append(f"Vegg (H×B): {wall_h} {wall_h_unit} × {wall_w} {wall_w_unit} = {wall_h_mm:.1f} mm × {wall_w_mm:.1f} mm")
-    steps.append("2) Modul = flis + fuge (i hver retning).")
-    steps.append(f"Modul høyde = {tile_h_mm:.1f} + {grout_mm:.1f} = {module_h:.1f} mm")
-    steps.append(f"Modul bredde = {tile_w_mm:.1f} + {grout_mm:.1f} = {module_w:.1f} mm")
-    steps.append("3) Antall fliser = tak-oppover (ceil) av veggmål / modul.")
-    steps.append(f"Antall i høyden = ceil({wall_h_mm:.1f} / {module_h:.1f}) = {tiles_h}")
-    steps.append(f"Antall i bredden = ceil({wall_w_mm:.1f} / {module_w:.1f}) = {tiles_w}")
-    steps.append(f"4) Totalt antall = {tiles_h} × {tiles_w} = {base_total} fliser")
-
-    if add_10_percent:
-        steps.append(f"5) +10% ekstra: ceil({base_total} × 1,10) = {extra_total} fliser")
-
-    if price_per_tile and price_per_tile > 0:
-        steps.append(f"Totalpris = {extra_total} × {price_per_tile} = {total_price}")
-
-    # Varsler (realistisk bruk)
-    warn_if(grout_mm > 10, "Fugeavstand virker stor. Sjekk enhet (mm/cm).", warnings)
-    warn_if(tile_h_mm > 1200 or tile_w_mm > 1200, "Flisstørrelse virker uvanlig stor. Sjekk enhet.", warnings)
-    warn_if(wall_h_mm > 6000 or wall_w_mm > 8000, "Vegg-mål virker store. Sjekk enhet.", warnings)
-
-    return CalcResult(
-        name="Fliser",
-        inputs={
-            "flis_hoyde": tile_h, "flis_h_enhet": tile_h_unit,
-            "flis_bredde": tile_w, "flis_b_enhet": tile_w_unit,
-            "fuge": grout, "fuge_enhet": grout_unit,
-            "vegg_hoyde": wall_h, "vegg_h_enhet": wall_h_unit,
-            "vegg_bredde": wall_w, "vegg_b_enhet": wall_w_unit,
-            "legg_til_10_prosent": add_10_percent,
-            "pris_per_flis": price_per_tile,
-        },
-        outputs={
-            "fliser_hoyde_antall": tiles_h,
-            "fliser_bredde_antall": tiles_w,
-            "trenger_fliser": extra_total,
-            "totalpris": round_sensible(total_price, 2),
-        },
-        steps=steps,
-        warnings=warnings,
-        timestamp=make_timestamp(),
-    )
-
-# ============================================================
-# Offline  (tekst + regnestykker, uten internett)
-# ============================================================
-
-_ALLOWED_BINOPS = {
-    ast.Add: op.add,
-    ast.Sub: op.sub,
-    ast.Mult: op.mul,
-    ast.Div: op.truediv,
-    ast.Pow: op.pow,
-    ast.Mod: op.mod,
-}
-_ALLOWED_UNARYOPS = {
-    ast.UAdd: op.pos,
-    ast.USub: op.neg,
-}
-
-# Whitelist math-funksjoner/konstanter
-_ALLOWED_NAMES = {
-    "pi": math.pi,
-    "e": math.e,
-    "sqrt": math.sqrt,
-    "sin": math.sin,
-    "cos": math.cos,
-    "tan": math.tan,
-    "log": math.log,
-    "log10": math.log10,
-    "abs": abs,
-    "round": round,
-}
-
-def _safe_eval_expr(expr: str) -> float:
-    """Trygg evaluering av regneuttrykk (ingen eval())."""
-    expr = expr.strip()
-    node = ast.parse(expr, mode="eval")
-
-    def _eval(n):
-        if isinstance(n, ast.Expression):
-            return _eval(n.body)
-
-        if isinstance(n, ast.Constant):
-            if isinstance(n.value, (int, float)):
-                return float(n.value)
-            raise ValueError("Ugyldig konstant")
-
-        if isinstance(n, ast.BinOp):
-            if type(n.op) not in _ALLOWED_BINOPS:
-                raise ValueError("Ugyldig operator")
-            return _ALLOWED_BINOPS[type(n.op)](_eval(n.left), _eval(n.right))
-
-        if isinstance(n, ast.UnaryOp):
-            if type(n.op) not in _ALLOWED_UNARYOPS:
-                raise ValueError("Ugyldig unary-operator")
-            return _ALLOWED_UNARYOPS[type(n.op)](_eval(n.operand))
-
-        if isinstance(n, ast.Call):
-            if not isinstance(n.func, ast.Name):
-                raise ValueError("Ugyldig funksjonskall")
-            fname = n.func.id
-            if fname not in _ALLOWED_NAMES:
-                raise ValueError("Ukjent funksjon")
-            args = [_eval(a) for a in n.args]
-            return float(_ALLOWED_NAMES[fname](*args))
-
-        if isinstance(n, ast.Name):
-            if n.id in _ALLOWED_NAMES:
-                return float(_ALLOWED_NAMES[n.id])
-            raise ValueError("Ukjent navn")
-
-        raise ValueError("Ugyldig uttrykk")
-
-    return _eval(node)
-
-def _norm(s: str) -> str:
-    s = s.strip().lower()
-    s = s.replace("×", "*").replace("x", "*")
-    s = s.replace(",", ".")
-    s = s.replace("^", "**")
-    return s
-
-def ai_math_bot(question: str) -> dict:
-    """
-    Returnerer dict: {ok, title, answer, steps, warnings}
-    """
-    q0 = question
-    q = _norm(question)
-
-    steps = []
-    warnings = []
-
-    # 1) Prosent av
-    m = re.search(r"(\d+(?:\.\d+)?)\s*%?\s*av\s*(\d+(?:\.\d+)?)", q)
-    if m:
-        pct = float(m.group(1))
-        base = float(m.group(2))
-        res = base * (pct / 100.0)
-        steps.append(f"{pct}% av {base} = {base} * ({pct}/100)")
-        return {"ok": True, "title": "Prosent", "answer": f"{res:.2f}", "steps": steps, "warnings": warnings}
-
-    # 2) Areal (rektangel): “areal 4*6” eller “areal 4 * 6”
-    if "areal" in q:
-        m = re.search(r"(\d+(?:\.\d+)?)\s*\*\s*(\d+(?:\.\d+)?)", q)
-        if m:
-            l = float(m.group(1))
-            b = float(m.group(2))
-            a = l * b
-            steps.append("Areal = lengde * bredde")
-            steps.append(f"{l} * {b} = {a}")
-            return {"ok": True, "title": "Areal", "answer": f"{a:.3f} m²", "steps": steps, "warnings": warnings}
-
-    # 3) Volum betongplate: “volum 5*4*100mm”
-    if "volum" in q or "betong" in q:
-        m = re.search(r"(\d+(?:\.\d+)?)\s*\*\s*(\d+(?:\.\d+)?)\s*\*\s*(\d+(?:\.\d+)?)\s*mm", q)
-        if m:
-            l = float(m.group(1))
-            b = float(m.group(2))
-            t_mm = float(m.group(3))
-            t_m = t_mm / 1000.0
-            v = l * b * t_m
-            steps.append("Volum = lengde * bredde * tykkelse")
-            steps.append(f"tykkelse: {t_mm} mm = {t_m} m")
-            steps.append(f"{l} * {b} * {t_m} = {v}")
-            return {"ok": True, "title": "Volum", "answer": f"{v:.3f} m³", "steps": steps, "warnings": warnings}
-
-    # 4) Pytagoras: “diagonal 3 og 4”
-    if "diagonal" in q or "pytagoras" in q:
-        m = re.search(r"(\d+(?:\.\d+)?)\s*(?:og|,)\s*(\d+(?:\.\d+)?)", q)
-        if m:
-            a = float(m.group(1))
-            b = float(m.group(2))
-            c = math.sqrt(a*a + b*b)
-            steps.append("c = sqrt(a^2 + b^2)")
-            steps.append(f"sqrt({a}^2 + {b}^2) = {c}")
-            return {"ok": True, "title": "Diagonal", "answer": f"{c:.3f} m", "steps": steps, "warnings": warnings}
-
-    # 5) Fall: “2% fall på 3m”
-    m = re.search(r"(\d+(?:\.\d+)?)\s*%\s*fall.*?(\d+(?:\.\d+)?)\s*m", q)
-    if m:
-        pct = float(m.group(1))
-        length_m = float(m.group(2))
-        mm = (pct/100.0) * length_m * 1000.0
-        steps.append(f"mm = ({pct}/100) * {length_m} * 1000")
-        return {"ok": True, "title": "Fall", "answer": f"{mm:.1f} mm", "steps": steps, "warnings": warnings}
-
-    # 6) Hvis ingen tekst-intent: forsøk regnestykke
-    try:
-        val = _safe_eval_expr(q)
-        steps.append(f"Tolket som uttrykk: {q}")
-        return {"ok": True, "title": "Uttrykk", "answer": f"{val:.6g}", "steps": steps, "warnings": warnings}
-    except Exception:
-        return {
-            "ok": False,
-            "title": "Ukjent",
-            "answer": "Jeg forstår ikke spørsmålet ennå. Prøv f.eks. 'areal 4 x 6', '25% av 1800' eller '2*(3+5)'.",
-            "steps": [],
-            "warnings": [],
-        }
-
-# ============================================================
-# Profesjonell visning (uten understreker)
-# ============================================================
-OUTPUT_LABELS = {
-    # Målestokk
-    "virkelig_mm": "Virkelig mål (mm)",
-    "virkelig_cm": "Virkelig mål (cm)",
-    "virkelig_m": "Virkelig mål (m)",
-    "tegning_mm": "Tegningsmål (mm)",
-    "tegning_cm": "Tegningsmål (cm)",
-    "tegning_m": "Tegningsmål (m)",
-    # Kledning
-    "underliggere_antall": "Antall underliggere",
-    "overliggere_antall": "Antall overliggere",
-    "dekket_bredde_mm": "Dekket bredde (mm)",
-    "overdekning_mm": "Overdekning (mm)",
-    "min_overligger_bredde_mm": "Min. overliggerbredde (mm)",
-    "overligger_ok_for_omlegg": "Overligger OK for omlegg",
-    # Generelt
-    "areal_m2": "Areal (m²)",
-    "bestillingsareal_m2": "Bestillingsareal (m²)",
-    "totalareal_m2": "Totalareal (m²)",
-    "volum_m3": "Volum (m³)",
-    "diagonal_m": "Diagonal (m)",
-    "timer": "Timer",
-    "dagsverk_7_5t": "Dagsverk (7,5 t)",
-    "avvik_mm": "Avvik (mm)",
-    "abs_avvik_mm": "Absolutt avvik (mm)",
-    "status": "Status",
-    "mm_per_meter": "Fall (mm per meter)",
-    "hoydeforskjell_mm": "Høydeforskjell (mm)",
-    "hoydeforskjell_m": "Høydeforskjell (m)",
-    "etter_rabatt": "Etter rabatt",
-    "etter_paslag": "Etter påslag",
-    "inkl_mva": "Inkl. MVA",
-    "omkrets_m": "Omkrets (m)",
-    "resultat": "Resultat",
-    "endring_prosent": "Endring (%)",
-}
-
-
-def label_for(key: str) -> str:
-    return OUTPUT_LABELS.get(key, key.replace("_", " ").strip().capitalize())
-
-# ============================
-# "Bli en profesjonell yrkesutøver!" skjerm (Streamlit)
-# ============================
-
-
-def show_pro_screen():
-    """Pro-skjerm (BETA): nivåbasert, vurderingsrettet innhold koblet til LK20 (Vg1 BA, BAT01-03).
-
-    Tilgang:
-      - Pilotknapp (dummy) viser infoside (gir IKKE tilgang)
-      - Lærerkode = 2150 gir tilgang + lærerpanel
-    """
-
-    import datetime
-
-    # -------------------------
-    # Tilgang / modus
-    # -------------------------
-    if "pro_access" not in st.session_state:
-        st.session_state.pro_access = False
-    if "payment_clicked" not in st.session_state:
-        st.session_state.payment_clicked = False
-    if "pro_teacher_mode" not in st.session_state:
-        st.session_state.pro_teacher_mode = False
-
-    st.subheader(tt("⭐ Oppgrader til Pro (BETA)", "⭐ Upgrade to Pro (BETA)"))
-    st.caption(
-        tt(
-            "Pro er laget for lærlingtid/verksted og vurderingsarbeid i skole. "
-            "Her får du nivåbasert trening (1–3) per tema, med egenvurdering, quiz og dokumentasjon.",
-            "Pro is built for apprenticeship/workshop and school assessment. "
-            "You get level-based training (1–3) per topic, with self-assessment, quizzes and documentation.",
-        )
-    )
-
-    with st.container(border=True):
-        st.markdown(
-            "**"
-            + tt("Lyst til å bli en bedre yrkesutøver?", "Want to become a better craftsperson?")
-            + "**"
-        )
-
-        st.markdown(
-            tt(
-                """
-1. Få tilgang til øvingsoppgaver med fasit  
-2. HMS – hvorfor er HMS viktig?  
-3. Hvorfor er verktøyopplæring viktig?  
-4. Dokumentasjon av eget arbeid  
-5. Hva er TEK, og hvorfor er dette et sentralt begrep?  
-6. Forståelse av tegning
-                """,
-                """
-1. Get access to practice tasks with solutions  
-2. HSE – why is HSE important?  
-3. Why is tool training important?  
-4. Documentation of your own work  
-5. What is TEK, and why is it a key concept?  
-6. Understanding drawings
-                """
-            )
-        )
-
-        c1, c2 = st.columns([1, 1])
-        with c1:
-            if st.button(tt("29 kr / mnd (pilot)", "29 NOK / month (pilot)"), use_container_width=True, key="pro_pay_btn"):
-                st.session_state.payment_clicked = True
-
-        with c2:
-            teacher_code = st.text_input(tt("Lærerkode", "Teacher code"), type="password", key="pro_teacher_code")
-            if teacher_code == "2150":
-                st.session_state.pro_access = True
-                st.session_state.pro_teacher_mode = True
-
-    # --- Betalings-infoside (pilot) ---
-    if st.session_state.payment_clicked and not st.session_state.pro_access:
-        st.info(tt("### 🔒 Pilotmodus", "### 🔒 Pilot mode"))
-        st.write(
-            tt(
-                "Hvis du betaler, så får du tilgang til denne siden!\n\n"
-                "Denne funksjonen er foreløpig i pilotfase.\n\n"
-                "👉 Har du lærerkode? Bruk den for full tilgang.",
-                "If you pay, you will get access to this page!\n\n"
-                "This feature is currently in pilot mode.\n\n"
-                "👉 Have a teacher code? Use it for full access.",
-            )
-        )
-        st.stop()
-
-    if not st.session_state.pro_access:
-        st.warning(tt("Du må ha lærerkode for å åpne Pro-innholdet i pilotperioden.", "You need a teacher code to unlock Pro content during the pilot."))
-        return
-
-    # -------------------------
-    # LK20: Lenker + kompetansemål (BAT01-03)
-    # -------------------------
-    LK20_PYU = "https://www.udir.no/lk20/bat01-03/kompetansemaal-og-vurdering/kv250"  # Praktisk yrkesutøvelse
-    LK20_AMD = "https://www.udir.no/lk20/bat01-03/kompetansemaal-og-vurdering/kv249"  # Arbeidsmiljø og dokumentasjon
-
-    # En bevisst "operasjonalisering" – vi kobler tema -> vurderingsfokus -> aktuelle mål
-    LK20_MAP = {
-        "Øvingsoppgaver": {
-            "program": "PYU",
-            "aims": [
-                "bruke digitale ressurser til å beregne, måle opp og merke etter beskrivelse og tegning",
-                "forstå og arbeide etter tegninger og beskrivelser",
-                "tegne skisser og konstruksjoner i målestokk",
-                "beskrive krav og forventninger til en profesjonell yrkesutøver, og reflektere over egen praksis",
-            ],
-            "link": LK20_PYU,
-        },
-        "HMS": {
-            "program": "AMD",
-            "aims": [
-                "vurdere risiko og utføre forebyggende tiltak",
-                "gjennomføre og dokumentere arbeid i samsvar med gjeldende bestemmelser for HMS, og rapportere om uønskede hendelser",
-                "beskrive og bruke arbeidsteknikker og arbeidsstillinger som forebygger helseskader",
-                "gjøre rede for betydningen av orden på bygge- og anleggsplasser og følge rutiner for dette",
-            ],
-            "link": LK20_AMD,
-        },
-        "Verktøyopplæring": {
-            "program": "PYU/AMD",
-            "aims": [
-                "velge og bruke maskiner og verktøy til ulike arbeidsoppdrag og følge anvisning for bruk og håndtering",
-                "vedlikeholde maskiner og verktøy",
-                "velge ut og bruke personlig verneutstyr og vurdere konsekvenser av feilbruk",
-            ],
-            "link": LK20_PYU,
-        },
-        "Dokumentasjon": {
-            "program": "AMD",
-            "aims": [
-                "planlegge, gjennomføre, vurdere og dokumentere eget arbeid",
-                "kommunisere og formidle budskap tilpasset ulike målgrupper",
-                "forstå og bruke fagterminologi i samhandling med ulike målgrupper",
-            ],
-            "link": LK20_AMD,
-        },
-        "TEK-krav": {
-            "program": "PYU/AMD",
-            "aims": [
-                "forstå og arbeide etter tegninger og beskrivelser",
-                "planlegge og bygge en konstruksjon",
-                "planlegge, gjennomføre, vurdere og dokumentere eget arbeid",
-            ],
-            "link": LK20_PYU,
-        },
-        "Tegningsforståelse": {
-            "program": "PYU",
-            "aims": [
-                "forstå og arbeide etter tegninger og beskrivelser",
-                "tegne skisser og konstruksjoner i målestokk",
-                "bruke digitale ressurser til å beregne, måle opp og merke etter beskrivelse og tegning",
-            ],
-            "link": LK20_PYU,
-        },
-    }
-
-    def _lk20_alignment_box(topic_key: str):
-        info = LK20_MAP.get(topic_key, None)
-        if not info:
-            return
-        with st.expander(tt("LK20-kobling og vurderingsgrunnlag", "LK20 alignment and assessment basis"), expanded=False):
-            st.write(
-                tt(
-                    "Dette temaet vurderes opp mot relevante kompetansemål i BAT01-03. "
-                    "Bruk kriteriene under til egenvurdering og lærerens framovermelding.",
-                    "This topic is assessed against relevant competence aims in BAT01-03. "
-                    "Use the criteria below for self-assessment and teacher feedback.",
-                )
-            )
-            st.markdown(f"- **{tt('Programområde', 'Programme')}:** {info['program']}")
-            st.markdown(f"- **{tt('Udir', 'Udir')}:** [{topic_key}]({info['link']})")
-            st.markdown("**" + tt("Aktuelle kompetansemål (utdrag)", "Relevant competence aims (excerpt)") + "**")
-            for a in info["aims"]:
-                st.markdown(f"- {a}")
-
-    # -------------------------
-    # Vurdering: kjennetegn
-    # -------------------------
-    def _rubric_block(criteria_title: str, level1: str, level2: str, level3: str):
-        st.markdown("**" + tt("Vurderingskriterier", "Assessment criteria") + "**")
-        st.markdown(f"**{criteria_title}**")
-        st.write(f"- {tt('Nivå 1 (Begynner)', 'Level 1 (Novice)')}: {level1}")
-        st.write(f"- {tt('Nivå 2 (På vei)', 'Level 2 (Developing)')}: {level2}")
-        st.write(f"- {tt('Nivå 3 (Sikker)', 'Level 3 (Proficient)')}: {level3}")
-
-    # -------------------------
-    # Progresjon + logg
-    # -------------------------
-    if "pro_progress" not in st.session_state:
-        st.session_state.pro_progress = {}  # topic -> max_level_completed (int)
-
-    if "pro_records" not in st.session_state:
-        st.session_state.pro_records = []  # historikk for lærerpanel/eksport
-
-    # Elev/gruppe-ident (lettvekts, men nyttig)
-    st.divider()
-    meta_cols = st.columns([1, 1, 1, 1])
-    with meta_cols[0]:
-        student_name = st.text_input(tt("Elev/lærling (navn)", "Student/apprentice (name)"), key="pro_student_name")
-    with meta_cols[1]:
-        student_group = st.text_input(tt("Gruppe/lag", "Group/team"), key="pro_student_group")
-    with meta_cols[2]:
-        student_class = st.text_input(tt("Klasse / avdeling", "Class / department"), key="pro_student_class")
-    with meta_cols[3]:
-        workplace = st.text_input(tt("Bedrift/verksted (valgfritt)", "Company/workshop (optional)"), key="pro_workplace")
-
-    # -------------------------
-    # Eksport (PDF/CSV) – kun lærerpanel, men vi lager generator her
-    # -------------------------
-    def _records_df() -> pd.DataFrame:
-        if not st.session_state.pro_records:
-            return pd.DataFrame(columns=[
-                "timestamp", "name", "group", "class", "workplace",
-                "topic", "level", "quiz_score", "quiz_total",
-                "confidence", "challenge", "reflection"
-            ])
-        return pd.DataFrame(st.session_state.pro_records)
-
-    def _make_pdf_bytes(df: pd.DataFrame) -> bytes:
-        # PDF via reportlab hvis tilgjengelig
-        try:
-            from reportlab.lib.pagesizes import A4
-            from reportlab.lib.units import mm
-            from reportlab.pdfgen import canvas
-        except Exception:
-            return b""
-
-        import io
-        buff = io.BytesIO()
-        c = canvas.Canvas(buff, pagesize=A4)
-        width, height = A4
-
-        x = 18 * mm
-        y = height - 18 * mm
-
-        c.setFont("Helvetica-Bold", 14)
-        c.drawString(x, y, "Byggmatte – Pro logg (pilot)")
-        y -= 10 * mm
-
-        c.setFont("Helvetica", 9)
-        c.drawString(x, y, f"Generert: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}")
-        y -= 8 * mm
-
-        # Skriv rader (enkelt og robust)
-        max_rows_per_page = 34
-        c.setFont("Helvetica-Bold", 9)
-        headers = ["Tid", "Navn", "Tema", "Nivå", "Score"]
-        c.drawString(x, y, " | ".join(headers))
-        y -= 5 * mm
-        c.setFont("Helvetica", 8)
-
-        rows = df.fillna("").to_dict(orient="records")
-        row_count = 0
-        for r in rows:
-            line = f"{r.get('timestamp','')[:16]} | {r.get('name','')} | {r.get('topic','')} | {r.get('level','')} | {r.get('quiz_score','')}/{r.get('quiz_total','')}"
-            c.drawString(x, y, line[:140])
-            y -= 4.6 * mm
-            row_count += 1
-            if row_count >= max_rows_per_page:
-                c.showPage()
-                y = height - 18 * mm
-                c.setFont("Helvetica", 8)
-                row_count = 0
-
-        c.showPage()
-        c.save()
-        buff.seek(0)
-        return buff.read()
-
-    # -------------------------
-    # Nivåmotor: låsing + fullføring
-    # -------------------------
-    def _max_unlocked(topic_key: str) -> int:
-        # nivå 1 alltid åpent. nivå 2 åpner når 1 er fullført osv.
-        completed = int(st.session_state.pro_progress.get(topic_key, 0))
-        return min(3, completed + 1)
-
-    def _mark_completed(topic_key: str, level: int, quiz_score: int, quiz_total: int,
-                        confidence: int, challenge: str, reflection: str):
-        # oppdater progresjon
-        current = int(st.session_state.pro_progress.get(topic_key, 0))
-        if level > current:
-            st.session_state.pro_progress[topic_key] = level
-
-        # logg til lærerpanel
-        ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-        st.session_state.pro_records.append({
-            "timestamp": ts,
-            "name": student_name.strip(),
-            "group": student_group.strip(),
-            "class": student_class.strip(),
-            "workplace": workplace.strip(),
-            "topic": topic_key,
-            "level": level,
-            "quiz_score": quiz_score,
-            "quiz_total": quiz_total,
-            "confidence": confidence,
-            "challenge": challenge,
-            "reflection": reflection.strip(),
-        })
-
-    def _self_assessment(prefix: str):
-        st.markdown("**" + tt("Egenvurdering", "Self-assessment") + "**")
-        confidence = st.slider(tt("Hvor trygg var du?", "How confident were you?"), 1, 5, 3, key=f"{prefix}_conf")
-        challenge = st.selectbox(
-            tt("Hva var mest utfordrende?", "What was most challenging?"),
-            [tt("Enheter", "Units"), tt("Mål/tegning", "Measures/drawing"), tt("Metode", "Method"), tt("HMS/risiko", "HSE/risk"), tt("Annet", "Other")],
-            key=f"{prefix}_chall",
-        )
-        reflection = st.text_area(tt("Kort refleksjon (2–5 setninger)", "Short reflection (2–5 sentences)"),
-                                 height=110, key=f"{prefix}_refl")
-        return confidence, challenge, reflection
-
-    def _quiz(prefix: str, questions: List[Tuple[str, List[str], int]]) -> Tuple[int, int]:
-        """Return (score, total). Each question: (question_text, options, correct_index)."""
-        st.markdown("**" + tt("Sjekk (quiz)", "Check (quiz)") + "**")
-        score = 0
-        total = len(questions)
-        for i, (q, opts, correct) in enumerate(questions, start=1):
-            ans = st.radio(f"{i}. {q}", opts, index=0, key=f"{prefix}_q{i}")
-            if opts.index(ans) == correct:
-                score += 1
-        return score, total
-
-    # -------------------------
-    # UI: hovedfaner + nivå per tema
-    # -------------------------
-    tabs = st.tabs([
-        tt("Øvingsoppgaver", "Practice"),
-        tt("HMS", "HSE"),
-        tt("Verktøyopplæring", "Tool training"),
-        tt("Dokumentasjon", "Documentation"),
-        tt("TEK-krav", "TEK"),
-        tt("Tegningsforståelse", "Drawings"),
-        tt("Lærerpanel", "Teacher panel"),
-    ])
-
-    # =========================
-    # 1) Øvingsoppgaver (nivå 1–3)
-    # =========================
-    with tabs[0]:
-        topic = "Øvingsoppgaver"
-        st.markdown("### " + tt("Øvingsoppgaver (nivå 1–3)", "Practice tasks (levels 1–3)"))
-        _lk20_alignment_box(topic)
-
-        unlocked = _max_unlocked(topic)
-        level = st.selectbox(tt("Velg nivå", "Choose level"), [1, 2, 3], index=0, key="lvl_practice")
-        if level > unlocked:
-            st.warning(tt("Dette nivået er låst. Fullfør forrige nivå først.", "This level is locked. Complete the previous level first."))
-            st.stop()
-
-        if level == 1:
-            st.write(tt("**Nivå 1:** Grunnleggende enheter + areal/volum med kontroll av rimelighet.",
-                        "**Level 1:** Basic units + area/volume with reasonableness check."))
-            st.info(tt("Oppgave: Regn ut areal av vegg 4,8 m × 2,4 m.", "Task: Calculate wall area 4.8 m × 2.4 m."))
-            st.markdown("- " + tt("Skriv mellomregning.", "Write your steps."))
-            st.markdown("- " + tt("Avslutt med enhetskontroll (m²).", "Finish with a unit check (m²)."))
-
-            score, total = _quiz("practice_l1", [
-                (tt("Hvilken enhet har areal?", "What unit does area use?"),
-                 ["m", "m²", "m³"], 1),
-                (tt("4,8 × 2,4 = ?", "4.8 × 2.4 = ?"),
-                 ["11,52", "10,24", "12,00"], 0),
-                (tt("Hvorfor sjekker vi rimelighet?", "Why do we check reasonableness?"),
-                 [tt("For å oppdage feil", "To catch errors"), tt("For å regne raskere", "To calculate faster"), tt("Det er ikke nødvendig", "Not needed")], 0),
-            ])
-
-            conf, chall, refl = _self_assessment("practice_l1")
-            _rubric_block(
-                tt("Beregning og egenkontroll", "Calculation and self-check"),
-                tt("Trenger støtte, blander enheter eller mangler mellomregning.", "Needs support, mixes units or misses steps."),
-                tt("Riktig metode, men småfeil/uklarheter i enheter eller forklaring.", "Right method, but minor unit/explanation issues."),
-                tt("Riktig, tydelig og kan begrunne valg + rimelighet.", "Correct, clear and can justify choices + reasonableness."),
-            )
-
-            can_complete = (score >= 2) and (len(refl.strip()) >= 20)
-            if st.button(tt("Marker nivå 1 som fullført", "Mark level 1 as completed"), key="complete_practice_l1", disabled=not can_complete):
-                _mark_completed(topic, 1, score, total, conf, chall, refl)
-                st.success(tt("Nivå 1 er registrert som fullført.", "Level 1 recorded as completed."))
-
-        elif level == 2:
-            st.write(tt("**Nivå 2:** Fall og omregning i mm/m + praktisk kontroll.",
-                        "**Level 2:** Slope and unit conversion mm/m + practical checks."))
-            st.info(tt("Oppgave: Fall 1:50 på 3,2 m. Finn fall i mm.", "Task: Slope 1:50 over 3.2 m. Find fall in mm."))
-
-            score, total = _quiz("practice_l2", [
-                (tt("1:50 betyr…", "1:50 means…"),
-                 [tt("1/50 av lengden", "1/50 of the length"), tt("50 mm per meter", "50 mm per meter"), tt("1 mm per 50 m", "1 mm per 50 m")], 0),
-                (tt("3,2 m / 50 = ?", "3.2 m / 50 = ?"),
-                 ["0,064 m", "0,32 m", "0,016 m"], 0),
-                (tt("0,064 m = … mm", "0.064 m = … mm"),
-                 ["6,4 mm", "64 mm", "640 mm"], 1),
-            ])
-            conf, chall, refl = _self_assessment("practice_l2")
-
-            _rubric_block(
-                tt("Omregning og tolkning", "Conversion and interpretation"),
-                tt("Forveksler forhold/enheter, trenger mye støtte.", "Confuses ratios/units; needs much support."),
-                tt("Gjennomfører med enkelte feil eller usikker tolkning.", "Completes with some errors/uncertain interpretation."),
-                tt("Sikker, forklarer framgangsmåte og sjekker mot praksis.", "Proficient; explains method and checks vs practice."),
-            )
-
-            can_complete = (score >= 2) and (len(refl.strip()) >= 20)
-            if st.button(tt("Marker nivå 2 som fullført", "Mark level 2 as completed"), key="complete_practice_l2", disabled=not can_complete):
-                _mark_completed(topic, 2, score, total, conf, chall, refl)
-                st.success(tt("Nivå 2 er registrert som fullført.", "Level 2 recorded as completed."))
-
-        else:
-            st.write(tt("**Nivå 3:** Tegningsmålestokk + beregning fra tegning til virkelighet (og motsatt).",
-                        "**Level 3:** Drawing scale + calculating from drawing to real (and back)."))
-            st.info(tt("Oppgave: På 1:50 er lengden 72 mm. Finn virkelighet i meter.", "Task: On 1:50 the length is 72 mm. Find real length in meters."))
-
-            score, total = _quiz("practice_l3", [
-                (tt("72 mm × 50 = … mm", "72 mm × 50 = … mm"),
-                 ["3600", "7200", "1800"], 0),
-                (tt("3600 mm = … m", "3600 mm = … m"),
-                 ["0,36 m", "3,6 m", "36 m"], 1),
-                (tt("Hva er en god kontroll?", "What is a good check?"),
-                 [tt("Sjekke om svaret virker realistisk i bygg", "Check if it is realistic in construction"),
-                  tt("Sjekke om man brukte mange desimaler", "Check decimals"),
-                  tt("Ingen kontroll", "No check")], 0),
-            ])
-            conf, chall, refl = _self_assessment("practice_l3")
-
-            _rubric_block(
-                tt("Tegningsforståelse + beregning", "Drawing literacy + calculation"),
-                tt("Mangler forståelse av målestokk/omregning.", "Lacks understanding of scale/conversion."),
-                tt("Kan beregne med noe støtte; forklaring delvis.", "Can calculate with some support; partial explanation."),
-                tt("Sikker, forklarer, og kobler til tegning/praksis.", "Proficient; explains and connects to drawing/practice."),
-            )
-
-            can_complete = (score >= 2) and (len(refl.strip()) >= 20)
-            if st.button(tt("Marker nivå 3 som fullført", "Mark level 3 as completed"), key="complete_practice_l3", disabled=not can_complete):
-                _mark_completed(topic, 3, score, total, conf, chall, refl)
-                st.success(tt("Nivå 3 er registrert som fullført.", "Level 3 recorded as completed."))
-
-    # =========================
-    # 2) HMS
-    # =========================
-    with tabs[1]:
-        topic = "HMS"
-        st.markdown("### " + tt("HMS (nivå 1–3)", "HSE (levels 1–3)"))
-        _lk20_alignment_box(topic)
-
-        unlocked = _max_unlocked(topic)
-        level = st.selectbox(tt("Velg nivå", "Choose level"), [1, 2, 3], index=0, key="lvl_hms")
-        if level > unlocked:
-            st.warning(tt("Dette nivået er låst. Fullfør forrige nivå først.", "This level is locked. Complete the previous level first."))
-            st.stop()
-
-        if level == 1:
-            st.write(tt("**Nivå 1:** Se risiko + velg grunnleggende tiltak.", "**Level 1:** Identify risk + choose basic measures."))
-            hazard = st.text_area(tt("Hva kan gå galt?", "What can go wrong?"), height=90, key="hms_l1_hazard")
-            measures = st.text_area(tt("Tiltak (minst 2)", "Measures (at least 2)"), height=90, key="hms_l1_measures")
-            score, total = _quiz("hms_l1", [
-                (tt("Hva gjør du ved usikker situasjon?", "What do you do in an unsafe situation?"),
-                 [tt("Stopper og avklarer", "Stop and clarify"), tt("Jobber videre", "Continue working"), tt("Ignorerer", "Ignore")], 0),
-                (tt("Hvorfor bruker vi PVU?", "Why use PPE?"),
-                 [tt("Reduserer risiko for skade", "Reduces injury risk"), tt("Ser proft ut", "Looks professional"), tt("Er valgfritt", "Optional")], 0),
-                (tt("Orden/ryddighet påvirker…", "Housekeeping affects…"),
-                 [tt("Sikkerhet og flyt", "Safety and workflow"), tt("Kun estetikk", "Only aesthetics"), tt("Ikke noe", "Nothing")], 0),
-            ])
-            conf, chall, refl = _self_assessment("hms_l1")
-
-            _rubric_block(
-                tt("Risikovurdering og tiltak", "Risk assessment and measures"),
-                tt("Vage farer/tiltak, lite kobling til situasjon.", "Vague hazards/measures; little context."),
-                tt("Relevante farer/tiltak, men noe mangler.", "Relevant hazards/measures, but incomplete."),
-                tt("Konkret, realistisk og forebyggende med begrunnelse.", "Concrete, realistic, preventive with reasoning."),
-            )
-
-            can_complete = (score >= 2) and (len(hazard.strip()) >= 10) and (len(measures.strip()) >= 10) and (len(refl.strip()) >= 20)
-            if st.button(tt("Marker nivå 1 som fullført", "Mark level 1 as completed"), key="complete_hms_l1", disabled=not can_complete):
-                _mark_completed(topic, 1, score, total, conf, chall, refl)
-                st.success(tt("Nivå 1 er registrert som fullført.", "Level 1 recorded as completed."))
-
-        elif level == 2:
-            st.write(tt("**Nivå 2:** Mini-ROS + avvik/rapportering.", "**Level 2:** Mini risk assessment looks like ROS + reporting."))
-            incident = st.text_area(tt("Beskriv en hendelse/nestenulykke (kort)", "Describe an incident/near miss (short)"), height=90, key="hms_l2_inc")
-            action = st.text_area(tt("Hva gjør du – steg for steg?", "What do you do—step by step?"), height=90, key="hms_l2_act")
-
-            score, total = _quiz("hms_l2", [
-                (tt("Avvik rapporteres fordi…", "Deviations are reported because…"),
-                 [tt("Vi lærer og forebygger", "We learn and prevent"), tt("Det tar tid", "It takes time"), tt("Det er bare for ledelsen", "Only for management")], 0),
-                (tt("Førstehjelp: første prioritet er…", "First aid: first priority is…"),
-                 [tt("Egen sikkerhet", "Your own safety"), tt("Video", "Video"), tt("Ringe etterpå", "Call later")], 0),
-                (tt("HMS-ansvar ligger…", "HSE responsibility lies…"),
-                 [tt("Hos alle", "With everyone"), tt("Kun lærer", "Only teacher"), tt("Kun lærling", "Only apprentice")], 0),
-            ])
-            conf, chall, refl = _self_assessment("hms_l2")
-
-            _rubric_block(
-                tt("Hendelse, tiltak og læring", "Incident, actions and learning"),
-                tt("Uklart hva som skjedde og hva man gjør.", "Unclear incident and actions."),
-                tt("Beskriver hendelse og tiltak, men mangler struktur.", "Describes incident/actions but lacks structure."),
-                tt("Tydelig, strukturert og viser forebyggende læring.", "Clear, structured, shows preventive learning."),
-            )
-
-            can_complete = (score >= 2) and (len(incident.strip()) >= 15) and (len(action.strip()) >= 15) and (len(refl.strip()) >= 20)
-            if st.button(tt("Marker nivå 2 som fullført", "Mark level 2 as completed"), key="complete_hms_l2", disabled=not can_complete):
-                _mark_completed(topic, 2, score, total, conf, chall, refl)
-                st.success(tt("Nivå 2 er registrert som fullført.", "Level 2 recorded as completed."))
-
-        else:
-            st.write(tt("**Nivå 3:** Planlegg en operasjon: risiko → tiltak → kontrollpunkt.",
-                        "**Level 3:** Plan an operation: risk → measures → control points."))
-            plan = st.text_area(tt("Arbeidsoperasjon (kort plan)", "Work operation (short plan)"), height=110, key="hms_l3_plan")
-            controls = st.text_area(tt("Kontrollpunkter før/under/etter", "Control points before/during/after"), height=110, key="hms_l3_ctrl")
-
-            score, total = _quiz("hms_l3", [
-                (tt("Et kontrollpunkt bør være…", "A control point should be…"),
-                 [tt("Målbart og konkret", "Measurable and concrete"), tt("Vagt", "Vague"), tt("Uten ansvar", "Without responsibility")], 0),
-                (tt("Når er det riktig å stoppe arbeid?", "When is it right to stop work?"),
-                 [tt("Når risikoen ikke er kontrollert", "When risk is not controlled"), tt("Aldri", "Never"), tt("Bare ved ulykke", "Only after an accident")], 0),
-                (tt("HMS dokumentasjon brukes til…", "HSE documentation is used to…"),
-                 [tt("Læring og kvalitet", "Learning and quality"), tt("Pynt", "Decoration"), tt("Skjule feil", "Hide errors")], 0),
-            ])
-            conf, chall, refl = _self_assessment("hms_l3")
-
-            _rubric_block(
-                tt("Planlegging og kontroll", "Planning and control"),
-                tt("Plan uten tydelige tiltak/kontroll.", "Plan without clear measures/controls."),
-                tt("Plan med tiltak, men kontrollpunkter delvis.", "Plan with measures; partial control points."),
-                tt("Helhetlig plan + kontrollpunkter som forebygger.", "Holistic plan + preventive control points."),
-            )
-
-            can_complete = (score >= 2) and (len(plan.strip()) >= 30) and (len(controls.strip()) >= 30) and (len(refl.strip()) >= 20)
-            if st.button(tt("Marker nivå 3 som fullført", "Mark level 3 as completed"), key="complete_hms_l3", disabled=not can_complete):
-                _mark_completed(topic, 3, score, total, conf, chall, refl)
-                st.success(tt("Nivå 3 er registrert som fullført.", "Level 3 recorded as completed."))
-
-    # =========================
-    # 3) Verktøyopplæring
-    # =========================
-    with tabs[2]:
-        topic = "Verktøyopplæring"
-        st.markdown("### " + tt("Verktøyopplæring (nivå 1–3)", "Tool training (levels 1–3)"))
-        _lk20_alignment_box(topic)
-
-        unlocked = _max_unlocked(topic)
-        level = st.selectbox(tt("Velg nivå", "Choose level"), [1, 2, 3], index=0, key="lvl_tools")
-        if level > unlocked:
-            st.warning(tt("Dette nivået er låst. Fullfør forrige nivå først.", "This level is locked. Complete the previous level first."))
-            st.stop()
-
-        tool = st.selectbox(tt("Velg verktøy", "Choose tool"),
-                            [tt("Sirkelsag", "Circular saw"), tt("Kapp-/gjærsag", "Mitre saw"), tt("Stikksag", "Jigsaw"), tt("Bor/skrumaskin", "Drill/driver")],
-                            key="tool_choice")
-
-        if level == 1:
-            st.write(tt("**Nivå 1:** Sjekkliste før bruk (sikkerhet + innstilling).",
-                        "**Level 1:** Pre-use checklist (safety + setup)."))
-            checklist = st.multiselect(
-                tt("Kryss av hva du alltid sjekker", "Tick what you always check"),
-                [
-                    tt("Strøm/kabel/batteri OK", "Power/cable/battery OK"),
-                    tt("Riktig blad/tilbehør", "Correct blade/accessory"),
-                    tt("Verneutstyr (PVU)", "PPE"),
-                    tt("Arbeidsområde ryddig", "Workspace tidy"),
-                    tt("Emnet festet/støttet", "Workpiece secured/supported"),
-                ],
-                key="tools_l1_check",
-            )
-            score, total = _quiz("tools_l1", [
-                (tt("Hvorfor sjekke blad/tilbehør?", "Why check blade/accessory?"),
-                 [tt("Sikkerhet og kvalitet", "Safety and quality"), tt("Kun hastighet", "Only speed"), tt("Ikke nødvendig", "Not needed")], 0),
-                (tt("Når skal PVU brukes?", "When should PPE be used?"),
-                 [tt("Når risiko tilsier det (ofte alltid)", "When risk requires it (often always)"), tt("Bare ved eksamen", "Only for exams"), tt("Aldri", "Never")], 0),
-                (tt("Ryddighet reduserer…", "Housekeeping reduces…"),
-                 [tt("Snublefare og feil", "Trips and mistakes"), tt("Lyd", "Noise"), tt("Mål", "Measurements")], 0),
-            ])
-            conf, chall, refl = _self_assessment("tools_l1")
-
-            _rubric_block(
-                tt("Sikker oppstart og rutine", "Safe start and routine"),
-                tt("Mangler sentrale sjekkpunkter.", "Missing key checklist items."),
-                tt("Har sjekkpunkter, men ufullstendig/uklar begrunnelse.", "Has checklist; incomplete reasoning."),
-                tt("Systematisk sjekk + kan forklare hvorfor.", "Systematic checks + can explain why."),
-            )
-
-            can_complete = (score >= 2) and (len(checklist) >= 3) and (len(refl.strip()) >= 20)
-            if st.button(tt("Marker nivå 1 som fullført", "Mark level 1 as completed"), key="complete_tools_l1", disabled=not can_complete):
-                _mark_completed(topic, 1, score, total, conf, chall, refl)
-                st.success(tt("Nivå 1 er registrert som fullført.", "Level 1 recorded as completed."))
-
-        elif level == 2:
-            st.write(tt("**Nivå 2:** Utførelse: arbeidsstilling, anlegg, kontroll av kutt/boring.",
-                        "**Level 2:** Execution: posture, support, quality control of cut/drilling."))
-            quality = st.text_area(tt("Hvordan sikrer du kvalitet i utførelsen? (minst 3 punkter)", "How do you ensure quality? (min 3 points)"),
-                                   height=110, key="tools_l2_quality")
-            score, total = _quiz("tools_l2", [
-                (tt("Arbeidsstilling handler om…", "Posture is about…"),
-                 [tt("Sikkerhet og belastning", "Safety and strain"), tt("Hastighet", "Speed"), tt("Stil", "Style")], 0),
-                (tt("Emnestøtte/festing reduserer…", "Securing the workpiece reduces…"),
-                 [tt("Kickback og feil", "Kickback and errors"), tt("Farge", "Color"), tt("Pris", "Price")], 0),
-                (tt("Kontroll etter kutt betyr…", "Control after cut means…"),
-                 [tt("Måle, sjekke vinkel/finish", "Measure, check angle/finish"), tt("Legge fra seg", "Put away"), tt("Bare se", "Only look")], 0),
-            ])
-            conf, chall, refl = _self_assessment("tools_l2")
-
-            _rubric_block(
-                tt("Utførelse og kvalitet", "Execution and quality"),
-                tt("Få/uklare kvalitetsgrep.", "Few/unclear quality actions."),
-                tt("Relevante grep, men mangler kontroll/struktur.", "Relevant actions; missing control/structure."),
-                tt("Systematisk kvalitetssikring og trygg utførelse.", "Systematic quality assurance and safe execution."),
-            )
-
-            can_complete = (score >= 2) and (len(quality.strip()) >= 30) and (len(refl.strip()) >= 20)
-            if st.button(tt("Marker nivå 2 som fullført", "Mark level 2 as completed"), key="complete_tools_l2", disabled=not can_complete):
-                _mark_completed(topic, 2, score, total, conf, chall, refl)
-                st.success(tt("Nivå 2 er registrert som fullført.", "Level 2 recorded as completed."))
-
-        else:
-            st.write(tt("**Nivå 3:** Avvik/feil: Hva gikk galt? Hvordan forebygge neste gang?",
-                        "**Level 3:** Deviations/errors: what went wrong and how to prevent next time?"))
-            deviation = st.text_area(tt("Beskriv et avvik du kan få med dette verktøyet (kort)", "Describe a possible deviation (short)"),
-                                     height=90, key="tools_l3_dev")
-            prevent = st.text_area(tt("Forebygging: rutine/tiltak", "Prevention: routine/measures"),
-                                   height=110, key="tools_l3_prev")
-
-            score, total = _quiz("tools_l3", [
-                (tt("Avvik bør…", "Deviations should…"),
-                 [tt("Dokumenteres og brukes til læring", "Be documented and used for learning"), tt("Skjules", "Be hidden"), tt("Ignoreres", "Be ignored")], 0),
-                (tt("Vedlikehold handler om…", "Maintenance is about…"),
-                 [tt("Sikkerhet og levetid", "Safety and lifespan"), tt("Kun utseende", "Only looks"), tt("Ingen ting", "Nothing")], 0),
-                (tt("Riktig anvisning betyr…", "Correct instructions mean…"),
-                 [tt("Følge manual/rutine", "Follow manual/routine"), tt("Gjøre som man vil", "Do as you like"), tt("Spørre etterpå", "Ask afterwards")], 0),
-            ])
-            conf, chall, refl = _self_assessment("tools_l3")
-
-            _rubric_block(
-                tt("Profesjonell læring av feil", "Professional learning from errors"),
-                tt("Vage beskrivelser, lite forebygging.", "Vague descriptions; little prevention."),
-                tt("Beskriver avvik og tiltak, men ikke systematisk.", "Describes deviation and measures; not systematic."),
-                tt("Tydelig avvik + rotårsak + forebyggende rutine.", "Clear deviation + root cause + preventive routine."),
-            )
-
-            can_complete = (score >= 2) and (len(deviation.strip()) >= 15) and (len(prevent.strip()) >= 30) and (len(refl.strip()) >= 20)
-            if st.button(tt("Marker nivå 3 som fullført", "Mark level 3 as completed"), key="complete_tools_l3", disabled=not can_complete):
-                _mark_completed(topic, 3, score, total, conf, chall, refl)
-                st.success(tt("Nivå 3 er registrert som fullført.", "Level 3 recorded as completed."))
-
-    # =========================
-    # 4) Dokumentasjon
-    # =========================
-    with tabs[3]:
-        topic = "Dokumentasjon"
-        st.markdown("### " + tt("Dokumentasjon (nivå 1–3)", "Documentation (levels 1–3)"))
-        _lk20_alignment_box(topic)
-
-        unlocked = _max_unlocked(topic)
-        level = st.selectbox(tt("Velg nivå", "Choose level"), [1, 2, 3], index=0, key="lvl_doc")
-        if level > unlocked:
-            st.warning(tt("Dette nivået er låst. Fullfør forrige nivå først.", "This level is locked. Complete the previous level first."))
-            st.stop()
-
-        if level == 1:
-            st.write(tt("**Nivå 1:** Dokumenter før/under/etter med korte notater.",
-                        "**Level 1:** Document before/during/after with short notes."))
-            before = st.text_area(tt("Før: Hva er planen/tegningen?", "Before: What is the plan/drawing?"),
-                                  height=70, key="doc_l1_before")
-            during = st.text_area(tt("Under: Hva gjorde du (2–3 punkter)?", "During: What did you do (2–3 points)?"),
-                                  height=80, key="doc_l1_during")
-            after = st.text_area(tt("Etter: Resultat + hva ville du gjort annerledes?", "After: Result + what would you do differently?"),
-                                 height=90, key="doc_l1_after")
-
-            score, total = _quiz("doc_l1", [
-                (tt("Dokumentasjon brukes til…", "Documentation is used for…"),
-                 [tt("Kvalitet og læring", "Quality and learning"), tt("Bare pynt", "Only decoration"), tt("Skjule feil", "Hide errors")], 0),
-                (tt("God dokumentasjon er…", "Good documentation is…"),
-                 [tt("Kort, konkret og relevant", "Short, concrete, relevant"), tt("Lang og uklar", "Long and unclear"), tt("Ingen bilder", "No images")], 0),
-                (tt("Hvem har nytte av den?", "Who benefits?"),
-                 [tt("Deg, lærer, bedrift og kunde", "You, teacher, company, client"), tt("Kun deg", "Only you"), tt("Kun lærer", "Only teacher")], 0),
-            ])
-            conf, chall, refl = _self_assessment("doc_l1")
-
-            _rubric_block(
-                tt("Dokumentasjon som faglig bevis", "Documentation as evidence"),
-                tt("Mangler struktur (før/under/etter) eller er lite relevant.", "Missing structure or not relevant."),
-                tt("Har struktur, men kunne vært mer konkret/tydelig.", "Has structure; could be more concrete/clear."),
-                tt("Presis, relevant og kobler til kvalitet/HMS.", "Precise, relevant and links to quality/HSE."),
-            )
-
-            can_complete = (score >= 2) and (len(before.strip()) >= 10) and (len(during.strip()) >= 10) and (len(after.strip()) >= 15) and (len(refl.strip()) >= 20)
-            if st.button(tt("Marker nivå 1 som fullført", "Mark level 1 as completed"), key="complete_doc_l1", disabled=not can_complete):
-                _mark_completed(topic, 1, score, total, conf, chall, refl)
-                st.success(tt("Nivå 1 er registrert som fullført.", "Level 1 recorded as completed."))
-
-        elif level == 2:
-            st.write(tt("**Nivå 2:** Egenkontroll: mål, vinkel, toleranse + avvik.",
-                        "**Level 2:** Self-check: measures, angle, tolerance + deviations."))
-            control = st.text_area(tt("Egenkontroll (mål/vinkel/toleranse)", "Self-check (measures/angle/tolerance)"),
-                                   height=110, key="doc_l2_ctrl")
-            deviation = st.text_area(tt("Avvik (hvis noe): hva og hvorfor?", "Deviation (if any): what and why?"),
-                                     height=90, key="doc_l2_dev")
-            score, total = _quiz("doc_l2", [
-                (tt("Egenkontroll betyr…", "Self-check means…"),
-                 [tt("Sjekke arbeidet mot krav/tegning", "Check work vs requirements/drawing"), tt("Bare se", "Only look"), tt("Spørre andre", "Ask others")], 0),
-                (tt("Avvik bør…", "Deviations should…"),
-                 [tt("Dokumenteres", "Be documented"), tt("Skjules", "Be hidden"), tt("Ignoreres", "Be ignored")], 0),
-                (tt("Toleranse handler om…", "Tolerance is about…"),
-                 [tt("Hvor mye variasjon som er akseptabel", "Acceptable variation"), tt("Pris", "Price"), tt("Farge", "Color")], 0),
-            ])
-            conf, chall, refl = _self_assessment("doc_l2")
-
-            _rubric_block(
-                tt("Egenkontroll og avvik", "Self-check and deviations"),
-                tt("Lite målbart, uklare avvik.", "Not measurable; unclear deviations."),
-                tt("Noe struktur og måling, men mangler forklaring.", "Some structure and measurement; missing explanation."),
-                tt("Målbart, tydelig avvik + tiltak/læring.", "Measurable; clear deviation + action/learning."),
-            )
-
-            can_complete = (score >= 2) and (len(control.strip()) >= 30) and (len(refl.strip()) >= 20)
-            if st.button(tt("Marker nivå 2 som fullført", "Mark level 2 as completed"), key="complete_doc_l2", disabled=not can_complete):
-                _mark_completed(topic, 2, score, total, conf, chall, refl)
-                st.success(tt("Nivå 2 er registrert som fullført.", "Level 2 recorded as completed."))
-
-        else:
-            st.write(tt("**Nivå 3:** Kort fagrapport: mål, metode, kontroll, HMS og forbedring.",
-                        "**Level 3:** Short professional report: aim, method, controls, HSE and improvement."))
-            report = st.text_area(tt("Skriv en kort rapport (6–10 setninger)", "Write a short report (6–10 sentences)"),
-                                  height=160, key="doc_l3_report")
-
-            score, total = _quiz("doc_l3", [
-                (tt("En fagrapport bør inneholde…", "A professional report should include…"),
-                 [tt("Mål, metode, kontroll og refleksjon", "Aim, method, control, reflection"), tt("Bare resultat", "Only result"), tt("Kun bilder", "Only photos")], 0),
-                (tt("Fagspråk betyr…", "Professional terminology means…"),
-                 [tt("Presise fagbegrep", "Precise terms"), tt("Slang", "Slang"), tt("Uklare ord", "Vague words")], 0),
-                (tt("Dokumentasjon er viktig for…", "Documentation is important for…"),
-                 [tt("Sporbarhet og kvalitet", "Traceability and quality"), tt("Å fylle tid", "Killing time"), tt("Uten grunn", "No reason")], 0),
-            ])
-            conf, chall, refl = _self_assessment("doc_l3")
-
-            _rubric_block(
-                tt("Faglig rapportering", "Professional reporting"),
-                tt("Kort/uklart, mangler struktur og fagspråk.", "Short/unclear; missing structure and terminology."),
-                tt("Forståelig, men kunne vært mer presis og strukturert.", "Understandable; could be more precise/structured."),
-                tt("Presis, strukturert og knytter til kvalitet/HMS.", "Precise, structured, links to quality/HSE."),
-            )
-
-            can_complete = (score >= 2) and (len(report.strip()) >= 80) and (len(refl.strip()) >= 20)
-            if st.button(tt("Marker nivå 3 som fullført", "Mark level 3 as completed"), key="complete_doc_l3", disabled=not can_complete):
-                _mark_completed(topic, 3, score, total, conf, chall, refl)
-                st.success(tt("Nivå 3 er registrert som fullført.", "Level 3 recorded as completed."))
-
-    # =========================
-    # 5) TEK-krav (beholdt, men vurderingsrettet nivåstruktur)
-    # =========================
-    with tabs[4]:
-        topic = "TEK-krav"
-        st.markdown("### " + tt("TEK-krav (nivå 1–3)", "TEK requirements (levels 1–3)"))
-        _lk20_alignment_box(topic)
-
-        unlocked = _max_unlocked(topic)
-        level = st.selectbox(tt("Velg nivå", "Choose level"), [1, 2, 3], index=0, key="lvl_tek")
-        if level > unlocked:
-            st.warning(tt("Dette nivået er låst. Fullfør forrige nivå først.", "This level is locked. Complete the previous level first."))
-            st.stop()
-
-        st.write(tt(
-            "Merk: Dette er en **forenklet læringsdel**. Sjekk alltid gjeldende krav og prosjekteringsgrunnlag i bedriften.",
-            "Note: This is a **simplified learning section**. Always check current requirements and project basis in your company.",
-        ))
-
-        if level == 1:
-            st.write(tt("**Nivå 1:** Hva er TEK og hvorfor følger vi krav?", "**Level 1:** What is TEK and why follow it?"))
-            msg = st.text_area(tt("Forklar med egne ord (3–5 setninger)", "Explain in your own words (3–5 sentences)"),
-                               height=120, key="tek_l1_explain")
-            score, total = _quiz("tek_l1", [
-                (tt("TEK er…", "TEK is…"),
-                 [tt("Minimumskrav til bygg", "Minimum requirements for buildings"), tt("Et verktøymerke", "A tool brand"), tt("En matematikkformel", "A math formula")], 0),
-                (tt("Hvorfor følger vi TEK?", "Why follow TEK?"),
-                 [tt("Sikkerhet, helse, kvalitet", "Safety, health, quality"), tt("Bare tradisjon", "Only tradition"), tt("Ingen grunn", "No reason")], 0),
-                (tt("Hva styrer alltid i prosjektet?", "What always governs a project?"),
-                 [tt("Tegning + beskrivelser + krav", "Drawings + specs + requirements"), tt("Magefølelse", "Gut feeling"), tt("Hastighet", "Speed")], 0),
-            ])
-            conf, chall, refl = _self_assessment("tek_l1")
-
-            _rubric_block(
-                tt("Forståelse av krav", "Understanding requirements"),
-                tt("Uklart hva TEK er og hvorfor.", "Unclear what TEK is and why."),
-                tt("Forstår hovedpoeng, men lite eksempel.", "Understands main idea; limited example."),
-                tt("Forklarer tydelig med praksiseksempel.", "Explains clearly with practical example."),
-            )
-
-            can_complete = (score >= 2) and (len(msg.strip()) >= 40) and (len(refl.strip()) >= 20)
-            if st.button(tt("Marker nivå 1 som fullført", "Mark level 1 as completed"), key="complete_tek_l1", disabled=not can_complete):
-                _mark_completed(topic, 1, score, total, conf, chall, refl)
-                st.success(tt("Nivå 1 er registrert som fullført.", "Level 1 recorded as completed."))
-
-        elif level == 2:
-            st.write(tt("**Nivå 2:** Knytt krav til utførelse (kvalitet og dokumentasjon).",
-                        "**Level 2:** Link requirements to execution (quality and documentation)."))
-            example = st.text_area(tt("Gi et eksempel: Et krav → hva betyr det i utførelse?", "Give an example: a requirement → what it means in execution?"),
-                                   height=140, key="tek_l2_ex")
-            score, total = _quiz("tek_l2", [
-                (tt("Et krav påvirker ofte…", "A requirement often affects…"),
-                 [tt("Materialvalg og metode", "Materials and method"), tt("Kun farge", "Only color"), tt("Ingenting", "Nothing")], 0),
-                (tt("Hvorfor dokumentere mot krav?", "Why document against requirements?"),
-                 [tt("Sporbarhet og kvalitet", "Traceability and quality"), tt("Fordi", "Because"), tt("Unødvendig", "Unnecessary")], 0),
-                (tt("God praksis er å…", "Good practice is to…"),
-                 [tt("Sjekke krav før du bygger", "Check requirements before building"), tt("Sjekke etterpå", "Check after"), tt("Ikke sjekke", "Not check")], 0),
-            ])
-            conf, chall, refl = _self_assessment("tek_l2")
-
-            _rubric_block(
-                tt("Krav → utførelse", "Requirement → execution"),
-                tt("Gir ikke tydelig sammenheng.", "No clear link."),
-                tt("Noe sammenheng, men lite konkret.", "Some link; not concrete."),
-                tt("Tydelig sammenheng + konkrete tiltak.", "Clear link + concrete actions."),
-            )
-
-            can_complete = (score >= 2) and (len(example.strip()) >= 60) and (len(refl.strip()) >= 20)
-            if st.button(tt("Marker nivå 2 som fullført", "Mark level 2 as completed"), key="complete_tek_l2", disabled=not can_complete):
-                _mark_completed(topic, 2, score, total, conf, chall, refl)
-                st.success(tt("Nivå 2 er registrert som fullført.", "Level 2 recorded as completed."))
-
-        else:
-            st.write(tt("**Nivå 3:** Egenkontrollpunkt: hvordan bekrefte at kravet er oppfylt?",
-                        "**Level 3:** Control point: how do you confirm the requirement is met?"))
-            ctrl = st.text_area(tt("Skriv 3 kontrollpunkter (målbar)", "Write 3 measurable control points"),
-                                height=140, key="tek_l3_ctrl")
-            score, total = _quiz("tek_l3", [
-                (tt("Kontrollpunkt bør være…", "Control point should be…"),
-                 [tt("Målbart", "Measurable"), tt("Vagt", "Vague"), tt("Skjult", "Hidden")], 0),
-                (tt("Kvalitet sikres best ved…", "Quality is best ensured by…"),
-                 [tt("Plan → utførelse → kontroll → dokumentasjon", "Plan → execution → control → documentation"), tt("Hastighet", "Speed"), tt("Flaks", "Luck")], 0),
-                (tt("Når bør du avklare uklarheter?", "When to clarify unclear points?"),
-                 [tt("Før du bygger", "Before you build"), tt("Etterpå", "Afterwards"), tt("Aldri", "Never")], 0),
-            ])
-            conf, chall, refl = _self_assessment("tek_l3")
-
-            _rubric_block(
-                tt("Kontroll og dokumentasjon", "Control and documentation"),
-                tt("Kontrollpunkter er ikke målbare.", "Control points not measurable."),
-                tt("Noen målbare, men ufullstendig.", "Some measurable; incomplete."),
-                tt("Tre tydelige, målbare kontrollpunkter.", "Three clear measurable control points."),
-            )
-
-            can_complete = (score >= 2) and (len(ctrl.strip()) >= 60) and (len(refl.strip()) >= 20)
-            if st.button(tt("Marker nivå 3 som fullført", "Mark level 3 as completed"), key="complete_tek_l3", disabled=not can_complete):
-                _mark_completed(topic, 3, score, total, conf, chall, refl)
-                st.success(tt("Nivå 3 er registrert som fullført.", "Level 3 recorded as completed."))
-
-    # =========================
-    # 6) Tegningsforståelse
-    # =========================
-    with tabs[5]:
-        topic = "Tegningsforståelse"
-        st.markdown("### " + tt("Tegningsforståelse (nivå 1–3)", "Drawing literacy (levels 1–3)"))
-        _lk20_alignment_box(topic)
-
-        unlocked = _max_unlocked(topic)
-        level = st.selectbox(tt("Velg nivå", "Choose level"), [1, 2, 3], index=0, key="lvl_draw")
-        if level > unlocked:
-            st.warning(tt("Dette nivået er låst. Fullfør forrige nivå først.", "This level is locked. Complete the previous level first."))
-            st.stop()
-
-        if level == 1:
-            st.write(tt("**Nivå 1:** Finn informasjon på tegning (mål, symbol, målestokk).",
-                        "**Level 1:** Find info on a drawing (dimensions, symbols, scale)."))
-            info = st.text_area(tt("Hvilke 3 ting sjekker du først på en tegning?", "Which 3 things do you check first on a drawing?"),
-                                height=120, key="draw_l1_info")
-            score, total = _quiz("draw_l1", [
-                (tt("Målestokk forteller…", "Scale tells…"),
-                 [tt("Forhold tegning–virkelighet", "Drawing–real ratio"), tt("Fargevalg", "Color"), tt("Pris", "Price")], 0),
-                (tt("Et snitt viser…", "A section shows…"),
-                 [tt("Oppbygning i gjennomskjæring", "Construction in cut-through"), tt("Kun høyde", "Only height"), tt("Kun bredde", "Only width")], 0),
-                (tt("Symboler brukes for…", "Symbols are used for…"),
-                 [tt("Standardisert info raskt", "Standardized info quickly"), tt("Pynt", "Decoration"), tt("Forvirring", "Confusion")], 0),
-            ])
-            conf, chall, refl = _self_assessment("draw_l1")
-
-            _rubric_block(
-                tt("Orientering på tegning", "Orienting on drawings"),
-                tt("Sjekker få/feil ting først.", "Checks few/wrong first items."),
-                tt("Sjekker riktig, men mangler forklaring.", "Checks correctly; lacks explanation."),
-                tt("Sjekker systematisk og forklarer hvorfor.", "Systematic checks and explains why."),
-            )
-
-            can_complete = (score >= 2) and (len(info.strip()) >= 30) and (len(refl.strip()) >= 20)
-            if st.button(tt("Marker nivå 1 som fullført", "Mark level 1 as completed"), key="complete_draw_l1", disabled=not can_complete):
-                _mark_completed(topic, 1, score, total, conf, chall, refl)
-                st.success(tt("Nivå 1 er registrert som fullført.", "Level 1 recorded as completed."))
-
-        elif level == 2:
-            st.write(tt("**Nivå 2:** Overfør fra tegning til oppmerking (mål, referanse, kontroll).",
-                        "**Level 2:** Transfer from drawing to marking out (dimensions, references, checks)."))
-            plan = st.text_area(tt("Beskriv framgangsmåte for oppmerking (4–6 punkter)", "Describe marking-out method (4–6 points)"),
-                                height=140, key="draw_l2_plan")
-            score, total = _quiz("draw_l2", [
-                (tt("God oppmerking starter med…", "Good marking-out starts with…"),
-                 [tt("Referanselinje/nullpunkt", "Reference line/zero point"), tt("Random punkt", "Random point"), tt("Midt i rommet", "Middle of room")], 0),
-                (tt("Kontrollmåling brukes for…", "Control measurements are used to…"),
-                 [tt("Oppdage feil tidlig", "Catch errors early"), tt("Bruke tid", "Waste time"), tt("Unngå ansvar", "Avoid responsibility")], 0),
-                (tt("Digitale ressurser kan hjelpe med…", "Digital tools help with…"),
-                 [tt("Måling, beregning og dokumentasjon", "Measuring, calculating, documenting"), tt("Bare spill", "Only games"), tt("Ingenting", "Nothing")], 0),
-            ])
-            conf, chall, refl = _self_assessment("draw_l2")
-
-            _rubric_block(
-                tt("Oppmerking og kontroll", "Marking-out and control"),
-                tt("Ustrukturert oppmerking uten kontroll.", "Unstructured; no controls."),
-                tt("Noe struktur, men få kontrollpunkter.", "Some structure; few controls."),
-                tt("Systematisk oppmerking + kontrollmålinger.", "Systematic marking-out + control checks."),
-            )
-
-            can_complete = (score >= 2) and (len(plan.strip()) >= 60) and (len(refl.strip()) >= 20)
-            if st.button(tt("Marker nivå 2 som fullført", "Mark level 2 as completed"), key="complete_draw_l2", disabled=not can_complete):
-                _mark_completed(topic, 2, score, total, conf, chall, refl)
-                st.success(tt("Nivå 2 er registrert som fullført.", "Level 2 recorded as completed."))
-
-        else:
-            st.write(tt("**Nivå 3:** Feiltolkning: hva kan gå galt, og hvordan forebygge?",
-                        "**Level 3:** Misinterpretation: what can go wrong and how to prevent?"))
-            mistakes = st.text_area(tt("Nevn 3 typiske tegning-feil/misforståelser", "Name 3 typical drawing mistakes/misunderstandings"),
-                                    height=120, key="draw_l3_mis")
-            prevent = st.text_area(tt("Tiltak for å forebygge (minst 3)", "Prevention measures (min 3)"),
-                                   height=120, key="draw_l3_prev")
-            score, total = _quiz("draw_l3", [
-                (tt("Når skal du spørre?", "When should you ask?"),
-                 [tt("Når noe er uklart – før du bygger", "When unclear—before building"), tt("Etterpå", "After"), tt("Aldri", "Never")], 0),
-                (tt("Feiltolkning kan føre til…", "Misinterpretation can lead to…"),
-                 [tt("Feil og ekstra kost", "Errors and extra cost"), tt("Bedre kvalitet", "Better quality"), tt("Ingen ting", "Nothing")], 0),
-                (tt("En god vane er å…", "A good habit is to…"),
-                 [tt("Les tegning med sjekkliste", "Read drawings with a checklist"), tt("Hoppe over detaljer", "Skip details"), tt("Gjette", "Guess")], 0),
-            ])
-            conf, chall, refl = _self_assessment("draw_l3")
-
-            _rubric_block(
-                tt("Profesjonell tegninglesing", "Professional drawing reading"),
-                tt("Få tiltak og lite forståelse for konsekvenser.", "Few measures; weak understanding of consequences."),
-                tt("Noen tiltak, men mangler systematikk.", "Some measures; lacks systematic approach."),
-                tt("Systematisk, forebyggende og kommuniserer avklaringer.", "Systematic, preventive and communicates clarifications."),
-            )
-
-            can_complete = (score >= 2) and (len(mistakes.strip()) >= 30) and (len(prevent.strip()) >= 30) and (len(refl.strip()) >= 20)
-            if st.button(tt("Marker nivå 3 som fullført", "Mark level 3 as completed"), key="complete_draw_l3", disabled=not can_complete):
-                _mark_completed(topic, 3, score, total, conf, chall, refl)
-                st.success(tt("Nivå 3 er registrert som fullført.", "Level 3 recorded as completed."))
-
-    # =========================
-    # 7) Lærerpanel (logg + eksport)
-    # =========================
-    with tabs[6]:
-        st.markdown("### " + tt("Lærerpanel (pilot)", "Teacher panel (pilot)"))
-
-        if not st.session_state.get("pro_teacher_mode", False):
-            st.info(tt("Lærerpanel er kun tilgjengelig med lærerkode.", "Teacher panel requires the teacher code."))
-            st.stop()
-
-        df = _records_df()
-
-        c1, c2, c3 = st.columns([1, 1, 1])
-        with c1:
-            flt_class = st.text_input(tt("Filter: klasse", "Filter: class"), key="tp_flt_class")
-        with c2:
-            flt_name = st.text_input(tt("Filter: navn", "Filter: name"), key="tp_flt_name")
-        with c3:
-            flt_topic = st.selectbox(tt("Filter: tema", "Filter: topic"), ["(alle)"] + list(LK20_MAP.keys()), key="tp_flt_topic")
-
-        fdf = df.copy()
-        if flt_class.strip():
-            fdf = fdf[fdf["class"].astype(str).str.contains(flt_class.strip(), case=False, na=False)]
-        if flt_name.strip():
-            fdf = fdf[fdf["name"].astype(str).str.contains(flt_name.strip(), case=False, na=False)]
-        if flt_topic != "(alle)":
-            fdf = fdf[fdf["topic"] == flt_topic]
-
-        st.dataframe(fdf, use_container_width=True, hide_index=True)
-
-        st.markdown("**" + tt("Framovermelding (lærer)", "Feedforward (teacher)") + "**")
-        st.write(tt("Bruk dette som kort vurderingsnotat etter muntlig veiledning.", "Use this as a short assessment note after oral feedback."))
-        note = st.text_area(tt("Notat (ikke lagret i pilot)", "Note (not saved in pilot)"), height=90, key="tp_note")
-
-        st.divider()
-        st.markdown("**" + tt("Eksport", "Export") + "**")
-
-        csv_bytes = fdf.to_csv(index=False).encode("utf-8")
-        st.download_button(
-            tt("Last ned CSV (klasseoversikt)", "Download CSV (class overview)"),
-            data=csv_bytes,
-            file_name="byggmatte_pro_logg.csv",
-            mime="text/csv",
-            use_container_width=True,
-            key="dl_csv",
-        )
-
-        pdf_bytes = _make_pdf_bytes(fdf)
-        if pdf_bytes:
-            st.download_button(
-                tt("Last ned PDF (logg)", "Download PDF (log)"),
-                data=pdf_bytes,
-                file_name="byggmatte_pro_logg.pdf",
-                mime="application/pdf",
-                use_container_width=True,
-                key="dl_pdf",
-            )
-        else:
-            st.warning(tt("PDF-eksport er ikke tilgjengelig i denne kjøringen.", "PDF export is not available in this run."))
-
-        st.divider()
-        st.markdown("**" + tt("Progresjon (låsing)", "Progress (locking)") + "**")
-        st.write(tt("Dette viser høyeste nivå fullført per tema (i denne økten).", "Shows highest completed level per topic (this session)."))
-        st.json(st.session_state.pro_progress)
-
-
-def _get_supabase_client():
-    if create_client is None:
-        return None
-    try:
-        url = st.secrets.get("SUPABASE_URL")
-        key = st.secrets.get("SUPABASE_SERVICE_ROLE_KEY")
-    except Exception:
-        url, key = None, None
-    if not url or not key:
-        return None
-    try:
-        return create_client(url, key)
-    except Exception:
-        return None
-
-
-def _sb_enabled() -> bool:
-    return _get_supabase_client() is not None
-
-
-def _serialize_play_progress(play_progress: dict) -> dict:
-    # Gjør om set() til list() slik at det kan lagres som JSON
-    out = {}
-    for k, v in (play_progress or {}).items():
-        if isinstance(v, dict):
-            vv = dict(v)
-            comp = vv.get("completed")
-            if isinstance(comp, set):
-                vv["completed"] = sorted(list(comp))
-            out[k] = vv
-        else:
-            out[k] = v
-    return out
-
-
-def _deserialize_play_progress(saved: dict) -> dict:
-    out = {}
-    for k, v in (saved or {}).items():
-        if isinstance(v, dict):
-            vv = dict(v)
-            comp = vv.get("completed")
-            if isinstance(comp, list):
-                vv["completed"] = set(comp)
-            out[k] = vv
-        else:
-            out[k] = v
-    return out
-
-
-def load_progress_from_db(user_id: str) -> dict:
-    sb = _get_supabase_client()
-    if sb is None or not user_id:
-        return {}
-    try:
-        res = sb.table("progress").select("data").eq("user_id", user_id).limit(1).execute()
-        if res and getattr(res, 'data', None):
-            row = res.data[0]
-            return row.get("data") or {}
-    except Exception:
-        return {}
-    return {}
-
-
-def save_progress_to_db(user_id: str, data: dict) -> None:
-    sb = _get_supabase_client()
-    if sb is None or not user_id:
-        return
-    try:
-        sb.table("progress").upsert({"user_id": user_id, "data": data}, on_conflict="user_id").execute()
-    except Exception:
-        # Ikke knekk appen hvis nett/db feiler
-        pass
-
-
-def list_progress_from_db(limit: int = 300) -> list:
-    """Henter progresjon for flere elever (for læreroversikt)."""
-    sb = _get_supabase_client()
-    if sb is None:
-        return []
-    try:
-        res = (
-            sb.table("progress")
-            .select("user_id,data,updated_at")
-            .order("updated_at", desc=True)
-            .limit(int(limit))
-            .execute()
-        )
-        return getattr(res, "data", []) or []
-    except Exception:
-        return []
-
-
-def reset_progress_in_db(user_id: str) -> None:
-    """Nullstiller progresjon for en elev (for lærer). Beholder klassekode hvis den finnes."""
-    sb = _get_supabase_client()
-    if sb is None or not user_id:
-        return
-    try:
-        existing = sb.table("progress").select("data").eq("user_id", user_id).limit(1).execute()
-        class_code = ""
-        if existing and getattr(existing, "data", None):
-            class_code = (existing.data[0].get("data") or {}).get("class_code") or ""
-        sb.table("progress").upsert(
-            {"user_id": user_id, "data": {"class_code": class_code, "play_progress": {}, "play_state": {}}},
-            on_conflict="user_id",
-        ).execute()
-    except Exception:
-        pass
-
-
-
-def _summarize_student_row(row: dict) -> dict:
-    """Gjør Supabase-rad om til en flat oversikt som er lett å vise i en tabell."""
-    user_id = row.get("user_id", "")
-    updated_at = row.get("updated_at", "")
-    data = row.get("data") or {}
-    pp = _deserialize_play_progress((data.get("play_progress") or {}))
-
-    topics = ["areal", "omkrets", "volum", "målestokk", "prosent", "enhetsomregning"]
-    unlocked = {}
-    completed_total = 0
-    for t in topics:
-        p = pp.get(t, {}) if isinstance(pp, dict) else {}
-        unlocked[t] = int(p.get("unlocked", 1)) if isinstance(p, dict) else 1
-        comp = p.get("completed", set()) if isinstance(p, dict) else set()
-        if isinstance(comp, list):
-            comp = set(comp)
-        if isinstance(comp, set):
-            completed_total += len(comp)
-
-    return {
-        "Elev-ID": user_id,
-        "Sist oppdatert": updated_at,
-        "Areal (låst opp)": unlocked.get("areal", 1),
-        "Omkrets (låst opp)": unlocked.get("omkrets", 1),
-        "Volum (låst opp)": unlocked.get("volum", 1),
-        "Målestokk (låst opp)": unlocked.get("målestokk", 1),
-        "Prosent (låst opp)": unlocked.get("prosent", 1),
-        "Enhetsomregning (låst opp)": unlocked.get("enhetsomregning", 1),
-        "Fullførte nivå (sum)": completed_total,
-    }
-
-
-_PLAY_CORRECT_TO_PASS = 3  # antall riktige i hvert nivå for å låse opp neste
-
-
-def _pp_key(topic: str) -> str:
-    return topic.strip().lower()
-
-
-def _get_progress(topic: str) -> dict:
-    k = _pp_key(topic)
-    prog = st.session_state.play_progress.get(k)
-    if not prog:
-        prog = {"unlocked": 1, "completed": set(), "stars": {}, "correct_counts": {}, "stats": {}}
-        st.session_state.play_progress[k] = prog
-    if isinstance(prog.get("completed"), list):
-        prog["completed"] = set(prog["completed"])
-    return prog
-
-
-def _set_completed(topic: str, level: int):
-    prog = _get_progress(topic)
-    prog["completed"].add(int(level))
-    prog["unlocked"] = max(int(prog.get("unlocked", 1)), int(level) + 1)
-
-
-
-def _update_stats(topic: str, level: int, is_correct: bool) -> None:
-    """Oppdaterer forsøk/riktig/feil per tema og nivå for progresjonsrapport."""
-    prog = _get_progress(topic)
-    stats = prog.get("stats")
-    if not isinstance(stats, dict):
-        stats = {}
-        prog["stats"] = stats
-
-    lvl = str(int(level))
-    row = stats.get(lvl)
-    if not isinstance(row, dict):
-        row = {"attempts": 0, "correct": 0, "wrong": 0}
-        stats[lvl] = row
-
-    row["attempts"] = int(row.get("attempts", 0)) + 1
-    if is_correct:
-        row["correct"] = int(row.get("correct", 0)) + 1
-    else:
-        row["wrong"] = int(row.get("wrong", 0)) + 1
-
-
-def _question_seed(topic: str, level: int, idx: int) -> int:
-    # Stabil, men fortsatt "tilfeldig" per brukerøkt
-    base = int(st.session_state.get("_play_seed", 0) or 0)
-    if base == 0:
-        base = random.randint(10_000, 99_999)
-        st.session_state["_play_seed"] = base
-    return hash((base, _pp_key(topic), int(level), int(idx))) & 0xFFFFFFFF
-
-
-def _make_question(topic: str, level: int, q_index: int) -> dict:
-    rnd = random.Random(_question_seed(topic, level, q_index))
-
-    # Genererer oppgaver som treffer fanene i appen (Areal/Omkrets/Volum/Målestokk/Prosent)
-    if topic == "Areal":
-        if level == 1:
-            l = rnd.randint(2, 12)
-            w = rnd.randint(2, 10)
-            ans = l * w
-            return {
-                "prompt": f"Finn arealet av et rektangel: lengde {l} m og bredde {w} m. Svar i m².",
-                "answer": float(ans),
-                "tolerance": 0.01,
-                "unit": "m²",
-                "hint": "Areal = lengde × bredde",
-            }
-        if level == 2:
-            l_cm = rnd.choice([250, 300, 420, 560, 675, 720])
-            w_cm = rnd.choice([120, 150, 180, 200, 240, 260])
-            l_m = l_cm / 100
-            w_m = w_cm / 100
-            ans = l_m * w_m
-            return {
-                "prompt": f"Finn arealet: lengde {l_cm} cm og bredde {w_cm} cm. Konverter til meter først. Svar i m².",
-                "answer": float(ans),
-                "tolerance": 0.01,
-                "unit": "m²",
-                "hint": "cm → m: del på 100. Areal = l × b.",
-            }
-        # level 3+
-        base_area = rnd.choice([12, 18, 24, 30, 36, 42])
-        waste = rnd.choice([5, 10, 12, 15])
-        ans = base_area * (1 + waste / 100)
-        return {
-            "prompt": f"Du har et areal på {base_area} m² og svinn på {waste}%. Hva er bestillingsarealet?",
-            "answer": float(ans),
-            "tolerance": 0.05,
-            "unit": "m²",
-            "hint": "Bestillingsareal = areal × (1 + svinn/100)",
-        }
-
-    if topic == "Omkrets":
-        if level == 1:
-            a = rnd.randint(2, 12)
-            b = rnd.randint(2, 10)
-            ans = 2 * (a + b)
-            return {
-                "prompt": f"Finn omkretsen av et rektangel med sider {a} m og {b} m. Svar i meter.",
-                "answer": float(ans),
-                "tolerance": 0.01,
-                "unit": "m",
-                "hint": "Omkrets (rektangel) = 2(a + b)",
-            }
-        if level == 2:
-            r = rnd.choice([0.2, 0.25, 0.3, 0.35, 0.4, 0.5])
-            ans = 2 * math.pi * r
-            return {
-                "prompt": f"Finn omkretsen av en sirkel med radius {r} m. Bruk π ≈ 3,14. Svar i meter.",
-                "answer": float(ans),
-                "tolerance": 0.05,
-                "unit": "m",
-                "hint": "Omkrets (sirkel) = 2πr",
-            }
-        # level 3+
-        a_cm = rnd.choice([120, 150, 180, 220, 260])
-        b_cm = rnd.choice([80, 90, 100, 110, 140])
-        ans = 2 * ((a_cm + b_cm) / 100)
-        return {
-            "prompt": f"Finn omkretsen av et rektangel: {a_cm} cm og {b_cm} cm. Svar i meter.",
-            "answer": float(ans),
-            "tolerance": 0.02,
-            "unit": "m",
-            "hint": "Konverter cm → m først, så 2(a+b).",
-        }
-
-    if topic == "Volum":
-        if level == 1:
-            l = rnd.randint(2, 8)
-            w = rnd.randint(2, 6)
-            t_mm = rnd.choice([80, 100, 120, 150, 200])
-            ans = l * w * (t_mm / 1000)
-            return {
-                "prompt": f"Betongplate: {l} m × {w} m med tykkelse {t_mm} mm. Finn volum i m³.",
-                "answer": float(ans),
-                "tolerance": 0.02,
-                "unit": "m³",
-                "hint": "mm → m: del på 1000. Volum = l × b × t",
-            }
-        if level == 2:
-            d_mm = rnd.choice([200, 250, 300, 350, 400])
-            h = rnd.choice([2.0, 2.4, 2.8, 3.0])
-            r = (d_mm / 1000) / 2
-            ans = math.pi * (r ** 2) * h
-            return {
-                "prompt": f"Søyle (sylinder): diameter {d_mm} mm og høyde {h} m. Finn volum i m³.",
-                "answer": float(ans),
-                "tolerance": 0.03,
-                "unit": "m³",
-                "hint": "Volum sylinder = π r² h (r = diameter/2)",
-            }
-        # level 3+
-        l = rnd.randint(8, 25)
-        w = rnd.choice([0.3, 0.4, 0.5])
-        h_mm = rnd.choice([300, 400, 500, 600])
-        ans = l * w * (h_mm / 1000)
-        return {
-            "prompt": f"Stripefundament: lengde {l} m, bredde {w} m, høyde {h_mm} mm. Finn volum i m³.",
-            "answer": float(ans),
-            "tolerance": 0.05,
-            "unit": "m³",
-            "hint": "Volum = lengde × bredde × høyde (mm → m)",
-        }
-
-    if topic == "Målestokk":
-        if level == 1:
-            drawing_cm = rnd.choice([2.5, 3.0, 4.2, 5.6, 7.5, 10.0])
-            n = rnd.choice([20, 25, 50, 75, 100])
-            real_cm = drawing_cm * n
-            real_m = real_cm / 100
-            return {
-                "prompt": f"Tegning → virkelighet: {drawing_cm} cm på tegning i målestokk 1:{n}. Hva er virkelig lengde i meter?",
-                "answer": float(real_m),
-                "tolerance": 0.02,
-                "unit": "m",
-                "hint": "Virkelig = tegning × n. Konverter cm → m.",
-            }
-        if level == 2:
-            real_m = rnd.choice([3.6, 4.8, 6.0, 7.2, 9.0])
-            n = rnd.choice([20, 25, 50, 75, 100])
-            drawing_m = real_m / n
-            drawing_mm = drawing_m * 1000
-            return {
-                "prompt": f"Virkelighet → tegning: {real_m} m i målestokk 1:{n}. Hva blir tegningen i mm?",
-                "answer": float(drawing_mm),
-                "tolerance": 1.0,
-                "unit": "mm",
-                "hint": "Tegning = virkelighet / n. Konverter m → mm.",
-            }
-        # level 3+
-        drawing_mm = rnd.choice([35, 48, 62, 80, 95, 120])
-        n = rnd.choice([10, 20, 25, 50, 75, 100])
-        real_mm = drawing_mm * n
-        real_m = real_mm / 1000
-        return {
-            "prompt": f"Tegning → virkelighet: {drawing_mm} mm på tegning i målestokk 1:{n}. Hva er virkelig lengde i meter?",
-            "answer": float(real_m),
-            "tolerance": 0.02,
-            "unit": "m",
-            "hint": "Virkelig (mm) = tegning (mm) × n. Konverter mm → m.",
-        }
-
-    if topic == "Prosent":
-        if level == 1:
-            pct = rnd.choice([5, 10, 12.5, 15, 20, 25])
-            base = rnd.choice([240, 360, 480, 800, 1200, 1800])
-            ans = base * (pct / 100)
-            return {
-                "prompt": f"Finn {pct}% av {base}.",
-                "answer": float(ans),
-                "tolerance": 0.5,
-                "unit": "",
-                "hint": "Prosent av = tall × (p/100)",
-            }
-        if level == 2:
-            part = rnd.choice([120, 240, 300, 450, 600])
-            whole = rnd.choice([800, 1200, 1500, 1800, 2000])
-            ans = (part / whole) * 100
-            return {
-                "prompt": f"Hvor mange prosent er {part} av {whole}? Svar i prosent.",
-                "answer": float(ans),
-                "tolerance": 0.5,
-                "unit": "%",
-                "hint": "Prosent = (del/helhet) × 100",
-            }
-        # level 3+
-        base = rnd.choice([500, 800, 1200, 1500, 2000])
-        rabatt = rnd.choice([10, 15, 20, 25])
-        mva = 25
-        after = base * (1 - rabatt / 100)
-        inc = after * (1 + mva / 100)
-        return {
-            "prompt": f"En vare koster {base} kr. Du får {rabatt}% rabatt og legger på {mva}% MVA. Hva blir sluttprisen?",
-            "answer": float(inc),
-            "tolerance": 2.0,
-            "unit": "kr",
-            "hint": "Først rabatt, så MVA: pris × (1-r/100) × (1+m/100)",
-        }
-
-
-    if topic == "Enhetsomregning":
-        # Fokus: mm, cm, m og kontroll av enheter i byggfaglige situasjoner
-        if level == 1:
-            mm = rnd.choice([50, 75, 120, 148, 200, 450, 600, 1200])
-            ans = mm / 1000.0
-            return {
-                "prompt": f"Gjør om {mm} mm til meter. Svar i m.",
-                "answer": float(ans),
-                "tolerance": 0.001,
-                "unit": "m",
-                "hint": "mm → m: del på 1000",
-            }
-        if level == 2:
-            cm = rnd.choice([15, 28, 36, 42, 75, 120, 240])
-            mm = rnd.choice([5, 10, 25, 40, 75, 120])
-            # total i meter
-            ans = (cm / 100.0) + (mm / 1000.0)
-            return {
-                "prompt": f"Du har {cm} cm og {mm} mm. Hva er total lengde i meter?",
-                "answer": float(ans),
-                "tolerance": 0.002,
-                "unit": "m",
-                "hint": "cm → m: /100. mm → m: /1000. Legg sammen.",
-            }
-        if level == 3:
-            # Areal: konverter cm til m før areal
-            l_cm = rnd.choice([120, 150, 180, 240, 300, 420])
-            w_cm = rnd.choice([60, 80, 90, 100, 120, 150])
-            ans = (l_cm/100.0) * (w_cm/100.0)
-            return {
-                "prompt": f"Et felt er {l_cm} cm × {w_cm} cm. Hva er arealet i m²?",
-                "answer": float(ans),
-                "tolerance": 0.02,
-                "unit": "m²",
-                "hint": "Konverter begge til meter først, så areal = l × b.",
-            }
-        if level == 4:
-            # Volum: tykkelse i mm
-            l = rnd.randint(2, 8)
-            w = rnd.randint(2, 6)
-            t_mm = rnd.choice([50, 80, 100, 120, 150])
-            ans = l * w * (t_mm/1000.0)
-            return {
-                "prompt": f"Betongplate: {l} m × {w} m med tykkelse {t_mm} mm. Hva er volumet i m³?",
-                "answer": float(ans),
-                "tolerance": 0.03,
-                "unit": "m³",
-                "hint": "Tykkelse i mm må til meter (del på 1000).",
-            }
-        if level == 5:
-            # Feilsøking: enhetskontroll
-            # Oppgave: velg riktig – men vi holder oss til tall-svar: hva er riktig meter-verdi
-            val = rnd.choice([2.4, 3.6, 4.8, 6.0])
-            # presentert feilaktig som cm i stedet for m
-            cm = int(val * 100)
-            ans = val
-            return {
-                "prompt": f"En medelev skrev at lengden er {cm} cm, men det skulle stå i meter. Hva er riktig lengde i meter?",
-                "answer": float(ans),
-                "tolerance": 0.01,
-                "unit": "m",
-                "hint": "Sjekk størrelsesorden: {cm} cm = {val} m.",
-            }
-        # level 6
-        a_mm = rnd.choice([3000, 4200, 5600])
-        b_m = rnd.choice([1.8, 2.4, 3.0])
-        ans = (a_mm/1000.0) + b_m
-        return {
-            "prompt": f"Kombiner og dokumenter: {a_mm} mm + {b_m} m. Hva er summen i meter?",
-            "answer": float(ans),
-            "tolerance": 0.01,
-            "unit": "m",
-            "hint": "Konverter mm → m først, så legg sammen.",
-        }
-
-    # fallback
-    a = rnd.randint(2, 10)
-    b = rnd.randint(2, 10)
-    return {
-        "prompt": f"Regn ut {a} × {b}.",
-        "answer": float(a * b),
-        "tolerance": 0.01,
-        "unit": "",
-        "hint": "Gange",
-    }
-
-
-
-# ============================================================
-# Didaktisk progresjon (Lek og lær)
-# ============================================================
-
-TOPIC_META = {
-    "Areal": {
-        "subtitle": "Gulv, vegg, plater og bestilling",
-    },
-    "Omkrets": {
-        "subtitle": "Lister, sviller og lengder rundt",
-    },
-    "Volum": {
-        "subtitle": "Betong, masser og fyll",
-    },
-    "Målestokk": {
-        "subtitle": "Fra tegning til virkelighet (og tilbake)",
-    },
-    "Prosent": {
-        "subtitle": "Svinn, rabatt, påslag og MVA",
-    },
-    "Enhetsomregning": {
-        "subtitle": "mm, cm, m – og kontroll av enheter",
-    },
-}
-
-# Nivåbeskrivelser: læringsmål + forslag til verkstedkobling
-LEVEL_META = {
-    "Areal": {
-        1: {"mål": "Regne areal av rektangel (m²).", "verksted": ["Mål opp et gulvareal i verksted og regn m²."]},
-        2: {"mål": "Konvertere cm → m før arealberegning.", "verksted": ["Mål vegg i cm, konverter til meter og regn m² for gips."]},
-        3: {"mål": "Legge til svinn i prosent på areal.", "verksted": ["Beregn bestilling av plater med 10–15% svinn."]},
-        4: {"mål": "Beregne sammensatte flater (sum av delareal).", "verksted": ["Del opp en vegg med åpning (dør/vindu) og regn nettoareal."]},
-        5: {"mål": "Koble areal til mengde og pris (enkelt overslag).", "verksted": ["Regn materialkost for gulvbelegg per m² med svinn."]},
-        6: {"mål": "Egenkontroll: grovsjekk, enheter og realisme.", "verksted": ["Kontroller en medelevers måling og forklar avvik (mm/cm/m)."]},
-    },
-    "Omkrets": {
-        1: {"mål": "Regne omkrets av rektangel (m).", "verksted": ["Finn lengde svill rundt en ramme (2(a+b))."]},
-        2: {"mål": "Regne sirkelomkrets (2πr) og avrunding.", "verksted": ["Mål rundt et rør/søyle og sammenlign med beregning."]},
-        3: {"mål": "Konvertere enheter (cm/mm → m) før omkrets.", "verksted": ["Regn listelengde der målene står i cm på skisse."]},
-        4: {"mål": "Kombinere omkrets for flere deler (praktisk sum).", "verksted": ["Lag kapp-/bestillingsliste for lister rundt flere flater."]},
-        5: {"mål": "Omkrets → mengde (antall lengder) og svinn.", "verksted": ["Beregn hvor mange 4,8 m lengder du må bestille."]},
-        6: {"mål": "Toleranser og avvik (kontrollmåling).", "verksted": ["Mål diagonaler/omkrets og vurder om det er innen toleranse."]},
-    },
-    "Volum": {
-        1: {"mål": "Volum av plate: l × b × tykkelse (mm→m).", "verksted": ["Beregne betongvolum for liten plate i verkstedcase."]},
-        2: {"mål": "Volum av sylinder: πr²h.", "verksted": ["Regn volum av søyle og diskuter hvilke mål som måles i mm/m."]},
-        3: {"mål": "Volum av stripefundament: l × b × h.", "verksted": ["Regn betong for stripefundament, sammenlign med bestilling."]},
-        4: {"mål": "Enhetskontroll: mm ↔ m og realistiske størrelser.", "verksted": ["Forklar hvorfor 100 mm = 0,1 m og konsekvens for volum."]},
-        5: {"mål": "Volum → transport/leveranse (enkelt overslag).", "verksted": ["Diskuter hvor mange m³ per lass og planlegg levering."]},
-        6: {"mål": "Egenkontroll og feilkilder i volum.", "verksted": ["Finn typiske feil (diameter vs radius, mm vs m)."]},
-    },
-    "Målestokk": {
-        1: {"mål": "Tegning → virkelighet (1:n) med cm → m.", "verksted": ["Finn virkelig lengde fra plantegning og mål opp på gulv."]},
-        2: {"mål": "Virkelighet → tegning (1:n) og m → mm.", "verksted": ["Mål et objekt i verksted og tegn det i valgt målestokk."]},
-        3: {"mål": "Bruke mm/cm/m riktig i målestokkoppgaver.", "verksted": ["Kontroller at enhetsvalg gir realistisk tegning."]},
-        4: {"mål": "Detaljmål og kombinerte målinger (praktisk).", "verksted": ["Les av flere mål fra tegning og kontroller sum/helhet."]},
-        5: {"mål": "Feilkilder: avlesning, avrunding og skala.", "verksted": ["Diskuter avvik mellom tegning og oppmålt virkelighet."]},
-        6: {"mål": "Egenkontroll: dobbeltsjekk retning og skala.", "verksted": ["Lag sjekkliste: retning, enhet, faktor, realisme."]},
-    },
-    "Prosent": {
-        1: {"mål": "Finne prosent av et tall.", "verksted": ["Regn svinn (10%) på materialmengde."]},
-        2: {"mål": "Finne hvor mange prosent en del er av helhet.", "verksted": ["Regn avvik i %: (avvik/plan)×100."]},
-        3: {"mål": "Rabatt: pris × (1 - r/100).", "verksted": ["Sammenlign leverandørpriser med rabatt."]},
-        4: {"mål": "Påslag: pris × (1 + p/100).", "verksted": ["Lag enkel kalkyle med påslag for drift."]},
-        5: {"mål": "MVA: pris × (1 + mva/100).", "verksted": ["Les faktura og forklar MVA-beregning."]},
-        6: {"mål": "Kombinert: rabatt + MVA (rekkefølge).", "verksted": ["Regn sluttpris fra tilbud med rabatt, påslag og MVA."]},
-    },
-    "Enhetsomregning": {
-        1: {"mål": "Konvertere mellom mm, cm og m (lengde).", "verksted": ["Les mål i mm på tegning og skriv i meter på kappeliste."]},
-        2: {"mål": "Blande enheter i samme oppgave (cm + mm → m).", "verksted": ["Mål en lekts lengde i cm og en åpning i mm, regn total i meter."]},
-        3: {"mål": "Areal-enheter (cm² ↔ m²) og når du må konvertere før du regner.", "verksted": ["Sammenlign areal oppgitt i cm med krav i m² (plater/isolasjon)."]},
-        4: {"mål": "Volum-enheter (mm ↔ m) og konsekvens for m³.", "verksted": ["Regn betong: tykkelse i mm må alltid til meter før volum."]},
-        5: {"mål": "Praktisk kontroll: grovsjekk og feilsøking av enheter.", "verksted": ["Finn og forklar en feil der noen har brukt cm som m."]},
-        6: {"mål": "Automatisere egenkontroll: velg riktig enhet og dokumenter omregning.", "verksted": ["Skriv kort KS-notat: hvilke enheter ble brukt og hvorfor."]},
-    },
-}
-
-def get_level_meta(topic: str, level: int) -> dict:
-    t = str(topic)
-    lvl = int(level)
-    return (LEVEL_META.get(t, {}) or {}).get(lvl, {"mål": "", "verksted": []})
-
-def render_level_box(topic: str, level: int):
-    meta = get_level_meta(topic, level)
-    if not meta:
-        return
-    with st.container(border=True):
-        st.markdown(f"**{topic} – Nivå {int(level)}**")
-        if meta.get("mål"):
-            st.write(f"**Læringsmål:** {meta.get('mål')}")
-        verk = meta.get("verksted") or []
-        if verk:
-            st.write("**Kobling til verksted (forslag):**")
-            for v in verk:
-                st.write(f"- {v}")
-
-
-def _start_level(topic: str, level: int):
-    st.session_state.play_state = {
-        "topic": topic,
-        "level": int(level),
-        "q_index": 1,
-        "correct_in_level": 0,
-        "current": _make_question(topic, int(level), 1),
-        "last_feedback": None,
-    }
-
-
-def _check_answer(user_answer: float, correct: float, tol: float) -> bool:
-    if user_answer is None:
-        return False
-    try:
-        return abs(float(user_answer) - float(correct)) <= float(tol)
-    except Exception:
-        return False
-
-
-def show_play_screen():
-    if not is_school_mode():
-        st.warning("'Lek og lær' er kun tilgjengelig i Skolemodus.")
-        return
-
-    st.subheader("🎯 " + tt("Lek og lær", "Learn & Play"))
-    st.caption(
-        "Velg tema, jobb deg gjennom nivåene, og knytt matematikk til praktiske verkstedoppgaver. "
-        f"For å låse opp neste nivå må du få {_PLAY_CORRECT_TO_PASS} riktige i nivået."
-    )
-
-    tab_train, tab_cards = st.tabs([tt("🎯 Trening", "🎯 Practice"), tt("🃏 Læringskort", "🃏 Learning Cards")])
-
-    with tab_train:
-        # =========================================================
-        # Identitet for lagring (Elev-ID + Klassekode)
-        # =========================================================
-        with st.container(border=True):
-            st.markdown("### Elevinfo (for lagring)")
-            c1, c2 = st.columns([1.3, 1.0])
-            with c1:
-                user_id = st.text_input("Elev-ID (lagrer progresjon)", placeholder="F.eks. Magnus-0421", key="play_user_id").strip()
-            with c2:
-                class_code = st.text_input("Klassekode", placeholder="F.eks. BA1A", key="play_class_code").strip()
-
-            if _sb_enabled() and user_id:
-                last_loaded = st.session_state.get("_play_last_loaded_user")
-                if last_loaded != user_id:
-                    saved = load_progress_from_db(user_id)
-                    if not st.session_state.get("play_class_code") and saved.get("class_code"):
-                        st.session_state["play_class_code"] = str(saved.get("class_code") or "").strip()
-                    st.session_state.play_progress = _deserialize_play_progress(saved.get("play_progress", {}))
-                    st.session_state.play_state = saved.get("play_state", {}) or {}
-                    st.session_state["_play_last_loaded_user"] = user_id
-                st.caption("Progresjon lagres automatisk (Streamlit Cloud).")
-            elif user_id and not _sb_enabled():
-                st.caption("Lagring mellom økter er ikke aktivert (mangler Supabase-oppsett i secrets/requirements).")
-
-        # =========================================================
-        # Læreroversikt (som før)
-        # =========================================================
-        teacher_code_secret = None
-        try:
-            teacher_code_secret = st.secrets.get("TEACHER_CODE")
-        except Exception:
-            teacher_code_secret = None
-
-        if _sb_enabled() and teacher_code_secret:
-            with st.expander("👩‍🏫 Læreroversikt", expanded=False):
-                teacher_code = st.text_input("Lærer-kode", type="password", key="teacher_code_input").strip()
-                if teacher_code != str(teacher_code_secret).strip():
-                    st.info("Skriv riktig lærer-kode for å se elevprogresjon.")
-                else:
-                    rows = list_progress_from_db(limit=500)
-                    if not rows:
-                        st.warning("Fant ingen lagret progresjon i databasen ennå.")
-                    else:
-                        overview = []
-                        for r in rows:
-                            uid = r.get("user_id", "")
-                            data = r.get("data") or {}
-                            pp = _deserialize_play_progress((data or {}).get("play_progress", {}))
-                            overview.append(
-                                {
-                                    "Elev-ID": uid,
-                                    "Klasse": str((data or {}).get("class_code", "") or ""),
-                                    "Sist oppdatert": str(r.get("updated_at", "")),
-                                    "Areal (låst opp)": int(((pp or {}).get("areal", {}) or {}).get("unlocked", 1)),
-                                    "Omkrets (låst opp)": int(((pp or {}).get("omkrets", {}) or {}).get("unlocked", 1)),
-                                    "Volum (låst opp)": int(((pp or {}).get("volum", {}) or {}).get("unlocked", 1)),
-                                    "Målestokk (låst opp)": int(((pp or {}).get("målestokk", {}) or {}).get("unlocked", 1)),
-                                    "Prosent (låst opp)": int(((pp or {}).get("prosent", {}) or {}).get("unlocked", 1)),
-                                "Enhetsomregning (låst opp)": int(((pp or {}).get("enhetsomregning", {}) or {}).get("unlocked", 1)),
-                                }
-                            )
-                        df = pd.DataFrame(overview)
-
-                        classes = sorted([c for c in df.get("Klasse", pd.Series(dtype=str)).astype(str).unique().tolist() if c and c != "nan"])
-                        class_sel = st.selectbox("Filtrer (Klasse)", options=["Alle"] + classes, key="teacher_class_filter")
-                        if class_sel != "Alle":
-                            df = df[df["Klasse"].astype(str) == class_sel]
-
-                        f = st.text_input("Filtrer (Elev-ID)", key="teacher_filter").strip().lower()
-                        if f:
-                            df = df[df["Elev-ID"].astype(str).str.lower().str.contains(f)]
-
-                        st.dataframe(df, use_container_width=True, hide_index=True)
-
-        # =========================================================
-        # Profesjonell flyt: Temakort (dashboard) → Nivåvalg → Oppgave
-        # =========================================================
-        topics = ["Areal", "Omkrets", "Volum", "Målestokk", "Prosent", "Enhetsomregning"]
-        max_levels = 6
-
-        if "play_selected_topic" not in st.session_state:
-            st.session_state.play_selected_topic = None  # type: ignore
-
-        # Dersom vi allerede har aktiv oppgave, styr tema fra state
-        state = st.session_state.get("play_state", {}) or {}
-        if state.get("topic") in topics:
-            st.session_state.play_selected_topic = state.get("topic")
-
-        # ---------------------------------------------------------
-        # Dashboard (vises når det ikke er aktiv oppgave)
-        # ---------------------------------------------------------
-        if not state:
-            st.markdown("### Temaoversikt")
-            st.caption("Velg et tema. Appen foreslår neste nivå basert på progresjonen din.")
-
-            # Temakort i grid
-            cols = st.columns(3)
-            for i, t in enumerate(topics):
-                prog = _get_progress(t)
-                unlocked = int(prog.get("unlocked", 1))
-                unlocked = max(1, min(unlocked, max_levels))
-                subtitle = (TOPIC_META.get(t, {}) or {}).get("subtitle", "")
-
-                with cols[i % 3]:
-                    with st.container(border=True):
-                        st.markdown(f"**{t}**")
-                        if subtitle:
-                            st.caption(subtitle)
-                        st.progress(unlocked / max_levels)
-                        st.write(f"**Nivå låst opp:** {unlocked}/{max_levels}")
-
-                        c1, c2 = st.columns(2)
-                        with c1:
-                            if st.button("Fortsett", key=f"play_continue_{t}", use_container_width=True):
-                                st.session_state.play_selected_topic = t
-                                _start_level(t, unlocked)
-                                st.rerun()
-                        with c2:
-                            if st.button("Velg nivå", key=f"play_choose_{t}", use_container_width=True):
-                                st.session_state.play_selected_topic = t
-                                st.rerun()
-
-            st.divider()
-            st.info("Tips: Start med nivå 1 i hvert tema. Når du mestrer det, går du videre til neste nivå.")
-            return
-
-        # ---------------------------------------------------------
-        # Aktivt tema / nivåvalg (når state finnes)
-        # ---------------------------------------------------------
-        topic = st.session_state.get("play_selected_topic") or state.get("topic")
-        if topic not in topics:
-            st.session_state.play_state = {}
-            st.rerun()
-
-        # Header + navigasjon
-        top_l, top_r = st.columns([3, 1.2])
-        with top_l:
-            st.markdown(f"### {topic}")
-            subtitle = (TOPIC_META.get(topic, {}) or {}).get("subtitle", "")
-            if subtitle:
-                st.caption(subtitle)
-        with top_r:
-            if st.button("⬅️ Tilbake til temaoversikt", key="play_back_to_topics", use_container_width=True):
-                st.session_state.play_state = {}
-                st.session_state.play_selected_topic = None
-                st.rerun()
-
-        # Nivåbeskrivelse (didaktikk)
-        level = int(state.get("level", 1))
-        render_level_box(topic, level)
-
-        # Progresjon i nivå
-        correct_now = int(state.get("correct_in_level", 0))
-        st.progress(min(correct_now / _PLAY_CORRECT_TO_PASS, 1.0))
-        st.caption(f"Riktige i dette nivået: {correct_now}/{_PLAY_CORRECT_TO_PASS}")
-
-        # Oppgave
-        q = state.get("current") or _make_question(topic, level, int(state.get("q_index", 1)))
-
-        st.markdown("### Oppgave")
-        with st.container(border=True):
-            st.write(q.get("prompt", ""))
-            with st.expander("Hint", expanded=False):
-                st.write(q.get("hint", ""))
-
-        ans_label = "Svar" + (f" ({q.get('unit')})" if q.get("unit") else "")
-        user_ans = st.number_input(ans_label, value=0.0, step=0.1, key=f"play_answer_{topic}_{level}")
-
-        # Primærflyt: Sjekk → feedback → Ny oppgave
-        btn_c1, btn_c2, btn_c3 = st.columns([1.2, 1.2, 1.8])
-
-        with btn_c1:
-            check = st.button("✅ Sjekk svar", key="play_check", use_container_width=True)
-        with btn_c2:
-            new_q = st.button("➡️ Ny oppgave", key="play_new", use_container_width=True)
-        with btn_c3:
-            reset = st.button("🔄 Nullstill progresjon", key="play_reset", use_container_width=True)
-
-        if reset:
-            st.session_state.play_progress = {}
-            st.session_state.play_state = {}
-            st.toast("Progresjon nullstilt.")
-            if _sb_enabled() and st.session_state.get("play_user_id", "").strip():
-                uid = st.session_state.get("play_user_id", "").strip()
-                save_progress_to_db(uid, {"class_code": st.session_state.get("play_class_code", "").strip(), "play_progress": {}, "play_state": {}})
-            st.rerun()
-
-        if new_q:
-            state["q_index"] = int(state.get("q_index", 1)) + 1
-            state["current"] = _make_question(topic, level, int(state["q_index"]))
-            st.session_state.play_state = state
-
-            if _sb_enabled() and st.session_state.get("play_user_id", "").strip():
-                uid = st.session_state.get("play_user_id", "").strip()
-                save_progress_to_db(
-                    uid,
-                    {
-                        "class_code": st.session_state.get("play_class_code", "").strip(),
-                        "play_progress": _serialize_play_progress(st.session_state.get("play_progress", {})),
-                        "play_state": st.session_state.get("play_state", {}),
-                    },
-                )
-            st.rerun()
-
-        if check:
-            ok = _check_answer(user_ans, q.get("answer", 0.0), q.get("tolerance", 0.01))
-            _update_stats(topic, level, ok)
-
-            if ok:
-                state["correct_in_level"] = correct_now + 1
-                state["last_feedback"] = (True, "Riktig. God kontroll.")
-
-                # Ferdig med nivå?
-                if state["correct_in_level"] >= _PLAY_CORRECT_TO_PASS:
-                    _set_completed(topic, level)
-                    state["last_feedback"] = (True, f"Nivå {level} bestått. Neste nivå er låst opp.")
-                else:
-                    state["q_index"] = int(state.get("q_index", 1)) + 1
-                    state["current"] = _make_question(topic, level, int(state["q_index"]))
-            else:
-                corr = float(q.get("answer", 0.0))
-                unit = q.get("unit", "")
-                state["last_feedback"] = (False, f"Ikke helt. Fasit er omtrent {corr:.3f} {unit}. Bruk hint og prøv igjen.")
-
-            st.session_state.play_state = state
-
-            if _sb_enabled() and st.session_state.get("play_user_id", "").strip():
-                uid = st.session_state.get("play_user_id", "").strip()
-                save_progress_to_db(
-                    uid,
-                    {
-                        "class_code": st.session_state.get("play_class_code", "").strip(),
-                        "play_progress": _serialize_play_progress(st.session_state.get("play_progress", {})),
-                        "play_state": st.session_state.get("play_state", {}),
-                    },
-                )
-            st.rerun()
-
-        # Feedback
-        fb = state.get("last_feedback")
-        if fb:
-            ok, msg = fb
-            if ok:
-                st.success(msg)
-            else:
-                st.warning(msg)
-
-        # Nivåplan i oversikt (ryddig og didaktisk)
-        with st.expander("Se nivåplan for dette temaet", expanded=False):
-            rows = []
-            for lvl in range(1, max_levels + 1):
-                meta = get_level_meta(topic, lvl)
-                rows.append(
-                    {
-                        "Nivå": lvl,
-                        "Læringsmål": meta.get("mål", ""),
-                        "Verkstedkobling (kort)": "; ".join((meta.get("verksted") or [])[:2]),
-                    }
-                )
-            st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
-
-
-    with tab_cards:
-        st.subheader("🃏 " + tt("Læringskort", "Learning Cards"))
-        st.caption(tt(
-            "Spill som Alias: Én elev forklarer begrepet på kortet uten å si ordet (eller forbudte ord). "
-            "De andre gjetter. Bytt på roller og før poeng.",
-            "Play like Alias: One student explains the term on the card without saying the word (or the forbidden words). "
-            "Others guess. Rotate roles and keep score."
-        ))
-
-        # Init state
-        if "alias_scores" not in st.session_state:
-            st.session_state.alias_scores = {"Lag A": 0, "Lag B": 0}
-        if "alias_active_team" not in st.session_state:
-            st.session_state.alias_active_team = "Lag A"
-        if "alias_active_card" not in st.session_state:
-            st.session_state.alias_active_card = None
-        if "alias_round_seconds" not in st.session_state:
-            st.session_state.alias_round_seconds = 60
-        if "alias_round_start" not in st.session_state:
-            st.session_state.alias_round_start = None
-        if "alias_history" not in st.session_state:
-            st.session_state.alias_history = []
-
-        with st.container(border=True):
-            c1, c2, c3 = st.columns([1.0, 1.0, 1.2])
-            with c1:
-                team = st.selectbox(tt("Hvem forklarer nå?", "Who explains now?"), options=["Lag A", "Lag B"], key="alias_team_sel")
-                st.session_state.alias_active_team = team
-            with c2:
-                secs = st.number_input(tt("Sekunder per runde", "Seconds per round"), min_value=20, max_value=180, value=int(st.session_state.alias_round_seconds), step=10)
-                st.session_state.alias_round_seconds = int(secs)
-            with c3:
-                st.write("**" + tt("Poeng", "Score") + "**")
-                st.write(f"Lag A: {int(st.session_state.alias_scores.get('Lag A', 0))}   |   Lag B: {int(st.session_state.alias_scores.get('Lag B', 0))}")
-
-        b1, b2, b3, b4 = st.columns([1,1,1,1])
-        with b1:
-            if st.button(tt("Start / nytt kort", "Start / new card"), use_container_width=True):
-                st.session_state.alias_active_card = random.choice(LEARNING_CARDS)
-                st.session_state.alias_round_start = time.time()
-                st.session_state.alias_history.append({
-                    "team": st.session_state.alias_active_team,
-                    "card": st.session_state.alias_active_card,
-                    "ts": time.time(),
-                    "result": None
-                })
-        with b2:
-            if st.button(tt("Riktig (+1)", "Correct (+1)"), use_container_width=True, disabled=st.session_state.alias_active_card is None):
-                t = st.session_state.alias_active_team
-                st.session_state.alias_scores[t] = int(st.session_state.alias_scores.get(t, 0)) + 1
-                # Mark last history entry
-                for i in range(len(st.session_state.alias_history)-1, -1, -1):
-                    if st.session_state.alias_history[i].get("result") is None:
-                        st.session_state.alias_history[i]["result"] = "Riktig"
-                        break
-                st.session_state.alias_active_card = random.choice(LEARNING_CARDS)
-                st.session_state.alias_round_start = time.time()
-                st.session_state.alias_history.append({
-                    "team": st.session_state.alias_active_team,
-                    "card": st.session_state.alias_active_card,
-                    "ts": time.time(),
-                    "result": None
-                })
-        with b3:
-            if st.button(tt("Pass (0)", "Pass (0)"), use_container_width=True, disabled=st.session_state.alias_active_card is None):
-                for i in range(len(st.session_state.alias_history)-1, -1, -1):
-                    if st.session_state.alias_history[i].get("result") is None:
-                        st.session_state.alias_history[i]["result"] = "Pass"
-                        break
-                st.session_state.alias_active_card = random.choice(LEARNING_CARDS)
-                st.session_state.alias_round_start = time.time()
-                st.session_state.alias_history.append({
-                    "team": st.session_state.alias_active_team,
-                    "card": st.session_state.alias_active_card,
-                    "ts": time.time(),
-                    "result": None
-                })
-        with b4:
-            if st.button(tt("Nullstill poeng", "Reset score"), use_container_width=True):
-                st.session_state.alias_scores = {"Lag A": 0, "Lag B": 0}
-                st.session_state.alias_history = []
-                st.session_state.alias_active_card = None
-                st.session_state.alias_round_start = None
-
-        # Timer + kort
-        if st.session_state.alias_active_card is None:
-            st.info(tt("Trykk 'Start / nytt kort' for å trekke et kort.", "Click 'Start / new card' to draw a card."))
-        else:
-            card = st.session_state.alias_active_card
-            start_ts = st.session_state.alias_round_start
-            remaining = None
-            if start_ts:
-                elapsed = time.time() - float(start_ts)
-                remaining = max(0, int(st.session_state.alias_round_seconds - elapsed))
-            with st.container(border=True):
-                if remaining is not None:
-                    st.markdown(f"### ⏱️ {tt('Tid igjen', 'Time left')}: **{remaining} s**")
-                st.markdown(f"## {card['begrep']}")
-                st.write(f"**{tt('Tema', 'Topic')}:** {card['tema']}")
-                st.write(f"**{tt('Forklar med', 'Explain using')}:** {card['hint']}")
-                st.write("**" + tt("Forbudte ord", "Forbidden words") + "**")
-                st.write(", ".join(card["forbudt"]))
-                st.caption(tt(
-                    "Tips: Start med hva begrepet brukes til i verksted, og gi et eksempel uten å nevne ordene over.",
-                    "Tip: Start with how the term is used in the workshop, and give an example without using the words above."
-                ))
-
-        with st.expander(tt("Se siste kort (logg)", "See recent cards (log)"), expanded=False):
-            hist = list(reversed(st.session_state.alias_history[-10:]))
-            if not hist:
-                st.write(tt("Ingen runder ennå.", "No rounds yet."))
-            else:
-                rows = []
-                for h in hist:
-                    c = h.get("card") or {}
-                    rows.append({
-                        tt("Lag", "Team"): h.get("team"),
-                        tt("Begrep", "Term"): c.get("begrep"),
-                        tt("Tema", "Topic"): c.get("tema"),
-                        tt("Resultat", "Result"): h.get("result") or "",
-                    })
-                st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
-
-def show_result(res: CalcResult):
-    mode = st.session_state.get("app_mode", "Øv")
-    school = is_school_mode()
-    test_mode = is_test_mode()
-
-    col1, col2 = st.columns([1.1, 1])
-
-    with col1:
-        st.subheader(tt("Resultat", "Result"))
-
-        # Læringshint øverst (kun i Øv/Test)
-        if school:
-            if test_mode:
-                st.info(tt("Test først: regn selv før du ser mellomregning. Sjekk alltid enheter og rimelighet.",
-                           "Try first: calculate yourself before viewing the working. Always check units and reasonableness."))
-            else:
-                st.info(tt("Tips: Sjekk alltid enhet (mm/cm/m) og om svaret virker realistisk.",
-                           "Tip: Always check units (mm/cm/m) and whether the result seems reasonable."))
-
-        # Målestokk: profesjonell metric-visning for begge retninger
-        if res.name.startswith("Målestokk"):
-            o = res.outputs
-
-            if "virkelig_mm" in o:
-                c1, c2, c3 = st.columns(3)
-                c1.metric("Virkelig mål (mm)", format_value("virkelig_mm", o.get("virkelig_mm", 0)))
-                c2.metric("Virkelig mål (cm)", format_value("virkelig_cm", o.get("virkelig_cm", 0)))
-                c3.metric("Virkelig mål (m)", format_value("virkelig_m", o.get("virkelig_m", 0)))
-
-            if "tegning_mm" in o:
-                c1, c2, c3 = st.columns(3)
-                c1.metric("Tegningsmål (mm)", format_value("tegning_mm", o.get("tegning_mm", 0)))
-                c2.metric("Tegningsmål (cm)", format_value("tegning_cm", o.get("tegning_cm", 0)))
-                c3.metric("Tegningsmål (m)", format_value("tegning_m", o.get("tegning_m", 0)))
-
-        # Kledning: profesjonell metric-visning
-        elif res.name.startswith("Tømmermannskledning"):
-            o = res.outputs
-            r1c1, r1c2, r1c3 = st.columns(3)
-            r1c1.metric("Underliggere", str(o.get("underliggere_antall", "")))
-            r1c2.metric("Overliggere", str(o.get("overliggere_antall", "")))
-            r1c3.metric("Overligger OK", str(o.get("overligger_ok_for_omlegg", "")))
-
-            r2c1, r2c2, r2c3 = st.columns(3)
-            r2c1.metric("Dekket bredde (mm)", format_value("dekket_bredde_mm", o.get("dekket_bredde_mm", 0)))
-            r2c2.metric("Overdekning (mm)", format_value("overdekning_mm", o.get("overdekning_mm", 0)))
-            r2c3.metric(
-                "Min overliggerbredde (mm)",
-                format_value("min_overligger_bredde_mm", o.get("min_overligger_bredde_mm", 0)),
-            )
-
-        # Standard: labels uten understreker
-        else:
-            for k, v in res.outputs.items():
-                st.write(f"**{label_for(k)}**: {format_value(k, v)}")
-
-        # Varsler: skole vs produksjon
-        if res.warnings:
-            if school:
-                st.warning("Sjekk dette:\n- " + "\n- ".join(res.warnings))
-                st.caption("I skolemodus er varsler laget for å støtte kontroll og enhetsforståelse.")
-            else:
-                st.error("Kontroller før bruk i produksjon:\n- " + "\n- ".join(res.warnings))
-        else:
-            st.success("Ingen varsler.")
-
-        # Skolemodus: refleksjon og egenkontroll (checkliste)
-        if school:
-            with st.container(border=True):
-                st.markdown("**" + tt("Egenkontroll før du går videre", "Self-check before moving on") + "**")
-                c_a, c_b, c_c = st.columns(3)
-                with c_a:
-                    st.checkbox(tt("Jeg har kontrollert enhetene", "I verified the units"), key=f"chk_units_{res.timestamp}")
-                with c_b:
-                    st.checkbox(tt("Svaret virker realistisk", "The result seems reasonable"), key=f"chk_real_{res.timestamp}")
-                with c_c:
-                    st.checkbox(tt("Jeg kan forklare fremgangsmåten", "I can explain the method"), key=f"chk_explain_{res.timestamp}")
-                st.caption(tt(
-                    "Tips: Gjør en grovsjekk (avrund, sammenlign med erfaring). Typisk feil er mm vs m eller prosent vs desimal.",
-                    "Tip: Do a quick sanity check (round, compare with experience). Common errors are mm vs m or percent vs decimal."
-                ))
-
-        # Historikk
-        if st.button("Lagre i historikk", type="primary"):
-            st.session_state.history.append(
-                {
-                    "tid": res.timestamp,
-                    "kalkulator": res.name,
-                    "modus": st.session_state.get("app_mode","Øv"),
-                    "inputs": res.inputs,
-                    "outputs": res.outputs,
-                    "warnings": res.warnings,
-                }
-            )
-            st.toast("Lagret.")
-
-    with col2:
-        st.subheader(tt("Utregning", "Working"))
-
-        # Øv: åpen mellomregning. Test: skjult som standard.
-        exp_label = tt("Vis mellomregning", "Show working")
-        if test_mode:
-            exp_label = tt("Vis fasit / mellomregning", "Reveal working")
-        with st.expander(exp_label, expanded=(school and (not test_mode))):
-            for s in res.steps:
-                st.write(f"- {s}")
-
-
-
-# ============================================================
-# Læringskort (Alias) – 10 kort på tvers av temaer
-# ============================================================
-LEARNING_CARDS = [
-    {
-        "tema": "Areal",
-        "begrep": "Areal",
-        "hint": "Hva forteller det om en flate, og hvor bruker du det når du bestiller plater?",
-        "forbudt": [
-            "m²",
-            "flate",
-            "lengde",
-            "bredde"
-        ]
-    },
-    {
-        "tema": "Omkrets",
-        "begrep": "Omkrets",
-        "hint": "Hva måler du rundt noe, og når trenger du det til lister/svill?",
-        "forbudt": [
-            "rundt",
-            "meter",
-            "kant",
-            "lengde"
-        ]
-    },
-    {
-        "tema": "Volum",
-        "begrep": "Volum",
-        "hint": "Når regner du mengde i 3D, for eksempel betong eller masser?",
-        "forbudt": [
-            "m³",
-            "3D",
-            "høyde",
-            "bredde"
-        ]
-    },
-    {
-        "tema": "Målestokk",
-        "begrep": "Målestokk",
-        "hint": "Hvordan går du fra tegning til virkelighet (og tilbake)?",
-        "forbudt": [
-            "1:",
-            "tegning",
-            "virkelighet",
-            "skala"
-        ]
-    },
-    {
-        "tema": "Prosent",
-        "begrep": "Svinn",
-        "hint": "Hvorfor legger du på ekstra mengde, og hvordan regner du det ut?",
-        "forbudt": [
-            "prosent",
-            "ekstra",
-            "tap",
-            "margin"
-        ]
-    },
-    {
-        "tema": "Enhetsomregning",
-        "begrep": "Millimeter til meter",
-        "hint": "Forklar hvordan du gjør om et tall i små enheter til større i bygg.",
-        "forbudt": [
-            "mm",
-            "m",
-            "dele",
-            "tusen"
-        ]
-    },
-    {
-        "tema": "Enhetsomregning",
-        "begrep": "Kvadratmeter",
-        "hint": "Hvordan får du riktig enhet når du regner plater/gulv?",
-        "forbudt": [
-            "m²",
-            "areal",
-            "gange",
-            "meter"
-        ]
-    },
-    {
-        "tema": "Vinkler/Diagonal",
-        "begrep": "Diagonal",
-        "hint": "Hvordan sjekker du at noe er i vinkel på byggeplass?",
-        "forbudt": [
-            "pytagoras",
-            "rett",
-            "vinkel",
-            "90"
-        ]
-    },
-    {
-        "tema": "Økonomi",
-        "begrep": "Påslag",
-        "hint": "Hvordan legger du til fortjeneste/tillegg i en prisberegning?",
-        "forbudt": [
-            "prosent",
-            "pris",
-            "kostnad",
-            "margin"
-        ]
-    },
-    {
-        "tema": "Kledning/Omkrets",
-        "begrep": "Løpemeter",
-        "hint": "Hvordan tenker du lengde av materialer som lister/kledning?",
-        "forbudt": [
-            "meter",
-            "lengde",
-            "løpe",
-            "list"
-        ]
-    }
-]
-
-# ============================================================
-# App-state
-# ============================================================
-if "history" not in st.session_state:
-    st.session_state.history: List[Dict[str, Any]] = []
-
-
-# ------------------------------------------------------------
-# UI-state (må være definert før topmenyen bruker dem)
-# ------------------------------------------------------------
-if "show_pro" not in st.session_state:
-    st.session_state.show_pro = False
-
-if "show_ai" not in st.session_state:
-    st.session_state.show_ai = False
-
-if "show_play" not in st.session_state:
-    st.session_state.show_play = False
-
-# Lek og lær progresjon
-if "play_progress" not in st.session_state:
-    st.session_state.play_progress = {}
-
-# Aktiv oppgave i Lek og lær
-if "play_state" not in st.session_state:
-    st.session_state.play_state = {}
-
-
-# ============================================================
-# Topmeny: Hjem + Lek og lær +  + Innstillinger
-# ============================================================
-
-# Trekker topmenyen tett opp mot headeren (komprimert, men uten å skjule logo/tekst)
-st.markdown("<div style='margin-top:-18px;'></div>", unsafe_allow_html=True)
-
-bar1, bar2, bar3, bar4 = st.columns([1.2, 1.4, 1.4, 1.8])
-
-with bar1:
-    if st.button("🏠 " + tt("Hjem", "Home"), key="btn_home_top", use_container_width=True):
-        # AI state removed
-        st.session_state.show_pro = False
-        st.session_state.show_play = False
-        st.rerun()
-
-with bar2:
-    # Lek og lær er kun tilgjengelig i skolemodus
-    play_disabled = not is_school_mode()
-    if st.button("🎯 " + tt("Test deg selv", "Test yourself"), key="btn_play_top", use_container_width=True, disabled=play_disabled):
-        st.session_state.show_play = True
-        # AI state removed
-        st.session_state.show_pro = False
-        st.rerun()
-
-with bar3:
-    with st.popover("⚙️ " + tt("Innstillinger", "Settings"), use_container_width=True):
-        st.subheader(tt("Innstillinger", "Settings"))
-        st.markdown("**" + tt("Språk", "Language") + "**")
-        st.session_state.language = st.radio(
-            tt("Velg språk", "Select language"),
-            ["NO", "EN"],
-            horizontal=True,
-            index=0 if lang() == "NO" else 1,
-            key="lang_settings",
-        )
-
-        st.session_state.app_mode = st.radio(
-            tt("Modus", "Mode"),
-            ["Øv", "Test", "Praksis"],
-            horizontal=True,
-            index={"Øv": 0, "Test": 1, "Praksis": 2}.get(st.session_state.get("app_mode", "Øv"), 0),
-            key="app_mode_settings",
-        )
-
-        if st.session_state.app_mode == "Øv":
-            st.info(tt("Øv-modus: forklaring + mellomregning + refleksjon.", "Practice mode: explanation + working + reflection."))
-        elif st.session_state.app_mode == "Test":
-            st.warning(tt("Test-modus: prøv selv først. Utregning er skjult som standard.", "Test mode: try first. Working is hidden by default."))
-        else:
-            st.success(tt("Praksis-modus: raskt svar med færre forstyrrelser.", "Production mode: quick output with fewer distractions."))
-
-        st.divider()
-        st.markdown("**" + tt("Oppgradering", "Upgrade") + "**")
-        st.caption(tt("Pro gir ekstra funksjoner for læring, dokumentasjon og eksport.",
-              "Pro adds extra features for learning, documentation, and export."))
-        if st.button(tt("⭐ Oppgrader til Pro (BETA)", "⭐ Upgrade to Pro (BETA)"), key="btn_pro_settings", use_container_width=True):
-            st.session_state.show_pro = True
-            # AI state removed
-            st.session_state.show_play = False
-            st.rerun()
-
-st.divider()
-
-
-
-# ============================================================
-# Pro/AI/Lek og lær-visning
-# ============================================================
-if st.session_state.show_pro:
-    st.divider()
-
-    if st.button("🏠 " + tt("Tilbake til hovedsiden", "Back to home"), key="btn_home_from_pro"):
-        st.session_state.show_pro = False
-        st.session_state.show_play = False
-        st.rerun()
-
-    show_pro_screen()
-    st.stop()
-
-if st.session_state.get("", False):
-    st.divider()
-    st.subheader("🤖 " + tt("Spør din verksmester!", "Ask your foreman!"))
-    st.caption(tt("Skriv både tekst og regnestykker. Eksempel: 'areal 4 x 6' eller '2*(3+5)'.",
-              "Type both text and calculations. Example: 'area 4 x 6' or '2*(3+5)'."))
-
-    q = st.text_input(tt("-roboten", "Ask the AI bot"), key="ai_input_top")
-    if q:
-        res = ai_math_bot(q)
-        if res["ok"]:
-            st.success(res["answer"])
-            with st.expander(tt("Vis forklaring", "Show explanation"), expanded=is_school_mode()):
-                for s in res["steps"]:
-                    st.write(f"- {s}")
-        else:
-            st.warning(res["answer"])
-
-    if st.button(tt("Lukk ", "Close AI bot")):
-        # AI state removed
-        st.session_state.show_play = False
-        st.rerun()
-
-    st.stop()
-
-if st.session_state.get("show_play", False):
-    st.divider()
-    show_play_screen()
-    st.stop()
-
-st.markdown("<div style='margin-top:-10px;'></div>", unsafe_allow_html=True)
-
-
-# ============================================================
-
-# ============================================================
-# Startside (Etappe 1): Velg arbeidsoppgave -> anbefalt løype
-# ============================================================
-
-if "today_task" not in st.session_state:
-    st.session_state.today_task = "Ingen valgt"  # intern nøkkel (NO)
-
-# Intern nøkkel -> visningsnavn
-TASK_LABELS = {
-    "Ingen valgt": ( "Ingen valgt", "Not selected"),
-    "Vegg / bindingsverk": ("Vegg / bindingsverk", "Wall framing"),
-    "Gulv (plate/undergulv)": ("Gulv (plate/undergulv)", "Flooring (sheet/subfloor)"),
-    "Tak / sperrer": ("Tak / sperrer", "Roof / rafters"),
-    "Kledning / utvendig": ("Kledning / utvendig", "Cladding / exterior"),
-    "Flis på vegg eller gulv": ("Flis på vegg eller gulv", "Tiling wall or floor"),
-    "Betong / fundament": ("Betong / fundament", "Concrete / foundations"),
-    "Tegning og målestokk": ("Tegning og målestokk", "Drawings & scale"),
-    "Bestilling og kostnad": ("Bestilling og kostnad", "Ordering & cost"),
-}
-
-TOPIC_LABELS = {
-    "Areal": ("Areal", "Area"),
-    "Omkrets": ("Omkrets", "Perimeter"),
-    "Volum": ("Volum", "Volume"),
-    "Målestokk": ("Målestokk", "Scale"),
-    "Prosent": ("Prosent", "Percent"),
-    "Enhetsomregning": ("Enhetsomregning", "Unit conversions"),
-}
-
-CALC_LABELS = {
-    "Enhetomregner": ("Enhetomregner", "Unit converter"),
-    "Areal": ("Areal", "Area"),
-    "Omkrets": ("Omkrets", "Perimeter"),
-    "Volum": ("Volum", "Volume"),
-    "Målestokk": ("Målestokk", "Scale"),
-    "Beregninger": ("Beregninger", "Calculations"),
-    "Fall": ("Fall", "Slope"),
-    "Prosent": ("Prosent", "Percent"),
-    "Vinkler": ("Vinkler", "Angles"),
-    "Diagonal (Pytagoras)": ("Diagonal (Pytagoras)", "Diagonal (Pythagoras)"),
-    "Økonomi": ("Økonomi", "Economy"),
-}
-
-TASK_KEYS = list(TASK_LABELS.keys())
-
-TASK_TO_RECOMMEND = {
-    "Vegg / bindingsverk": {
-        "calc": ["Enhetomregner", "Areal", "Omkrets", "Diagonal (Pytagoras)"],
-        "play": ["Enhetsomregning", "Areal", "Målestokk"],
-        "tips": (
-            "Typisk: høyder i mm, lengder i m. Sjekk alltid enheter før du regner mengde.",
-            "Typical: heights in mm, lengths in m. Always verify units before quantity takeoff.",
-        ),
-    },
-    "Gulv (plate/undergulv)": {
-        "calc": ["Areal", "Beregninger", "Økonomi"],
-        "play": ["Areal", "Prosent", "Enhetsomregning"],
-        "tips": (
-            "Legg inn svinn (5–10 %) ved platevarer og gulvbelegg.",
-            "Add waste (5–10%) for sheet goods and floor covering.",
-        ),
-    },
-    "Tak / sperrer": {
-        "calc": ["Diagonal (Pytagoras)", "Fall", "Enhetomregner"],
-        "play": ["Omkrets", "Enhetsomregning", "Målestokk"],
-        "tips": (
-            "Bruk Pytagoras for lengder, og fall for avrenning. Kontroller alltid med måling.",
-            "Use Pythagoras for lengths and slope for runoff. Always verify with measurement.",
-        ),
-    },
-    "Kledning / utvendig": {
-        "calc": ["Areal", "Omkrets", "Prosent"],
-        "play": ["Areal", "Omkrets", "Prosent"],
-        "tips": (
-            "Kledning: sjekk både areal og løpemeter (spikerslag/lekter).",
-            "Cladding: check both area and running meters (battens/strapping).",
-        ),
-    },
-    "Flis på vegg eller gulv": {
-        "calc": ["Areal", "Beregninger", "Økonomi"],
-        "play": ["Areal", "Prosent", "Enhetsomregning"],
-        "tips": (
-            "Flis: regn med kapp/svinn og sjekk fuger/tilpasning. Dokumenter antall pakker.",
-            "Tiles: include cuts/waste and consider grout/fit. Document number of boxes.",
-        ),
-    },
-    "Betong / fundament": {
-        "calc": ["Volum", "Enhetomregner", "Økonomi"],
-        "play": ["Volum", "Enhetsomregning", "Prosent"],
-        "tips": (
-            "Betong: tykkelse i mm må omregnes til m før m³. Sjekk armering og overdekning.",
-            "Concrete: thickness in mm must be converted to m before m³. Check reinforcement and cover.",
-        ),
-    },
-    "Tegning og målestokk": {
-        "calc": ["Målestokk", "Enhetomregner", "Diagonal (Pytagoras)"],
-        "play": ["Målestokk", "Enhetsomregning"],
-        "tips": (
-            "Start med å avklare målestokk og enheter på tegningen (mm/cm).",
-            "Start by confirming drawing scale and units (mm/cm).",
-        ),
-    },
-    "Bestilling og kostnad": {
-        "calc": ["Økonomi", "Prosent", "Areal"],
-        "play": ["Prosent", "Areal", "Enhetsomregning"],
-        "tips": (
-            "Dokumenter antakelser: svinn, pakningsstørrelser, rabatt/påslag og mva.",
-            "Document assumptions: waste, package sizes, discounts/markup and VAT.",
-        ),
-    },
-}
-
-def _lab(d: dict, key: str) -> str:
-    no, en = d.get(key, (key, key))
-    return tt(no, en)
-
-st.divider()
-st.subheader("🧭 " + tt("Velg arbeidsoppgave i dag", "Choose today's workshop task"))
-st.caption(tt(
-    "Velg hva du jobber med i verksted. Appen foreslår relevante faner og en kort øvingsløype.",
-    "Select what you're working on. The app suggests relevant tabs and a short practice path."
-))
-
-# Visningsliste (lokalisert), men lagre intern nøkkel (NO)
-task_display = [_lab(TASK_LABELS, k) for k in TASK_KEYS]
-current_key = st.session_state.today_task if st.session_state.today_task in TASK_KEYS else "Ingen valgt"
-current_index = TASK_KEYS.index(current_key)
-
-picked_display = st.selectbox(
-    tt("Arbeidsoppgave", "Workshop task"),
-    task_display,
-    index=current_index,
-    key="today_task_select",
-)
-
-picked_key = TASK_KEYS[task_display.index(picked_display)]
-st.session_state.today_task = picked_key
-
-rec = TASK_TO_RECOMMEND.get(picked_key)
-
-if rec:
-    c1, c2 = st.columns([1.1, 1.2])
-    with c1:
-        with st.container(border=True):
-            st.markdown("**" + tt("Anbefalte faner", "Recommended tabs") + "**")
-            st.write("• " + "\n• ".join([_lab(CALC_LABELS, x) for x in rec["calc"]]))
-            st.caption(tt(*rec["tips"]))
-    with c2:
-        with st.container(border=True):
-            st.markdown("**" + tt("Anbefalt øvingsløype", "Recommended practice path") + "**")
-            st.write("• " + "\n• ".join([_lab(TOPIC_LABELS, x) for x in rec["play"]]))
-            st.caption(tt(
-                "Trykk for å starte direkte i *Lek og lær* med anbefalt tema.",
-                "Click to start directly in *Learn & Play* with a recommended topic."
-            ))
-            btn_cols = st.columns(len(rec["play"]))
-            for i, topic_key in enumerate(rec["play"]):
-                with btn_cols[i]:
-                    if st.button("🎯 " + _lab(TOPIC_LABELS, topic_key), key=f"start_play_{picked_key}_{topic_key}", use_container_width=True):
-                        st.session_state.play_selected_topic = topic_key  # intern nøkkel (NO)
-                        st.session_state.show_play = True
-                        # AI state removed
-                        st.session_state.show_pro = False
-                        st.rerun()
-else:
-    st.info(tt(
-        "Tips: Velg en arbeidsoppgave for å få forslag til faner og øving.",
-        "Tip: Choose a task to get suggested tabs and practice."
-    ))
-
-
-
-# ============================================================
-# Tabs
-# ============================================================
-tabs = st.tabs(
-    [
-        "📏 " + tt("Enhetomregner", "Unit converter"),
-        "⬛ " + tt("Areal", "Area"),
-        "🧵 " + tt("Omkrets", "Perimeter"),
-        "🧱 " + tt("Volum", "Volume"),
-        "📐 " + tt("Målestokk", "Scale"),
-        "🪵 " + tt("Beregninger", "Calculations"),
-        "📉 " + tt("Fall", "Slope"),
-        "🧮 " + tt("Prosent", "Percent"),
-        "📐 " + tt("Vinkler", "Angles"),
-        "💰 " + tt("Økonomi", "Economy"),
-        "📊 " + tt("Historikk", "History"),
-    ]
-)
-
-# ---- Enhetsomregner ----
-with tabs[0]:
-    st.subheader(tt("Enhetsomregner", "Unit converter"))
-    if is_school_mode():
-        render_school_illustration("unit")
-    st.caption("I byggfag brukes måleenheter som millimeter (mm), centimeter (cm) og meter (m). For å regne riktig må alle mål ofte være i samme enhet. Skriv inn et tall, velg enhet, og få omregning til mm, cm og m i tabell.")
-
-    c1, c2 = st.columns([2, 1])
-
-    with c1:
-        value = st.number_input("Verdi", min_value=0.0, value=1000.0, step=1.0, key="unit_value")
-
-    with c2:
-        unit_in = st.selectbox("Enhet", options=["mm", "cm", "m"], index=0, key="unit_in")
-
-    # Konverter inndata til mm -> derfra til alle enheter
-    mm_value = to_mm(float(value), str(unit_in))
-    conv = mm_to_all(mm_value)
-
-    # Bygg tabell (mm, cm, m)
-    df_units = pd.DataFrame(
-        [
-            {"Enhet": "mm", "Verdi": round_sensible(conv["mm"], 1)},
-            {"Enhet": "cm", "Verdi": round_sensible(conv["cm"], 2)},
-            {"Enhet": "m",  "Verdi": round_sensible(conv["m"], 3)},
-        ]
-    )
-
-    st.dataframe(df_units, use_container_width=True, hide_index=True)
-
-    # Valgfritt: små "metric"-bokser i tillegg (kan fjernes)
-    m1, m2, m3 = st.columns(3)
-    m1.metric("mm", f'{round_sensible(conv["mm"], 1)}')
-    m2.metric("cm", f'{round_sensible(conv["cm"], 2)}')
-    m3.metric("m",  f'{round_sensible(conv["m"], 3)}')
-
-
-# ---- Areal ----
-with tabs[1]:
-    if is_school_mode():
-        st.caption("Areal forteller hvor stor en flate er. I bygg brukes areal for å finne hvor mye gulv, vegg, isolasjon eller kledning som trengs. Tenk: areal = lengde × bredde. Sjekk alltid at begge mål er i meter.")
-        render_school_illustration("area")
-
-    st.subheader(tt("Areal (rektangel)", "Area (rectangle)"))
-    l = st.number_input("Lengde (m)", min_value=0.0, value=5.0, step=0.1, key="areal_l")
-    w = st.number_input("Bredde (m)", min_value=0.0, value=4.0, step=0.1, key="areal_w")
-    if st.button(tt("Beregn areal", "Calculate area"), key="btn_areal"):
-        show_result(calc_area_rectangle(l, w))
-
-    st.divider()
-    st.subheader(tt("Areal + svinn", "Area + waste"))
-    area = st.number_input("Areal (m²)", min_value=0.0, value=20.0, step=0.1, key="svinn_area")
-    waste = st.number_input("Svinn (%)", min_value=0.0, value=10.0, step=1.0, key="svinn_pct")
-    if st.button(tt("Beregn bestillingsareal", "Calculate order area"), key="btn_svinn"):
-        show_result(calc_area_with_waste(area, waste))
-
-    st.divider()
-    st.subheader(tt("Areal (sammensatt av rektangler)", "Area (composite rectangles)"))
-    st.caption("Legg inn delmål og summer dem.")
-    n = st.number_input("Antall deler", min_value=1, max_value=20, value=3, step=1, key="comp_n")
-    rects = []
-    for i in range(int(n)):
-        c1, c2 = st.columns(2)
-        with c1:
-            li = st.number_input(
-                f"Del {i+1} lengde (m)",
-                min_value=0.0,
-                value=2.0,
-                step=0.1,
-                key=f"comp_l_{i}",
-            )
-        with c2:
-            wi = st.number_input(
-                f"Del {i+1} bredde (m)",
-                min_value=0.0,
-                value=1.5,
-                step=0.1,
-                key=f"comp_w_{i}",
-            )
-        rects.append((li, wi))
-
-    if st.button(tt("Beregn sammensatt areal", "Calculate composite area"), key="btn_comp"):
-        show_result(calc_area_composite(rects))
-
-# ---- Omkrets ----
-with tabs[2]:
-    if is_school_mode():
-        st.caption("Omkrets er lengden rundt en figur. I bygg brukes omkrets blant annet for å finne lengde på lister, sviller eller fundament. Rektangel: 2(a+b). Sirkel: 2πr.")
-        render_school_illustration("perimeter")
-
-    st.subheader("🧵 " + tt("Omkrets", "Perimeter"))
-    shape = st.selectbox(tt("Velg figur", "Select shape"), ["Rektangel", "Sirkel"], key="per_shape")
-
-    unit = st.selectbox(tt("Enhet for inndata", "Input unit"), ["mm", "cm", "m"], index=2, key="per_unit")
-
-    if shape == "Rektangel":
-        c1, c2 = st.columns(2)
-        with c1:
-            a = st.number_input("Side a", min_value=0.0, value=2.0, step=0.1, key="per_a")
-        with c2:
-            b = st.number_input("Side b", min_value=0.0, value=1.0, step=0.1, key="per_b")
-
-        a_m = to_mm(float(a), unit) / 1000.0
-        b_m = to_mm(float(b), unit) / 1000.0
-
-        if st.button(tt("Beregn omkrets", "Calculate perimeter"), key="btn_per_rect"):
-            show_result(calc_perimeter("Rektangel", a_m=a_m, b_m=b_m))
-
-    else:
-        r = st.number_input("Radius", min_value=0.0, value=0.5, step=0.1, key="per_r")
-        r_m = to_mm(float(r), unit) / 1000.0
-
-        if st.button(tt("Beregn omkrets", "Calculate perimeter"), key="btn_per_circ"):
-            show_result(calc_perimeter("Sirkel", r_m=r_m))
-
-
-# ---- Volum/betong ----
-with tabs[3]:
-    if is_school_mode():
-        st.caption("Volum sier hvor mye noe rommer. I bygg brukes volum særlig når man skal beregne mengde betong, masser eller fyll. Volum beregnes i m³. Tykkelser oppgis ofte i mm og må konverteres til meter.")
-        render_school_illustration("volume")
-
-    st.subheader(tt("Betongplate", "Concrete slab"))
-    l = st.number_input("Lengde (m)", min_value=0.0, value=6.0, step=0.1, key="slab_l")
-    w = st.number_input("Bredde (m)", min_value=0.0, value=4.0, step=0.1, key="slab_w")
-    t = st.number_input("Tykkelse (mm)", min_value=0.0, value=100.0, step=5.0, key="slab_t")
-    if st.button(tt("Beregn volum (plate)", "Calculate volume (slab)"), key="btn_slab"):
-        show_result(calc_concrete_slab(l, w, t))
-
-    st.divider()
-    st.subheader(tt("Stripefundament", "Strip foundation"))
-    l = st.number_input("Lengde (m)", min_value=0.0, value=20.0, step=0.1, key="strip_l")
-    w = st.number_input("Bredde (m)", min_value=0.0, value=0.4, step=0.05, key="strip_w")
-    h = st.number_input("Høyde (mm)", min_value=0.0, value=400.0, step=10.0, key="strip_h")
-    if st.button(tt("Beregn volum (stripefundament)", "Calculate volume (strip foundation)"), key="btn_strip"):
-        show_result(calc_strip_foundation(l, w, h))
-
-    st.divider()
-    st.subheader(tt("Søyle (sylinder)", "Column (cylinder)"))
-    d = st.number_input("Diameter (mm)", min_value=0.0, value=300.0, step=10.0, key="col_d")
-    hm = st.number_input("Høyde (m)", min_value=0.0, value=3.0, step=0.1, key="col_h")
-    if st.button(tt("Beregn volum (søyle)", "Calculate volume (column)"), key="btn_col"):
-        show_result(calc_column_cylinder(d, hm))
-
-# ---- Målestokk (begge veier + 1–100) ----
-with tabs[4]:
-    if is_school_mode():
-        st.caption("Målestokk viser forholdet mellom en tegning og virkeligheten. En målestokk på 1:50 betyr at 1 cm på tegningen er 50 cm i virkeligheten.")
-        render_school_illustration("scale")
-
-    st.subheader(tt("Målestokk", "Scale"))
-
-    direction = st.radio(
-        tt("Velg retning", "Choose direction"),
-        options=["Tegning → virkelighet", "Virkelighet → tegning"],
-        horizontal=True,
-        key="scale_direction",
-    )
-
-    c1, c2, c3 = st.columns([2, 1, 1])
-    with c1:
-        if direction == "Tegning → virkelighet":
-            val = st.number_input("Mål på tegning", min_value=0.0, value=50.0, step=1.0, key="scale_val")
-        else:
-            val = st.number_input("Virkelig mål", min_value=0.0, value=600.0, step=1.0, key="scale_val")
-
-    with c2:
-        unit = st.selectbox("Enhet", options=["mm", "cm", "m"], index=0, key="scale_unit")
-
-    with c3:
-        scale_n = st.number_input("Målestokk (1:n)", min_value=1, max_value=100, value=50, step=1, key="scale_n")
-
-    if st.button(tt("Beregn målestokk", "Calculate scale"), key="btn_scale_bidir"):
-        show_result(calc_scale_bidir(float(val), str(unit), int(scale_n), str(direction)))
-
-# ---- Kledning ----
-with tabs[5]:
-    st.subheader(tt("Tømmermannskledning", "Wood cladding"))
-    if is_school_mode():
-        render_school_illustration("cladding")
-    st.caption("Når du kler en vegg, må du vite hvor mange bord som trengs, og om bordene dekker hele bredden riktig. Fritt innskrive: mål fra–til (cm), omlegg (cm) og bordbredder (mm).")
-
-    c1, c2, c3, c4 = st.columns([2, 2, 2, 2])
-    with c1:
-        measure_cm = st.number_input("Mål fra–til (cm)", min_value=0.0, value=600.0, step=1.0, key="tk_measure_cm")
-    with c2:
-        overlap_cm = st.number_input("Ønsket omlegg (cm)", min_value=0.0, value=2.0, step=0.1, key="tk_overlap_cm")
-    with c3:
-        under_w = st.number_input("Underligger bredde (mm)", min_value=1.0, value=148.0, step=1.0, key="tk_under_w")
-    with c4:
-        over_w = st.number_input("Overligger bredde (mm)", min_value=1.0, value=58.0, step=1.0, key="tk_over_w")
-
-    if st.button(tt("Beregn kledning", "Calculate cladding"), key="btn_tk"):
-        show_result(calc_tommermannskledning_width(float(measure_cm), float(overlap_cm), float(under_w), float(over_w)))
-
-    st.divider()
-    st.subheader(tt("Fliser", "Tiles"))
-    if is_school_mode():
-        render_school_illustration("tiles")
-    if is_school_mode():
-        st.caption("Du regner antall fliser ved å bruke modulmål: (flis + fuge). Antall = ceil(vegg / modul).")
-
-    left, right = st.columns([2.2, 1.3], gap="large")
+def show_front_page():
+    left, right = st.columns([1.25, 1], gap="large")
 
     with left:
-        st.markdown("### Flisstørrelse")
-        c1, c2, c3, c4 = st.columns([1.2, 1, 1.2, 1])
-        with c1:
-            tile_h = st.number_input("Høyde", min_value=0.0, value=15.0, step=1.0, key="tile_h")
-        with c2:
-            tile_h_unit = st.selectbox(" ", ["mm", "cm", "m"], index=1, key="tile_h_unit")
-        with c3:
-            tile_w = st.number_input("Bredde", min_value=0.0, value=10.0, step=1.0, key="tile_w")
-        with c4:
-            tile_w_unit = st.selectbox("  ", ["mm", "cm", "m"], index=1, key="tile_w_unit")
-
-        st.markdown("### Flisfugeavstand")
-        c5, c6 = st.columns([1.2, 1])
-        with c5:
-            grout = st.number_input("Fuge", min_value=0.0, value=2.0, step=0.5, key="tile_grout")
-        with c6:
-            grout_unit = st.selectbox("   ", ["mm", "cm", "m"], index=1, key="tile_grout_unit")
-
-        st.markdown("### Mål på overflaten som skal flislegges")
-        method = st.selectbox("Metode", ["Angi dimensjoner"], index=0, key="tile_method")
-
-        c7, c8 = st.columns([1.2, 1])
-        with c7:
-            wall_h = st.number_input("Høyde (vegg)", min_value=0.0, value=2.4, step=0.1, key="wall_h")
-        with c8:
-            wall_h_unit = st.selectbox("    ", ["mm", "cm", "m"], index=2, key="wall_h_unit")
-
-        c9, c10 = st.columns([1.2, 1])
-        with c9:
-            wall_w = st.number_input("Bredde (vegg)", min_value=0.0, value=3.0, step=0.1, key="wall_w")
-        with c10:
-            wall_w_unit = st.selectbox("     ", ["mm", "cm", "m"], index=2, key="wall_w_unit")
-
-        st.markdown("### Pris (valgfritt)")
-        st.caption("Angi pris per flis for å beregne totalpris.")
-        c11, c12 = st.columns([1.2, 1])
-        with c11:
-            price_per_tile = st.number_input("Pris per flis", min_value=0.0, value=0.0, step=1.0, key="tile_price")
-        with c12:
-            st.write("NOK")
-
-        calc_now = st.button(tt("Beregn fliser", "Calculate tiles"), key="btn_tiles", use_container_width=True)
-
-    with right:
-        st.markdown("### Resultat")
-        add10 = st.checkbox(
-            "Legg til 10 % ekstra fliser (i tilfelle kutting, problemer eller fremtidige bytter).",
-            value=True,
-            key="tile_add10",
-        )
-
-        # Når bruker klikker "Beregn fliser"
-        if calc_now:
-            res = calc_tiles_wall(
-                tile_h=tile_h, tile_h_unit=tile_h_unit,
-                tile_w=tile_w, tile_w_unit=tile_w_unit,
-                grout=grout, grout_unit=grout_unit,
-                wall_h=wall_h, wall_h_unit=wall_h_unit,
-                wall_w=wall_w, wall_w_unit=wall_w_unit,
-                add_10_percent=add10,
-                price_per_tile=price_per_tile,
-            )
-
-            # Vis “likt bildet”: felt for antall + totalpris
-            o = res.outputs
-            st.text_input("Trenger fliser:", value=str(o.get("trenger_fliser", 0)), disabled=True, key="tiles_out_count")
-
-            # Totalpris
-            totalpris = o.get("totalpris", 0.0)
-            st.text_input("Totalpris", value=f"{totalpris:.2f}", disabled=True, key="tiles_out_price")
-            st.write("NOK")
-
-            # Skolemodus: vis utregning
-            with st.expander("Vis utregning", expanded=is_school_mode()):
-                for s in res.steps:
-                    st.write(f"- {s}")
-
-            if res.warnings:
-                st.warning("Sjekk dette:\n- " + "\n- ".join(res.warnings))
-
-
-# ---- Fall/vinkel ----
-with tabs[6]:
-    st.write("Fall og vinkel")  # skal vises uansett
-
-    if is_school_mode():
-        st.caption("Fall brukes for å sikre at vann renner riktig vei, for eksempel på bad, terrasse eller tak. Fall kan angis i prosent, 1:x eller mm per meter.")
-        render_school_illustration("slope")
-
-    st.subheader(tt("Fallberegning", "Slope calculation"))
-    length = st.number_input("Lengde (m)", min_value=0.0, value=2.0, step=0.1, key="fall_len")
-    mode = st.selectbox("Angi fall som", options=["prosent", "1:x", "mm_per_m"], index=0, key="fall_mode")
-
-    if mode == "prosent":
-        val = st.number_input("Fall (%)", min_value=0.0, value=2.0, step=0.1, key="fall_val_pct")
-    elif mode == "1:x":
-        val = st.number_input("x i 1:x", min_value=1.0, value=50.0, step=1.0, key="fall_val_ratio")
-    else:
-        val = st.number_input("mm per meter", min_value=0.0, value=20.0, step=1.0, key="fall_val_mm")
-
-    if st.button(tt("Beregn fall", "Calculate slope"), key="btn_fall"):
-        show_result(calc_fall(length, mode, float(val)))
-
-
-# ---- Økonomi ----
-
-with tabs[7]:
-    st.subheader("🧮 Prosent")
-    if is_school_mode():
-        render_school_illustration("percent")
-    st.caption("Prosent brukes for å vise en del av en helhet. I bygg brukes prosent blant annet til svinn, rabatt, påslag og MVA. Regn ut prosent av et tall, eller finn hvor mange prosent et tall er av et annet.")
-
-    mode = st.radio(
-        "Velg type",
-        ["Prosent av et tall", "Hvor mange prosent?"],
-        horizontal=True,
-        key="pct_mode",
-    )
-
-    if mode == "Prosent av et tall":
-        c1, c2 = st.columns(2)
-        with c1:
-            pct = st.number_input("Prosent (%)", min_value=0.0, value=25.0, step=0.5, key="pct_a")
-        with c2:
-            base = st.number_input("Av tallet", min_value=0.0, value=1800.0, step=10.0, key="pct_b")
-
-        if st.button("Beregn", key="btn_pct_of"):
-            res = base * (pct / 100.0)
-            steps = [f"{pct}% av {base} = {base} × ({pct}/100) = {res}"]
-            show_result(CalcResult(
-                name="Prosent (av et tall)",
-                inputs={"prosent": pct, "av": base},
-                outputs={"resultat": round_sensible(res, 2)},
-                steps=steps,
-                warnings=[],
-                timestamp=make_timestamp(),
-            ))
-
-    else:
-        c1, c2 = st.columns(2)
-        with c1:
-            part = st.number_input("Del", min_value=0.0, value=450.0, step=10.0, key="pct_part")
-        with c2:
-            whole = st.number_input("Av (total)", min_value=0.0, value=1800.0, step=10.0, key="pct_whole")
-
-        if st.button("Beregn", key="btn_pct_how"):
-            pct = (part / whole * 100.0) if whole else 0.0
-            steps = [f"Prosent = (del / total) × 100 = ({part}/{whole}) × 100 = {pct}"]
-            show_result(CalcResult(
-                name="Prosent (hvor mange prosent)",
-                inputs={"del": part, "total": whole},
-                outputs={"prosent": round_sensible(pct, 2)},
-                steps=steps,
-                warnings=[],
-                timestamp=make_timestamp(),
-            ))
-
-
-
-
-
-# ---- Vinkler + Diagonal ----
-with tabs[8]:
-    # Denne fanen samler både vinkelberegning og Pytagoras, slik at elevene finner alt om "vinkel" på samme sted.
-
-    subtab_vinkler, subtab_diagonal = st.tabs(
-        [
-            "📐 " + tt("Vinkler", "Angles"),
-            "📐 " + tt("Diagonal/pytagoras", "Angles"),
-        ]
-    )
-
-    # ============================
-    # Subtab: Vinkler
-    # ============================
-    with subtab_vinkler:
-        if is_school_mode():
-            st.caption(
-                "Bruk vinkel-formler i en rettvinklet trekant. "
-                "Vi bruker sidene A, B og C (samme enhet)."
-            )
-            # Valgfritt illustrasjonsbilde dersom du legger det i assets/ (krasjer ikke om det mangler)
-            render_school_illustration("angles")
-
-        st.subheader("📐 " + tt("Vinkler (rettvinklet trekant)", "Angles (right triangle)"))
-
+        st.markdown("## " + tt("Matematikk i byggfaget – før du bruker kalkulator", "Math in construction – before you use a calculator"))
         st.markdown(
-            """
-            **Forklaring**
-            - **A** og **B** er kateter  
-            - **C** er hypotenusen  
-            - **α (alfa)** er vinkelen vi regner ut
-            """
+            tt(
+                """
+**Byggmatte** er laget som et *undervisningsopplegg* – ikke bare et verktøy.  
+Målet er at du skal **forstå**, **vurdere** og **kontrollere** regningene du gjør i verkstedet og på byggeplass.
+
+### Hvorfor trenger vi matematikk i bygg?
+Du bruker matematikk for å:
+- bestille riktig mengde materialer (og redusere svinn)  
+- sikre at konstruksjoner blir rette, stabile og trygge  
+- lese og bruke arbeidstegninger og målestokk  
+- dokumentere eget arbeid og gjøre egenkontroll  
+
+> **Fagarbeiderlogikk:** Først forstår jeg oppgaven → så velger jeg formel → så regner jeg → så kontrollerer jeg.
+
+### Slik bruker du appen i undervisning
+1. **Les forsiden** (hva er målet og hva betyr begrepene?)  
+2. Gå til **Læringssoner** og finn riktig tema (areal, omkrets, volum …)  
+3. Prøv å regne **med mellomregning** før du sjekker svaret  
+4. Bruk kalkulatoren *kun som kontroll* når du er usikker
+
+""",
+                """
+**Byggmatte** is designed as a *learning sequence* — not just a tool.  
+The goal is that you can **understand**, **judge** and **verify** the math you use in the workshop and on site.
+
+### Why do we need math in construction?
+You use math to:
+- order the right quantity of materials (and reduce waste)  
+- ensure structures are straight, stable and safe  
+- read drawings and work with scale  
+- document your work and perform self-checks  
+
+> **Craft logic:** Understand the task → choose a formula → calculate → verify.
+
+### How to use this app in class
+1. **Read the front page** (goal + key concepts)  
+2. Go to **Learning zones** and find the right topic (area, perimeter, volume …)  
+3. Try to calculate **with working** before checking  
+4. Use the calculator *only for verification* when needed
+"""
+            )
         )
 
-        formelvalg = st.selectbox(
-            tt("Velg formel", "Choose formula"),
-            [
-                "tan⁻¹(A / B)",
-                "sin⁻¹(A / C)",
-                "cos⁻¹(B / C)",
-            ],
-            key="angle_formula",
-        )
-
-        c1, c2, c3 = st.columns(3)
-        with c1:
-            A = st.number_input("A", min_value=0.0, step=0.01, key="angle_A")
-        with c2:
-            B = st.number_input("B", min_value=0.0, step=0.01, key="angle_B")
-        with c3:
-            C = st.number_input("C", min_value=0.0, step=0.01, key="angle_C")
-
-        if st.button(tt("Beregn vinkel", "Calculate angle"), key="btn_angle", use_container_width=True):
-            warnings, steps = [], []
-            angle = None
-
-            if formelvalg == "tan⁻¹(A / B)":
-                if A > 0 and B > 0:
-                    angle = math.degrees(math.atan(A / B))
-                    steps.append(f"α = tan⁻¹({A} / {B})")
-                else:
-                    warnings.append("A og B må være > 0.")
-
-            elif formelvalg == "sin⁻¹(A / C)":
-                if A > 0 and C > 0:
-                    if A <= C:
-                        angle = math.degrees(math.asin(A / C))
-                        steps.append(f"α = sin⁻¹({A} / {C})")
-                    else:
-                        warnings.append("A kan ikke være større enn C.")
-                else:
-                    warnings.append("A og C må være > 0.")
-
-            elif formelvalg == "cos⁻¹(B / C)":
-                if B > 0 and C > 0:
-                    if B <= C:
-                        angle = math.degrees(math.acos(B / C))
-                        steps.append(f"α = cos⁻¹({B} / {C})")
-                    else:
-                        warnings.append("B kan ikke være større enn C.")
-                else:
-                    warnings.append("B og C må være > 0.")
-
-            outputs = {}
-            if angle is not None:
-                outputs["vinkel_grader"] = round_sensible(angle, 2)
-                # Komplementær vinkel kan være nyttig (β = 90° - α)
-                outputs["andre_vinkel_grader"] = round_sensible(90.0 - angle, 2)
-
-                steps.append(f"β = 90° − α = 90° − {round_sensible(angle, 2)}° = {round_sensible(90.0 - angle, 2)}°")
-
-            show_result(
-                CalcResult(
-                    name="Vinkler",
-                    inputs={"A": A, "B": B, "C": C, "formel": formelvalg},
-                    outputs=outputs,
-                    steps=steps if steps else [],
-                    warnings=warnings,
-                    timestamp=make_timestamp(),
+        with st.container(border=True):
+            st.markdown("### " + tt("Mini-økt (2×45 min) – forslag", "Mini-lesson (2×45 min) – suggestion"))
+            st.markdown(
+                tt(
+                    """
+**Økt 1 (45 min):** Felles gjennomgang av forsiden + én læringssone. Elevene forklarer *hvilken formel* de velger og *hvorfor*.  
+**Økt 2 (45 min):** Elevene jobber med en praktisk case (gulv, vegg, list, betong). De leverer:  
+- valgt formel  
+- inndata (med enheter)  
+- mellomregning  
+- kontroll (kalkulator / grovsjekk)
+                    """,
+                    """
+**Session 1 (45 min):** Whole-class walkthrough of the front page + one learning zone. Students explain *which formula* they choose and *why*.  
+**Session 2 (45 min):** Students work on a practical case (floor, wall, trim, concrete). They submit:  
+- chosen formula  
+- inputs (with units)  
+- working  
+- verification (calculator / sanity check)
+                    """
                 )
             )
 
-    # ============================
-    # Subtab: Diagonal (Pytagoras)
-    # ============================
-    with subtab_diagonal:
-        if is_school_mode():
-            st.caption("Pytagoras brukes i rettvinklede trekanter: c = √(a² + b²). Sjekk alltid enhet før du regner.")
-            render_school_illustration("diagonal")
-    
-        st.subheader(tt("Diagonal (Pytagoras)", "Diagonal (Pythagoras)"))
-    
-        unit = st.selectbox("Enhet for inndata", ["mm", "cm", "m"], index=2, key="pyt_unit")
-    
-        c1, c2 = st.columns(2)
-        with c1:
-            a = st.number_input("Side a", min_value=0.0, value=3000.0 if unit == "mm" else (300.0 if unit == "cm" else 3.0),
-                                step=1.0 if unit != "m" else 0.1, key="pyt_a_any")
-        with c2:
-            b = st.number_input("Side b", min_value=0.0, value=4000.0 if unit == "mm" else (400.0 if unit == "cm" else 4.0),
-                                step=1.0 if unit != "m" else 0.1, key="pyt_b_any")
-    
-        # Konverter til meter før beregning
-        a_m = to_mm(float(a), unit) / 1000.0
-        b_m = to_mm(float(b), unit) / 1000.0
-    
-        if st.button(tt("Beregn diagonal", "Calculate diagonal"), key="btn_pyt_any"):
-            show_result(calc_pythagoras(a_m, b_m))
+    with right:
+        with st.container(border=True):
+            st.markdown("### " + tt("Start her", "Start here"))
+            st.write(tt("Velg hva du vil gjøre nå:", "Choose what you want to do now:"))
+
+            c1, c2 = st.columns(2)
+            with c1:
+                if st.button("📚 " + tt("Gå til læringssoner", "Go to learning zones"), use_container_width=True):
+                    st.session_state.view = "Læringssoner"
+                    st.rerun()
+            with c2:
+                if st.button("🧮 " + tt("Gå til kalkulatorer", "Go to calculators"), use_container_width=True):
+                    st.session_state.view = "Kalkulatorer"
+                    st.rerun()
+
+            st.divider()
+            st.markdown("**" + tt("Huskeliste før du regner", "Checklist before you calculate") + "**")
+            st.markdown(
+                tt(
+                    "- Har jeg riktige mål?\n- Har jeg samme enhet på alle mål (mm/cm/m)?\n- Vet jeg hvilken formel som passer?\n- Kan jeg grovsjekke om svaret virker realistisk?",
+                    "- Do I have correct measurements?\n- Are all units consistent (mm/cm/m)?\n- Do I know which formula fits?\n- Can I sanity-check if the answer is realistic?",
+                )
+            )
+
+        st.caption(tt("Illustrasjoner kan ligge i mappen **assets/** (valgfritt).", "Illustrations can be placed in the **assets/** folder (optional)."))
+        render_asset_image("areal.png")
 
 
-# ---- Økonomi ----
-with tabs[9]:
-    st.subheader("💰 " + tt("Økonomi", "Economy"))
-    if is_school_mode():
-        render_school_illustration("economy")
-    if is_school_mode():
-        st.caption('I byggfag må du kunne regne ut priser, rabatter, påslag og merverdiavgift (MVA). Brukes til enkel prisregning: rabatt, påslag og MVA. Pass på prosent og rekkefølge.')
+# ============================================================
+# LÆRINGSSONER (full sone med alle vanlige formler i appen)
+# ============================================================
+def formula_block(title: str, formulas: list[str], notes: list[str] | None = None):
+    with st.container(border=True):
+        st.markdown(f"### {title}")
+        st.markdown("**" + tt("Formler", "Formulas") + "**")
+        for f in formulas:
+            st.markdown(f"- `{f}`")
+        if notes:
+            st.markdown("**" + tt("Husk", "Remember") + "**")
+            for n in notes:
+                st.markdown(f"- {n}")
 
-    st.markdown('### Pris (rabatt / påslag / MVA)')
-    base = st.number_input('Grunnpris', min_value=0.0, value=1000.0, step=10.0, key='price_base')
-    rabatt = st.number_input('Rabatt (%)', min_value=0.0, value=0.0, step=1.0, key='price_rabatt')
-    paslag = st.number_input('Påslag (%)', min_value=0.0, value=0.0, step=1.0, key='price_paslag')
-    mva = st.number_input('MVA (%)', min_value=0.0, value=25.0, step=1.0, key='price_mva')
-    if st.button(tt('Beregn pris', 'Calculate price'), key='btn_price'):
-        show_result(calc_price(base, rabatt, paslag, mva))
+
+def calculator_block(kind: str):
+    """Enkle kontrollkalkulatorer knyttet til sonene."""
+    if not st.session_state.show_calculators:
+        st.info(tt("Ønsker du kalkulator her? Slå på i ⚙️ Innstillinger.", "Want the calculator here? Enable it in ⚙️ Settings."))
+        return
+
+    st.markdown("#### " + tt("Kontrollkalkulator", "Verification calculator"))
+
+    if kind == "unit":
+        v = st.number_input(tt("Verdi", "Value"), min_value=0.0, value=1000.0, step=1.0)
+        u = st.selectbox(tt("Enhet", "Unit"), ["mm", "cm", "m"], index=0)
+        mm = to_mm(float(v), str(u))
+        out = mm_to_all(mm)
+        c1, c2, c3 = st.columns(3)
+        c1.metric("mm", f"{out['mm']:.2f}")
+        c2.metric("cm", f"{out['cm']:.2f}")
+        c3.metric("m", f"{out['m']:.3f}")
+
+    if kind == "area_rect":
+        a = st.number_input(tt("Lengde (m)", "Length (m)"), min_value=0.0, value=6.0, step=0.1)
+        b = st.number_input(tt("Bredde (m)", "Width (m)"), min_value=0.0, value=2.0, step=0.1)
+        if st.button(tt("Beregn areal", "Calculate area")):
+            st.success(f"{a*b:.2f} m²")
+
+    if kind == "perimeter_rect":
+        a = st.number_input(tt("Lengde (m)", "Length (m)"), min_value=0.0, value=2.0, step=0.1, key="p_a")
+        b = st.number_input(tt("Bredde (m)", "Width (m)"), min_value=0.0, value=2.0, step=0.1, key="p_b")
+        if st.button(tt("Beregn omkrets", "Calculate perimeter")):
+            st.success(f"{2*(a+b):.2f} m")
+
+    if kind == "volume_box":
+        l = st.number_input(tt("Lengde (m)", "Length (m)"), min_value=0.0, value=6.0, step=0.1, key="v_l")
+        b = st.number_input(tt("Bredde (m)", "Width (m)"), min_value=0.0, value=2.0, step=0.1, key="v_b")
+        h = st.number_input(tt("Høyde/tykkelse (m)", "Height/thickness (m)"), min_value=0.0, value=0.10, step=0.01, key="v_h")
+        if st.button(tt("Beregn volum", "Calculate volume")):
+            st.success(f"{l*b*h:.3f} m³")
+
+    if kind == "diagonal":
+        a = st.number_input(tt("Side A (m)", "Side A (m)"), min_value=0.0, value=3.0, step=0.1, key="d_a")
+        b = st.number_input(tt("Side B (m)", "Side B (m)"), min_value=0.0, value=4.0, step=0.1, key="d_b")
+        if st.button(tt("Beregn diagonal", "Calculate diagonal")):
+            st.success(f"{math.sqrt(a*a + b*b):.3f} m")
+
+    if kind == "percent_of":
+        p = st.number_input(tt("Prosent (%)", "Percent (%)"), min_value=0.0, value=25.0, step=1.0, key="pc_p")
+        v = st.number_input(tt("Av (verdi)", "Of (value)"), min_value=0.0, value=800.0, step=1.0, key="pc_v")
+        if st.button(tt("Beregn", "Calculate")):
+            st.success(f"{(p/100.0)*v:.2f}")
+
+    if kind == "slope":
+        fall = st.number_input(tt("Fall (m)", "Fall (m)"), min_value=0.0, value=0.08, step=0.01, key="sl_f")
+        lengde = st.number_input(tt("Lengde (m)", "Length (m)"), min_value=0.0, value=4.0, step=0.1, key="sl_l")
+        if st.button(tt("Beregn fall (%)", "Calculate slope (%)")):
+            if lengde == 0:
+                st.warning(tt("Lengde kan ikke være 0.", "Length cannot be 0."))
+            else:
+                st.success(f"{(fall/lengde)*100.0:.2f} %")
+
+
+def show_learning_zones():
+    st.markdown("## " + tt("Læringssoner", "Learning zones"))
+    st.caption(tt(
+        "Her finner du forklaringer og formler. Målet er at elevene skal kunne velge riktig formel og vise mellomregning.",
+        "Here you will find explanations and formulas. The goal is that students can choose the correct formula and show working."
+    ))
+
+    # 1) Enheter
+    with st.expander("📏 " + tt("Enheter og omregning", "Units and conversion"), expanded=True):
+        st.markdown(tt(
+            """
+**Hvorfor:** I bygg oppstår feil ofte fordi vi blander mm, cm og m.  
+**Regel:** Gjør om til *samme enhet* før du regner.
+
+- `mm → cm`: ÷ 10  
+- `cm → m`: ÷ 100  
+- `mm → m`: ÷ 1000  
+- `m → cm`: × 100  
+- `m → mm`: × 1000
+            """,
+            """
+**Why:** In construction, mistakes often happen because mm, cm and m get mixed.  
+**Rule:** Convert to the *same unit* before calculating.
+
+- `mm → cm`: ÷ 10  
+- `cm → m`: ÷ 100  
+- `mm → m`: ÷ 1000  
+- `m → cm`: × 100  
+- `m → mm`: × 1000
+            """
+        ))
+        render_asset_image("enhetsomregner.png")
+        calculator_block("unit")
+
+    # 2) Areal
+    with st.expander("⬛ " + tt("Areal (flate)", "Area (surface)"), expanded=False):
+        formula_block(
+            tt("Areal – vanlige formler", "Area – common formulas"),
+            formulas=[
+                "A_rektangel = lengde × bredde",
+                "A_trekant = (grunnlinje × høyde) / 2",
+                "A_sirkel = π × r²",
+                "A_trapes = ((a + b) / 2) × h",
+            ],
+            notes=[
+                tt("Svar i m² når målene er i meter.", "Answer is in m² when measurements are in meters."),
+                tt("Trekk fra åpninger (dør/vindu) for nettoareal.", "Subtract openings (door/window) for net area."),
+                tt("Legg til svinn ved bestilling (ofte 10–15 %).", "Add waste when ordering (often 10–15%)."),
+            ],
+        )
+        st.markdown(tt(
+            "**Eksempel (rektangel):** Gulv 6,0 m × 2,0 m → `A = 12,0 m²`.",
+            "**Example (rectangle):** Floor 6.0 m × 2.0 m → `A = 12.0 m²`.",
+        ))
+        render_asset_image("areal.png")
+        calculator_block("area_rect")
+
+    # 3) Omkrets
+    with st.expander("🧵 " + tt("Omkrets (lengde rundt)", "Perimeter (length around)"), expanded=False):
+        formula_block(
+            tt("Omkrets – vanlige formler", "Perimeter – common formulas"),
+            formulas=[
+                "O_rektangel = 2 × (lengde + bredde)",
+                "O_trekant = a + b + c",
+                "O_sirkel = 2 × π × r  (eller π × d)",
+            ],
+            notes=[
+                tt("Svar i meter (m) når målene er i meter.", "Answer is in meters (m) when measurements are in meters."),
+                tt("Brukes mye til lister, sviller, rammer og løpemeter.", "Often used for trim, sills, frames and running meters."),
+            ],
+        )
+        render_asset_image("omkrets.png")
+        calculator_block("perimeter_rect")
+
+    # 4) Volum
+    with st.expander("🧱 " + tt("Volum (mengde)", "Volume (quantity)"), expanded=False):
+        formula_block(
+            tt("Volum – vanlige formler", "Volume – common formulas"),
+            formulas=[
+                "V_boks = lengde × bredde × høyde",
+                "V_plate = lengde × bredde × tykkelse",
+                "V_sylinder = π × r² × h",
+            ],
+            notes=[
+                tt("Tykkelse står ofte i mm – gjør om til meter først.", "Thickness is often given in mm — convert to meters first."),
+                tt("Svar i m³.", "Answer is in m³."),
+            ],
+        )
+        st.markdown(tt(
+            "**Eksempel (plate):** 100 mm = 0,10 m → `V = 6,0 × 2,0 × 0,10 = 1,2 m³`.",
+            "**Example (slab):** 100 mm = 0.10 m → `V = 6.0 × 2.0 × 0.10 = 1.2 m³`.",
+        ))
+        render_asset_image("volum.png")
+        calculator_block("volume_box")
+
+    # 5) Diagonal og kontroll av rett vinkel
+    with st.expander("📐 " + tt("Diagonal og rett vinkel (Pytagoras)", "Diagonal and right angle (Pythagoras)"), expanded=False):
+        formula_block(
+            tt("Diagonal – formel", "Diagonal – formula"),
+            formulas=[
+                "c = √(a² + b²)",
+                "a = √(c² − b²)",
+                "b = √(c² − a²)",
+            ],
+            notes=[
+                tt("Brukes for å kontrollere om en ramme er i vinkel.", "Used to check if a frame is square."),
+                tt("Klassiker: 3–4–5 (m) gir rett vinkel.", "Classic: 3–4–5 (m) gives a right angle."),
+            ],
+        )
+        render_asset_image("diagonal.png")
+        calculator_block("diagonal")
+
+    # 6) Vinkler (grunnleggende trig)
+    with st.expander("📐 " + tt("Vinkler (grunnleggende)", "Angles (basics)"), expanded=False):
+        formula_block(
+            tt("Vinkler – vanlige formler", "Angles – common formulas"),
+            formulas=[
+                "sin(θ) = motstående / hypotenus",
+                "cos(θ) = hosliggende / hypotenus",
+                "tan(θ) = motstående / hosliggende",
+                "θ = arctan(motstående / hosliggende)",
+            ],
+            notes=[
+                tt("Bruk A, B, C som sider dersom det er enklere å huske.", "Use A, B, C as sides if that is easier to remember."),
+                tt("Vær konsekvent: samme enhet på alle lengder.", "Be consistent: same unit for all lengths."),
+            ],
+        )
+        render_asset_image("vinkler.png")
+        st.info(tt(
+            "Tips i undervisning: La elevene tegne en rettvinklet trekant og merke sider før de bruker kalkulator.",
+            "Class tip: Let students sketch a right triangle and label sides before using a calculator."
+        ))
+
+    # 7) Målestokk
+    with st.expander("📐 " + tt("Målestokk", "Scale"), expanded=False):
+        formula_block(
+            tt("Målestokk – formler", "Scale – formulas"),
+            formulas=[
+                "Målestokk = tegning / virkelighet",
+                "Tegning = virkelighet × målestokk",
+                "Virkelighet = tegning / målestokk",
+                "Ved 1:n → målestokk = 1/n",
+            ],
+            notes=[
+                tt("Pass på enheter (mm på tegning, m i virkelighet).", "Watch units (mm on drawing, m in reality)."),
+                tt("Skriv alltid målestokk som 1:n.", "Always write scale as 1:n."),
+            ],
+        )
+        render_asset_image("malestokk.png")
+
+    # 8) Fall
+    with st.expander("📉 " + tt("Fall (gulv / sluk)", "Slope (floors / drains)"), expanded=False):
+        formula_block(
+            tt("Fall – formler", "Slope – formulas"),
+            formulas=[
+                "Fall (%) = (fall / lengde) × 100",
+                "Fall (m) = (fall% / 100) × lengde",
+            ],
+            notes=[
+                tt("Fall måles ofte i mm per meter: 1:50 = 20 mm per meter.", "Slope is often expressed as mm per meter: 1:50 = 20 mm per meter."),
+                tt("Bruk grovsjekk: virker fallet rimelig på lengden?", "Sanity-check: does the slope make sense for the length?"),
+            ],
+        )
+        render_asset_image("fall.png")
+        calculator_block("slope")
+
+    # 9) Prosent
+    with st.expander("🧮 " + tt("Prosent (svinn, rabatt, påslag)", "Percent (waste, discount, markup)"), expanded=False):
+        formula_block(
+            tt("Prosent – formler", "Percent – formulas"),
+            formulas=[
+                "Prosentandel = (del / hel) × 100",
+                "Del = (prosent / 100) × hel",
+                "Hel = del / (prosent / 100)",
+                "Ny verdi = gammel verdi × (1 ± prosent/100)",
+            ],
+            notes=[
+                tt("Svinn: bestillingsmengde = mengde × (1 + svinn%).", "Waste: order quantity = quantity × (1 + waste%)."),
+                tt("Rabatt: pris etter rabatt = pris × (1 − rabatt%).", "Discount: price after discount = price × (1 − discount%)."),
+            ],
+        )
+        render_asset_image("prosent.png")
+        calculator_block("percent_of")
+
+    # 10) Økonomi (enkel)
+    with st.expander("💰 " + tt("Økonomi (enkel overslagsregning)", "Economy (simple estimating)"), expanded=False):
+        formula_block(
+            tt("Økonomi – formler", "Economy – formulas"),
+            formulas=[
+                "Sum = materialkost + timekost",
+                "Timekost = timer × pris_per_time",
+                "Pris inkl. MVA = pris eks. MVA × (1 + mva/100)",
+            ],
+            notes=[
+                tt("Poenget er å kunne forklare regnegangen, ikke bare få et tall.", "The goal is to explain your working, not just get a number."),
+            ],
+        )
+        render_asset_image("okonomi.png")
 
     st.divider()
-    st.markdown('### Tidsestimat')
-    q = st.number_input('Mengde', min_value=0.0, value=10.0, step=1.0, key='time_qty')
-    prod = st.number_input('Produksjon per time', min_value=0.0, value=2.0, step=0.1, key='time_prod')
-    if st.button(tt('Beregn tid', 'Calculate time'), key='btn_time'):
-        show_result(calc_time_estimate(q, prod))
-        
-# ---- Historikk ----
-with tabs[10]:
-    st.subheader(tt("Historikk", "History"))
-
-    if not st.session_state.history:
-        st.info(tt("Ingen beregninger lagret ennå.", "No saved calculations yet."))
-    else:
-        rows = []
-        for item in st.session_state.history:
-            outputs_pretty = {label_for(k): v for k, v in item["outputs"].items()}
-            rows.append(
-                {
-                    "tid": item["tid"],
-                    "kalkulator": item["kalkulator"],
-                    "inputs": str(item["inputs"]),
-                    "outputs": str(outputs_pretty),
-                    "varsler": "; ".join(item["warnings"]) if item["warnings"] else "",
-                }
+    with st.container(border=True):
+        st.markdown("### " + tt("Refleksjon (kan leveres)", "Reflection (can be submitted)"))
+        st.markdown(
+            tt(
+                "- Hvilken formel valgte du – og hvorfor?\n"
+                "- Hvilke enheter brukte du – og hvordan kontrollerte du dem?\n"
+                "- Hvordan kan du grovsjekke om svaret er realistisk?\n"
+                "- Hva kan gå galt i praksis hvis du regner feil?",
+                "- Which formula did you choose — and why?\n"
+                "- Which units did you use — and how did you verify them?\n"
+                "- How can you sanity-check if the answer is realistic?\n"
+                "- What can go wrong in practice if the calculation is wrong?",
             )
-        df = pd.DataFrame(rows)
-        st.dataframe(df, use_container_width=True)
-
-        csv = df.to_csv(index=False).encode("utf-8")
-        st.download_button(
-            tt("Last ned historikk (CSV)", "Download history (CSV)"),
-            data=csv,
-            file_name="bygg_kalkulator_historikk.csv",
-            mime="text/csv",
         )
 
-        if st.button(tt("Tøm historikk", "Clear history")):
-            st.session_state.history = []
-            st.success(tt("Historikk tømt.", "History cleared."))
+
+# ============================================================
+# KALKULATORER (valgfritt)
+# ============================================================
+def show_calculators():
+    st.markdown("## " + tt("Kalkulatorer", "Calculators"))
+    st.caption(tt(
+        "Bruk disse som kontroll etter at du har jobbet i læringssonene.",
+        "Use these for verification after you have worked in the learning zones."
+    ))
+
+    tabs = st.tabs(
+        [
+            "📏 " + tt("Enhetsomregning", "Unit conversion"),
+            "⬛ " + tt("Areal", "Area"),
+            "🧵 " + tt("Omkrets", "Perimeter"),
+            "🧱 " + tt("Volum", "Volume"),
+            "📐 " + tt("Diagonal", "Diagonal"),
+            "📉 " + tt("Fall", "Slope"),
+            "🧮 " + tt("Prosent", "Percent"),
+        ]
+    )
+
+    with tabs[0]:
+        calculator_block("unit")
+
+    with tabs[1]:
+        calculator_block("area_rect")
+
+    with tabs[2]:
+        calculator_block("perimeter_rect")
+
+    with tabs[3]:
+        calculator_block("volume_box")
+
+    with tabs[4]:
+        calculator_block("diagonal")
+
+    with tabs[5]:
+        calculator_block("slope")
+
+    with tabs[6]:
+        calculator_block("percent_of")
+
+
+# ============================================================
+# Router
+# ============================================================
+if st.session_state.view == "Forside":
+    show_front_page()
+elif st.session_state.view == "Læringssoner":
+    show_learning_zones()
+else:
+    show_calculators()
