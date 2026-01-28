@@ -257,8 +257,6 @@ You use math to:
                 )
             )
 
-        st.caption(tt("Illustrasjoner kan ligge i mappen **assets/** (valgfritt).", "Illustrations can be placed in the **assets/** folder (optional)."))
-        render_asset_image("areal.png")
 
 
 # ============================================================
