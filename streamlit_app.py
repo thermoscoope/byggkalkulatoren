@@ -56,6 +56,9 @@ if "show_calculators" not in st.session_state:
 if "is_pro_user" not in st.session_state:
     st.session_state.is_pro_user = False
 
+if "pro_teacher_mode" not in st.session_state:
+    st.session_state.pro_teacher_mode = False
+
 
 def lang() -> str:
     return st.session_state.get("language", "NO")
@@ -146,13 +149,16 @@ with b5:
         ))
 
         st.divider()
-        st.subheader("🔓 " + tt("Ønsker du å utvikle deg enda mer?", "Want to improve even more?"))
+        st.markdown("**" + tt("Oppgradering", "Upgrade") + "**")
+        st.caption(tt("Pro gir ekstra øving, dokumentasjon og vurderingsstøtte.",
+                      "Pro adds extra practice, documentation and assessment support."))
         st.markdown(tt(
             "Pro er et frivillig tillegg for deg som vil øve mer, bli tryggere og dokumentere bedre.",
             "Pro is an optional add-on for those who want more practice, confidence and documentation."
         ))
-        if st.button("🔓 " + tt("Les om Pro", "Learn about Pro"), use_container_width=True):
+        if st.button("⭐ " + tt("Oppgrader til Pro (BETA)", "Upgrade to Pro (BETA)"), use_container_width=True):
             st.session_state.view = "Pro"
+            st.rerun()
             st.rerun()
 
 
@@ -616,7 +622,7 @@ def show_learning_zones():
 # PRO (info + lås)
 # ============================================================
 def show_pro_page():
-    st.markdown("## 🔓 " + tt("Ønsker du å utvikle deg enda mer?", "Want to develop even more?"))
+    st.markdown("## 🔒 " + tt("Ønsker du å utvikle deg enda mere?", "Want to develop even more?"))
 
     st.markdown(
         tt(
@@ -628,7 +634,7 @@ I Pro-versjonen finner du **utvidet innhold** (slik som i din tidligere Pro-del)
 
 > «Alt dere trenger for å forstå og bestå faget ligger i gratisdelen.  
 > I denne versjonen er for dere som vil øve mer, bli tryggere og dokumentere bedre.  
-> Denne koster **{PRO_PRICE_MONTH} kr/mnd** (eller **{PRO_PRICE_YEAR} kr/år**) for å komme videre.»
+> Denne koster **{PRO_PRICE_MONTH} kr/mnd** (eller **{PRO_PRICE_YEAR} kr/år**) for å komme videre»
             """,
             f"""
 In the Pro version you get **extended content** (like your previous Pro section), for example:
@@ -638,37 +644,53 @@ In the Pro version you get **extended content** (like your previous Pro section)
 
 > “Everything you need to understand and pass is in the free version.  
 > This version is for those who want more practice, confidence and better documentation.  
-> This costs **{PRO_PRICE_MONTH} NOK/month** (or **{PRO_PRICE_YEAR} NOK/year**) to continue.”
+> This costs **{PRO_PRICE_MONTH} NOK/month** (or **{PRO_PRICE_YEAR} NOK/year**) to continue”
             """
         )
     )
 
     st.divider()
 
-    if st.button('📦 ' + tt('Gå til Pro-innhold', 'Go to Pro content'), use_container_width=True):
+    # ---------- "Betal" (pilot) ----------
+    c1, c2, c3 = st.columns([1.2, 1.6, 2.2])
+
+    with c1:
+        if st.button("💳 " + tt(f"{PRO_PRICE_MONTH} kr / mnd (pilot)", f"{PRO_PRICE_MONTH} NOK / month (pilot)"), use_container_width=True):
+            pro_paywall()
+            st.stop()
+
+    # ---------- Lærerkode ----------
+    with c2:
+        code = st.text_input(tt("Lærerkode (lærer)", "Teacher code"), type="password", key="teacher_code_pro_page")
+        if code == "2150":
+            st.session_state.is_pro_user = True
+            st.session_state.pro_teacher_mode = True
+            st.success(tt("Lærertilgang aktiv.", "Teacher access enabled."))
+
+    with c3:
+        st.caption(
+            tt(
+                "Lærerkode gir tilgang i pilotperioden (f.eks. for lærere/klasserom).",
+                "Teacher code grants access during the pilot (e.g., teachers/classroom).",
+            )
+        )
+
+    st.divider()
+
+    # ---------- Til Pro-innhold ----------
+    can_open = bool(st.session_state.get("is_pro_user", False))
+    if st.button('📦 ' + tt('Gå til Pro-innhold', 'Go to Pro content'), use_container_width=True, disabled=not can_open):
         st.session_state.view = 'ProInnhold'
         st.rerun()
 
-    c1, c2, c3 = st.columns([1.2, 1.2, 2.6])
-    with c1:
-        if st.button("⬅️ " + tt("Tilbake", "Back"), use_container_width=True):
-            st.session_state.view = "Forside"
-            st.rerun()
+    st.caption(tt(
+        "Elever trenger ikke Pro for å bestå: gratisdelen er laget som et komplett undervisningsopplegg.",
+        "Students don't need Pro to pass: the free part is designed as a complete learning sequence."
+    ))
 
-    with c2:
-        # Demo-aktivering (kan byttes ut med Stripe/Vipps senere)
-        if st.session_state.is_pro_user:
-            st.success(tt("Pro er aktiv (demo).", "Pro is active (demo)."))
-        else:
-            if st.button("✅ " + tt("Aktiver Pro (demo)", "Activate Pro (demo)"), use_container_width=True):
-                st.session_state.is_pro_user = True
-                st.rerun()
-
-    with c3:
-        st.info(tt(
-            "Når du er klar for ekte betaling (Stripe/Vipps), kan vi koble knappen til betalingsflyt og låse opp Pro-innhold.",
-            "When you're ready for real payments (Stripe/Vipps), we can connect the button to a payment flow and unlock Pro content."
-        ))
+    if st.button("⬅️ " + tt("Tilbake", "Back"), use_container_width=True):
+        st.session_state.view = "Forside"
+        st.rerun()
 
 
 def pro_paywall():
@@ -694,6 +716,15 @@ def show_pro_content():
         "Her ligger utvidet innhold. Gratisversjonen er fullt brukbar som undervisningsopplegg.",
         "Here is extended content. The free version is fully usable as a learning sequence."
     ))
+
+    with st.container(border=True):
+        st.markdown("**" + tt("Lærertilgang (pilot)", "Teacher access (pilot)") + "**")
+        code = st.text_input(tt("Lærerkode", "Teacher code"), type="password", key="teacher_code_pro_content")
+        if code == "2150":
+            st.session_state.is_pro_user = True
+            st.session_state.pro_teacher_mode = True
+            st.success(tt("Lærertilgang aktiv.", "Teacher access enabled."))
+        st.caption(tt("Koden gir tilgang i pilotperioden.", "Code grants access during the pilot."))
 
     sections = [
         ("🧩 " + tt("Øvingsoppgaver med skjult fasit (arbeidsplass)", "Practice tasks with hidden solutions (workplace)"), "ovingsoppgaver"),
