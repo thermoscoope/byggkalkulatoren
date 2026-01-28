@@ -160,6 +160,40 @@ st.divider()
 
 
 # ============================================================
+# Navigasjon (fallback i sidepanel)
+# ============================================================
+with st.sidebar:
+    st.markdown("### " + tt("Navigasjon", "Navigation"))
+    nav = st.radio(
+        tt("Gå til", "Go to"),
+        options=[
+            tt("Forside", "Front page"),
+            tt("Læringssoner", "Learning zones"),
+            tt("Kalkulatorer", "Calculators"),
+            tt("Pro", "Pro"),
+        ],
+        index=[
+            "Forside",
+            "Læringssoner",
+            "Kalkulatorer",
+            "Pro",
+        ].index(st.session_state.view) if st.session_state.view in ["Forside","Læringssoner","Kalkulatorer","Pro"] else 0
+    )
+    # Synkroniser radio -> view
+    mapping = {
+        tt("Forside", "Front page"): "Forside",
+        tt("Læringssoner", "Learning zones"): "Læringssoner",
+        tt("Kalkulatorer", "Calculators"): "Kalkulatorer",
+        tt("Pro", "Pro"): "Pro",
+    }
+    chosen_view = mapping.get(nav, "Forside")
+    if chosen_view != st.session_state.view:
+        st.session_state.view = chosen_view
+        st.rerun()
+
+
+
+# ============================================================
 # Små hjelpefunksjoner
 # ============================================================
 def to_mm(value: float, unit: str) -> float:
@@ -611,6 +645,10 @@ In the Pro version you get **extended content** (like your previous Pro section)
 
     st.divider()
 
+    if st.button('📦 ' + tt('Gå til Pro-innhold', 'Go to Pro content'), use_container_width=True):
+        st.session_state.view = 'ProInnhold'
+        st.rerun()
+
     c1, c2, c3 = st.columns([1.2, 1.2, 2.6])
     with c1:
         if st.button("⬅️ " + tt("Tilbake", "Back"), use_container_width=True):
@@ -631,6 +669,109 @@ In the Pro version you get **extended content** (like your previous Pro section)
             "Når du er klar for ekte betaling (Stripe/Vipps), kan vi koble knappen til betalingsflyt og låse opp Pro-innhold.",
             "When you're ready for real payments (Stripe/Vipps), we can connect the button to a payment flow and unlock Pro content."
         ))
+
+
+def pro_paywall():
+    st.warning(
+        tt(
+            f"«Alt dere trenger for å forstå og bestå faget ligger i gratisdelen.\n"
+            f"I denne versjonen er for dere som vil øve mer, bli tryggere og dokumentere bedre.\n"
+            f"Denne koster {PRO_PRICE_MONTH} kr/mnd (eller {PRO_PRICE_YEAR} kr/år) for å komme videre.»",
+            f"“Everything you need to understand and pass is in the free version.\n"
+            f"This version is for those who want more practice, confidence and better documentation.\n"
+            f"This costs {PRO_PRICE_MONTH} NOK/month (or {PRO_PRICE_YEAR} NOK/year) to continue.”",
+        )
+    )
+    st.caption(tt(
+        "Dette er en betalingslås. Når du ønsker det, kan vi koble dette til Stripe/Vipps.",
+        "This is a paywall. When you’re ready, we can connect this to Stripe/Vipps."
+    ))
+
+
+def show_pro_content():
+    st.markdown("## 🔓 " + tt("Pro-innhold", "Pro content"))
+    st.caption(tt(
+        "Her ligger utvidet innhold. Gratisversjonen er fullt brukbar som undervisningsopplegg.",
+        "Here is extended content. The free version is fully usable as a learning sequence."
+    ))
+
+    sections = [
+        ("🧩 " + tt("Øvingsoppgaver med skjult fasit (arbeidsplass)", "Practice tasks with hidden solutions (workplace)"), "ovingsoppgaver"),
+        ("🦺 " + tt("HMS – Hvorfor er HMS viktig?", "HSE – Why HSE matters"), "hms"),
+        ("🪚 " + tt("Verktøyopplæring – hvorfor og hva", "Tool training – why and what"), "verktoy"),
+        ("📝 " + tt("Dokumentasjon av eget arbeid – hvorfor", "Documentation of your work – why"), "dokumentasjon"),
+    ]
+
+    labels = [s[0] for s in sections]
+    keys = {s[0]: s[1] for s in sections}
+
+    pick = st.radio(tt("Velg Pro-del", "Choose Pro section"), labels, horizontal=False)
+    key = keys[pick]
+
+    st.divider()
+
+    if not st.session_state.is_pro_user:
+        # Vis oversikt + betalingslås
+        st.markdown("### " + pick)
+        st.markdown(tt(
+            "Dette er en del av Pro-versjonen. Under ser du hva denne delen typisk inneholder:",
+            "This is part of Pro. Below you see what this section typically contains:"
+        ))
+
+        if key == "ovingsoppgaver":
+            st.markdown(tt(
+                "- nivådelte oppgaver knyttet til areal/omkrets/volum/diagonal/målestokk\n"
+                "- skjult fasit + kontrollspørsmål\n"
+                "- refleksjon: valg av formel, enheter, grovsjekk",
+                "- leveled tasks for area/perimeter/volume/diagonal/scale\n"
+                "- hidden solution + check questions\n"
+                "- reflection: formula choice, units, sanity check"
+            ))
+        elif key == "hms":
+            st.markdown(tt(
+                "- kort HMS-tekst tilpasset verksted\n"
+                "- mini-risikovurdering (SJA-light)\n"
+                "- sjekklister og vurderingskriterier",
+                "- short HSE text adapted to workshop\n"
+                "- mini risk assessment\n"
+                "- checklists and assessment criteria"
+            ))
+        elif key == "verktoy":
+            st.markdown(tt(
+                "- standard rutiner før/under/etter bruk\n"
+                "- typiske feil og risikomomenter\n"
+                "- krav til dokumentasjon (bilde/tekst)",
+                "- standard routines before/during/after use\n"
+                "- typical mistakes and risk points\n"
+                "- documentation requirements (photo/text)"
+            ))
+        elif key == "dokumentasjon":
+            st.markdown(tt(
+                "- mal for egenkontroll\n"
+                "- logg: mål, materialvalg, avvik\n"
+                "- kobling mot vurdering i faget",
+                "- self-check template\n"
+                "- log: measurements, material choice, deviations\n"
+                "- link to assessment"
+            ))
+
+        st.divider()
+        pro_paywall()
+        return
+
+    # Hvis Pro er aktiv: vis "innhold" (placeholder nå – kan fylles senere)
+    st.success(tt("Pro er aktiv ✔️", "Pro is active ✔️"))
+    st.markdown("### " + pick)
+    st.info(tt(
+        "Dette er et Pro-område. Her kan vi fylle inn nøyaktig samme Pro-innhold som du hadde i forrige versjon, "
+        "men strukturert i disse delene.",
+        "This is a Pro area. Here we can add the exact same Pro content you had previously, structured into these sections."
+    ))
+    st.markdown(tt(
+        "Send meg gjerne teksten/kravene fra forrige Pro-del, så kan jeg legge det inn 1:1.",
+        "Share the text/requirements from your previous Pro section and I can insert it 1:1."
+    ))
+
 
 # ============================================================
 # KALKULATORER (valgfritt)
@@ -685,5 +826,7 @@ elif st.session_state.view == "Læringssoner":
     show_learning_zones()
 elif st.session_state.view == "Pro":
     show_pro_page()
+elif st.session_state.view == "ProInnhold":
+    show_pro_content()
 else:
     show_calculators()
