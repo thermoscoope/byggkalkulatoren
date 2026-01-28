@@ -276,29 +276,6 @@ You use math to:
             )
         )
 
-        with st.container(border=True):
-            st.markdown("### " + tt("Mini-økt (2×45 min) – forslag", "Mini-lesson (2×45 min) – suggestion"))
-            st.markdown(
-                tt(
-                    """
-**Økt 1 (45 min):** Felles gjennomgang av forsiden + én læringssone. Elevene forklarer *hvilken formel* de velger og *hvorfor*.  
-**Økt 2 (45 min):** Elevene jobber med en praktisk case (gulv, vegg, list, betong). De leverer:  
-- valgt formel  
-- inndata (med enheter)  
-- mellomregning  
-- kontroll (kalkulator / grovsjekk)
-                    """,
-                    """
-**Session 1 (45 min):** Whole-class walkthrough of the front page + one learning zone. Students explain *which formula* they choose and *why*.  
-**Session 2 (45 min):** Students work on a practical case (floor, wall, trim, concrete). They submit:  
-- chosen formula  
-- inputs (with units)  
-- working  
-- verification (calculator / sanity check)
-                    """
-                )
-            )
-
     with right:
         with st.container(border=True):
             st.markdown("### " + tt("Start her", "Start here"))
