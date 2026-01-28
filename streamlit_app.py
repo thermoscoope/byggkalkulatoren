@@ -2,6 +2,13 @@
 import math
 from pathlib import Path
 import streamlit as st
+
+# ==========================
+# Pro-konfig (enkelt å endre)
+# ==========================
+PRO_PRICE_MONTH = 29  # kr per måned (pilot)
+PRO_PRICE_YEAR = 299  # kr per år (pilot)
+
 from PIL import Image
 
 # ============================================================
@@ -46,6 +53,9 @@ if "view" not in st.session_state:
 if "show_calculators" not in st.session_state:
     st.session_state.show_calculators = False
 
+if "is_pro_user" not in st.session_state:
+    st.session_state.is_pro_user = False
+
 
 def lang() -> str:
     return st.session_state.get("language", "NO")
@@ -77,7 +87,7 @@ with header_right:
         f"""
         <div class="bk-header-tight">
           <div class="bk-title-row">
-            <div class="bk-title"></div>
+            <div class="bk-title">Byggmatte</div>
             <div class="bk-sub" style="margin-top:10px;">
               {tt("Fra skole til yrke – matematikk tilpasset yrkeslivet!",
                   "From school to trade – practical math for the workplace!")}
@@ -93,7 +103,7 @@ st.markdown("<div style='margin-top:-10px;'></div>", unsafe_allow_html=True)
 # ============================================================
 # Topmeny (didaktisk først)
 # ============================================================
-b1, b2, b3, b4 = st.columns([1.2, 1.6, 1.8, 2.0])
+b1, b2, b3, b4, b5 = st.columns([1.1, 1.4, 1.6, 1.7, 2.2])
 
 with b1:
     if st.button("🏠 " + tt("Forside", "Front page"), use_container_width=True):
@@ -111,6 +121,11 @@ with b3:
         st.rerun()
 
 with b4:
+    if st.button("🔓 " + tt("Pro", "Pro"), use_container_width=True):
+        st.session_state.view = "Pro"
+        st.rerun()
+
+with b5:
     with st.popover("⚙️ " + tt("Innstillinger", "Settings"), use_container_width=True):
         st.subheader(tt("Innstillinger", "Settings"))
         st.markdown("**" + tt("Språk", "Language") + "**")
@@ -129,6 +144,17 @@ with b4:
             "Når denne er på, kan elevene åpne en enkel kalkulator nederst i hver sone for å kontrollere svaret.",
             "When enabled, students can open a simple calculator at the bottom of each zone to verify answers."
         ))
+
+        st.divider()
+        st.subheader("🔓 " + tt("Ønsker du å utvikle deg enda mer?", "Want to improve even more?"))
+        st.markdown(tt(
+            "Pro er et frivillig tillegg for deg som vil øve mer, bli tryggere og dokumentere bedre.",
+            "Pro is an optional add-on for those who want more practice, confidence and documentation."
+        ))
+        if st.button("🔓 " + tt("Les om Pro", "Learn about Pro"), use_container_width=True):
+            st.session_state.view = "Pro"
+            st.rerun()
+
 
 st.divider()
 
@@ -257,6 +283,8 @@ You use math to:
                 )
             )
 
+        st.caption(tt("Illustrasjoner kan ligge i mappen **assets/** (valgfritt).", "Illustrations can be placed in the **assets/** folder (optional)."))
+        render_asset_image("areal.png")
 
 
 # ============================================================
@@ -372,10 +400,10 @@ def show_learning_zones():
         formula_block(
             tt("Areal – vanlige formler", "Area – common formulas"),
             formulas=[
-                "Rektangel = lengde × bredde",
-                "Trekant = (grunnlinje × høyde) / 2",
-                "Sirkel = π × r²",
-                "Trapes = ((a + b) / 2) × h",
+                "A_rektangel = lengde × bredde",
+                "A_trekant = (grunnlinje × høyde) / 2",
+                "A_sirkel = π × r²",
+                "A_trapes = ((a + b) / 2) × h",
             ],
             notes=[
                 tt("Svar i m² når målene er i meter.", "Answer is in m² when measurements are in meters."),
@@ -395,9 +423,9 @@ def show_learning_zones():
         formula_block(
             tt("Omkrets – vanlige formler", "Perimeter – common formulas"),
             formulas=[
-                "Rektangel = 2 × (lengde + bredde)",
-                "Trekant = a + b + c",
-                "Sirkel = 2 × π × r  (eller π × d)",
+                "O_rektangel = 2 × (lengde + bredde)",
+                "O_trekant = a + b + c",
+                "O_sirkel = 2 × π × r  (eller π × d)",
             ],
             notes=[
                 tt("Svar i meter (m) når målene er i meter.", "Answer is in meters (m) when measurements are in meters."),
@@ -412,9 +440,9 @@ def show_learning_zones():
         formula_block(
             tt("Volum – vanlige formler", "Volume – common formulas"),
             formulas=[
-                "Boks = lengde × bredde × høyde",
-                "Plate = lengde × bredde × tykkelse",
-                "Sylinder = π × r² × h",
+                "V_boks = lengde × bredde × høyde",
+                "V_plate = lengde × bredde × tykkelse",
+                "V_sylinder = π × r² × h",
             ],
             notes=[
                 tt("Tykkelse står ofte i mm – gjør om til meter først.", "Thickness is often given in mm — convert to meters first."),
@@ -450,9 +478,9 @@ def show_learning_zones():
         formula_block(
             tt("Vinkler – vanlige formler", "Angles – common formulas"),
             formulas=[
-                "sin A (θ) = motstående / hypotenus",
-                "cos B (θ) = hosliggende / hypotenus",
-                "tan C (θ) = motstående / hosliggende",
+                "sin(θ) = motstående / hypotenus",
+                "cos(θ) = hosliggende / hypotenus",
+                "tan(θ) = motstående / hosliggende",
                 "θ = arctan(motstående / hosliggende)",
             ],
             notes=[
@@ -549,6 +577,61 @@ def show_learning_zones():
         )
 
 
+
+# ============================================================
+# PRO (info + lås)
+# ============================================================
+def show_pro_page():
+    st.markdown("## 🔓 " + tt("Ønsker du å utvikle deg enda mer?", "Want to develop even more?"))
+
+    st.markdown(
+        tt(
+            f"""
+I Pro-versjonen finner du **utvidet innhold** (slik som i din tidligere Pro-del), for eksempel:
+- nivåbaserte øvingsoppgaver (med tydelig progresjon)
+- mer vurderingsrettet støtte (egenkontroll, dokumentasjon)
+- flere praktiske case knyttet til verksted og byggeplass
+
+> «Alt dere trenger for å forstå og bestå faget ligger i gratisdelen.  
+> I denne versjonen er for dere som vil øve mer, bli tryggere og dokumentere bedre.  
+> Denne koster **{PRO_PRICE_MONTH} kr/mnd** (eller **{PRO_PRICE_YEAR} kr/år**) for å komme videre.»
+            """,
+            f"""
+In the Pro version you get **extended content** (like your previous Pro section), for example:
+- level-based practice tasks (clear progression)
+- more assessment-oriented support (self-check, documentation)
+- more practical cases linked to workshop and site
+
+> “Everything you need to understand and pass is in the free version.  
+> This version is for those who want more practice, confidence and better documentation.  
+> This costs **{PRO_PRICE_MONTH} NOK/month** (or **{PRO_PRICE_YEAR} NOK/year**) to continue.”
+            """
+        )
+    )
+
+    st.divider()
+
+    c1, c2, c3 = st.columns([1.2, 1.2, 2.6])
+    with c1:
+        if st.button("⬅️ " + tt("Tilbake", "Back"), use_container_width=True):
+            st.session_state.view = "Forside"
+            st.rerun()
+
+    with c2:
+        # Demo-aktivering (kan byttes ut med Stripe/Vipps senere)
+        if st.session_state.is_pro_user:
+            st.success(tt("Pro er aktiv (demo).", "Pro is active (demo)."))
+        else:
+            if st.button("✅ " + tt("Aktiver Pro (demo)", "Activate Pro (demo)"), use_container_width=True):
+                st.session_state.is_pro_user = True
+                st.rerun()
+
+    with c3:
+        st.info(tt(
+            "Når du er klar for ekte betaling (Stripe/Vipps), kan vi koble knappen til betalingsflyt og låse opp Pro-innhold.",
+            "When you're ready for real payments (Stripe/Vipps), we can connect the button to a payment flow and unlock Pro content."
+        ))
+
 # ============================================================
 # KALKULATORER (valgfritt)
 # ============================================================
@@ -600,5 +683,7 @@ if st.session_state.view == "Forside":
     show_front_page()
 elif st.session_state.view == "Læringssoner":
     show_learning_zones()
+elif st.session_state.view == "Pro":
+    show_pro_page()
 else:
     show_calculators()
