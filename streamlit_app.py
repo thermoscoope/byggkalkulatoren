@@ -77,7 +77,7 @@ with header_right:
         f"""
         <div class="bk-header-tight">
           <div class="bk-title-row">
-            <div class="bk-title">Byggmatte</div>
+            <div class="bk-title"></div>
             <div class="bk-sub" style="margin-top:10px;">
               {tt("Fra skole til yrke – matematikk tilpasset yrkeslivet!",
                   "From school to trade – practical math for the workplace!")}
