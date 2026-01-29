@@ -1,15 +1,16 @@
 
 import math
 from pathlib import Path
+import random
 import streamlit as st
+from PIL import Image
 
 # ==========================
 # Pro-konfig (enkelt å endre)
 # ==========================
 PRO_PRICE_MONTH = 29  # kr per måned (pilot)
 PRO_PRICE_YEAR = 299  # kr per år (pilot)
-
-from PIL import Image
+TEACHER_CODE = "2150"
 
 # ============================================================
 # Streamlit side-oppsett
@@ -24,7 +25,7 @@ st.set_page_config(
 st.markdown(
     """
     <style>
-      .block-container { padding-top: 3.5rem; padding-bottom: 1.0rem; }
+      .block-container { padding-top: 3.2rem; padding-bottom: 1.0rem; }
       div[data-testid="stVerticalBlock"] { gap: 0.35rem; }
       div[data-testid="stImage"] { margin-top: 0rem !important; margin-bottom: 0rem !important; }
       div[data-testid="stImage"] > img { display:block; }
@@ -34,8 +35,9 @@ st.markdown(
       .bk-sub { font-size: 15px; color: #9aa4ad; line-height: 1; white-space: nowrap; }
       .bk-header-tight { margin-bottom: 8px; }
 
-      /* "kort" følelse uten for mye luft */
+      .bk-muted { color:#6b7680; }
       .bk-card p { margin: 0.25rem 0; }
+      .bk-chip { display:inline-block; padding:4px 10px; border-radius:999px; font-size:12px; border:1px solid #e6eaee; color:#6b7680; }
     </style>
     """,
     unsafe_allow_html=True,
@@ -58,6 +60,14 @@ if "is_pro_user" not in st.session_state:
 
 if "pro_teacher_mode" not in st.session_state:
     st.session_state.pro_teacher_mode = False
+
+# Læringsarena-progress
+if "arena_level" not in st.session_state:
+    st.session_state.arena_level = 1  # 1..3
+if "arena_score" not in st.session_state:
+    st.session_state.arena_score = {1: 0, 2: 0, 3: 0}
+if "arena_taskset" not in st.session_state:
+    st.session_state.arena_taskset = {}  # level -> list[task]
 
 
 def lang() -> str:
@@ -90,7 +100,7 @@ with header_right:
         f"""
         <div class="bk-header-tight">
           <div class="bk-title-row">
-            <div class="bk-title"></div>
+            <div class="bk-title">Byggmatte</div>
             <div class="bk-sub" style="margin-top:10px;">
               {tt("Fra skole til yrke – matematikk tilpasset yrkeslivet!",
                   "From school to trade – practical math for the workplace!")}
@@ -104,9 +114,9 @@ with header_right:
 st.markdown("<div style='margin-top:-10px;'></div>", unsafe_allow_html=True)
 
 # ============================================================
-# Topmeny (didaktisk først)
+# Topmeny
 # ============================================================
-b1, b2, b3, b4, b5 = st.columns([1.1, 1.4, 1.6, 1.7, 2.2])
+b1, b2, b3, b4, b5 = st.columns([1.2, 1.7, 1.6, 1.6, 2.2])
 
 with b1:
     if st.button("🏠 " + tt("Forside", "Front page"), use_container_width=True):
@@ -114,23 +124,24 @@ with b1:
         st.rerun()
 
 with b2:
-    if st.button("📚 " + tt("Læringssoner", "Learning zones"), use_container_width=True):
-        st.session_state.view = "Læringssoner"
+    if st.button("📚 " + tt("Læringsarena", "Learning arena"), use_container_width=True):
+        st.session_state.view = "Læringsarena"
         st.rerun()
 
 with b3:
-    if st.button("🧮 " + tt("Kalkulatorer", "Calculators"), use_container_width=True):
-        st.session_state.view = "Kalkulatorer"
+    if st.button("🧾 " + tt("Beregning", "Working"), use_container_width=True):
+        st.session_state.view = "Beregning"
         st.rerun()
 
 with b4:
-    if st.button("🔓 " + tt("Pro", "Pro"), use_container_width=True):
-        st.session_state.view = "Pro"
+    if st.button("🧮 " + tt("Kalkulatorer", "Calculators"), use_container_width=True):
+        st.session_state.view = "Kalkulatorer"
         st.rerun()
 
 with b5:
     with st.popover("⚙️ " + tt("Innstillinger", "Settings"), use_container_width=True):
         st.subheader(tt("Innstillinger", "Settings"))
+
         st.markdown("**" + tt("Språk", "Language") + "**")
         st.session_state.language = st.radio(
             tt("Velg språk", "Select language"),
@@ -138,32 +149,27 @@ with b5:
             horizontal=True,
             index=0 if lang() == "NO" else 1,
         )
+
         st.divider()
+
         st.session_state.show_calculators = st.toggle(
-            tt("Aktiver kalkulatorer i læringssonene", "Enable calculators inside learning zones"),
+            tt("Aktiver kontrollkalkulatorer i læringsarena", "Enable verification calculators in learning arena"),
             value=st.session_state.show_calculators,
         )
         st.caption(tt(
-            "Når denne er på, kan elevene åpne en enkel kalkulator nederst i hver sone for å kontrollere svaret.",
-            "When enabled, students can open a simple calculator at the bottom of each zone to verify answers."
+            "Når denne er på, kan elevene åpne en enkel kalkulator nederst i temaene for å kontrollere svaret.",
+            "When enabled, students can open simple calculators at the bottom of topics to verify answers."
         ))
 
         st.divider()
         st.markdown("**" + tt("Oppgradering", "Upgrade") + "**")
         st.caption(tt("Pro gir ekstra øving, dokumentasjon og vurderingsstøtte.",
                       "Pro adds extra practice, documentation and assessment support."))
-        st.markdown(tt(
-            "Pro er et frivillig tillegg for deg som vil øve mer, bli tryggere og dokumentere bedre.",
-            "Pro is an optional add-on for those who want more practice, confidence and documentation."
-        ))
         if st.button("⭐ " + tt("Oppgrader til Pro (BETA)", "Upgrade to Pro (BETA)"), use_container_width=True):
             st.session_state.view = "Pro"
             st.rerun()
-            st.rerun()
-
 
 st.divider()
-
 
 # ============================================================
 # Navigasjon (fallback i sidepanel)
@@ -172,13 +178,12 @@ with st.sidebar:
     st.markdown("### " + tt("Navigasjon", "Navigation"))
     nav_options = [
         ("Forside", tt("Forside", "Front page")),
-        ("Læringssoner", tt("Læringssoner", "Learning zones")),
+        ("Læringsarena", tt("Læringsarena", "Learning arena")),
+        ("Beregning", tt("Beregning", "Working")),
         ("Kalkulatorer", tt("Kalkulatorer", "Calculators")),
         ("Pro", tt("Pro (info)", "Pro (info)")),
         ("ProInnhold", tt("Pro-innhold", "Pro content")),
     ]
-
-    # Finn valgt indeks basert på nåværende view
     view_to_index = {key: i for i, (key, _) in enumerate(nav_options)}
     current_index = view_to_index.get(st.session_state.view, 0)
 
@@ -187,7 +192,6 @@ with st.sidebar:
         options=[label for _, label in nav_options],
         index=current_index,
     )
-
     label_to_view = {label: key for key, label in nav_options}
     chosen_view = label_to_view.get(nav_label, "Forside")
 
@@ -195,34 +199,52 @@ with st.sidebar:
         st.session_state.view = chosen_view
         st.rerun()
 
+# ============================================================
+# Hjelpefunksjoner (enheter)
+# ============================================================
+LENGTH_UNITS = ["mm", "cm", "m"]
 
-# ============================================================
-# Små hjelpefunksjoner
-# ============================================================
-def to_mm(value: float, unit: str) -> float:
+def to_m(value: float, unit: str) -> float:
     if unit == "mm":
-        return value
+        return value / 1000.0
     if unit == "cm":
-        return value * 10.0
-    if unit == "m":
-        return value * 1000.0
+        return value / 100.0
     return value
 
+def from_m(value_m: float, unit: str) -> float:
+    if unit == "mm":
+        return value_m * 1000.0
+    if unit == "cm":
+        return value_m * 100.0
+    return value_m
 
-def mm_to_all(mm: float):
-    return {"mm": mm, "cm": mm / 10.0, "m": mm / 1000.0}
+def area_from_m2(value_m2: float, unit: str) -> float:
+    if unit == "mm":
+        return value_m2 * (1000.0 ** 2)
+    if unit == "cm":
+        return value_m2 * (100.0 ** 2)
+    return value_m2
 
+def volume_from_m3(value_m3: float, unit: str) -> float:
+    if unit == "mm":
+        return value_m3 * (1000.0 ** 3)
+    if unit == "cm":
+        return value_m3 * (100.0 ** 3)
+    return value_m3
 
 def render_asset_image(filename: str):
-    """Vis bilde hvis det finnes i ./assets."""
     assets_dir = Path(__file__).parent / "assets"
     p = assets_dir / filename
     if p.exists() and p.is_file() and p.stat().st_size > 0:
         st.image(str(p), use_container_width=True)
 
+def fmt(x: float) -> str:
+    if abs(x) >= 1000:
+        return f"{x:,.2f}".replace(",", " ")
+    return f"{x:.4g}"
 
 # ============================================================
-# FORSIDE (ferdig formulert)
+# FORSIDE
 # ============================================================
 def show_front_page():
     left, right = st.columns([1.25, 1], gap="large")
@@ -245,47 +267,44 @@ Du bruker matematikk for å:
 > **Fagarbeiderlogikk:** Først forstår jeg oppgaven → så velger jeg formel → så regner jeg → så kontrollerer jeg.
 
 ### Slik bruker du appen i undervisning
-1. **Les forsiden** (hva er målet og hva betyr begrepene?)  
-2. Gå til **Læringssoner** og finn riktig tema (areal, omkrets, volum …)  
-3. Prøv å regne **med mellomregning** før du sjekker svaret  
+1. **Les forsiden**  
+2. Bruk **Læringsarena** (formler + oppgaver)  
+3. Vis **mellomregning** før du sjekker svaret  
 4. Bruk kalkulatoren *kun som kontroll* når du er usikker
-
 """,
                 """
-**Byggmatte** is designed as a *learning sequence* — not just a tool.  
-The goal is that you can **understand**, **judge** and **verify** the math you use in the workshop and on site.
+**Byggmatte** is designed as a learning sequence and a verification tool.  
+Goal: **understand**, **judge** and **verify** the math you use in the workshop and on site.
 
 ### Why do we need math in construction?
 You use math to:
-- order the right quantity of materials (and reduce waste)  
-- ensure structures are straight, stable and safe  
-- read drawings and work with scale  
-- document your work and perform self-checks  
+- order correct material quantities (reduce waste)  
+- keep structures straight, stable and safe  
+- read drawings and scale  
+- document your work and self-check  
 
-> **Craft logic:** Understand the task → choose a formula → calculate → verify.
+> Craft logic: Understand → choose formula → calculate → verify.
 
-### How to use this app in class
-1. **Read the front page** (goal + key concepts)  
-2. Go to **Learning zones** and find the right topic (area, perimeter, volume …)  
-3. Try to calculate **with working** before checking  
-4. Use the calculator *only for verification* when needed
+### How to use the app in class
+1. Read the front page  
+2. Use the Learning arena (formulas + tasks)  
+3. Show working before checking  
+4. Use calculators only for verification
 """
             )
         )
-
 
     with right:
         with st.container(border=True):
             st.markdown("### " + tt("Start her", "Start here"))
             st.write(tt("Velg hva du vil gjøre nå:", "Choose what you want to do now:"))
-
             c1, c2 = st.columns(2)
             with c1:
-                if st.button("📚 " + tt("Gå til læringssoner", "Go to learning zones"), use_container_width=True):
-                    st.session_state.view = "Læringssoner"
+                if st.button("📚 " + tt("Læringsarena", "Learning arena"), use_container_width=True):
+                    st.session_state.view = "Læringsarena"
                     st.rerun()
             with c2:
-                if st.button("🧮 " + tt("Gå til kalkulatorer", "Go to calculators"), use_container_width=True):
+                if st.button("🧮 " + tt("Kalkulatorer", "Calculators"), use_container_width=True):
                     st.session_state.view = "Kalkulatorer"
                     st.rerun()
 
@@ -293,15 +312,13 @@ You use math to:
             st.markdown("**" + tt("Huskeliste før du regner", "Checklist before you calculate") + "**")
             st.markdown(
                 tt(
-                    "- Har jeg riktige mål?\n- Har jeg samme enhet på alle mål (mm/cm/m)?\n- Vet jeg hvilken formel som passer?\n- Kan jeg grovsjekke om svaret virker realistisk?",
-                    "- Do I have correct measurements?\n- Are all units consistent (mm/cm/m)?\n- Do I know which formula fits?\n- Can I sanity-check if the answer is realistic?",
+                    "- Riktige mål?\n- Samme enhet (mm/cm/m)?\n- Riktig formel?\n- Grovsjekk: virker svaret realistisk?",
+                    "- Correct measurements?\n- Same unit (mm/cm/m)?\n- Correct formula?\n- Sanity-check: is the result realistic?",
                 )
             )
 
-
-
 # ============================================================
-# LÆRINGSSONER (full sone med alle vanlige formler i appen)
+# FORMELBANK (tidligere læringssone)
 # ============================================================
 def formula_block(title: str, formulas: list[str], notes: list[str] | None = None):
     with st.container(border=True):
@@ -314,78 +331,293 @@ def formula_block(title: str, formulas: list[str], notes: list[str] | None = Non
             for n in notes:
                 st.markdown(f"- {n}")
 
-
-def calculator_block(kind: str):
-    """Enkle kontrollkalkulatorer knyttet til sonene."""
+def verification_calculator(kind: str):
+    """Enkle kontrollkalkulatorer knyttet til tema."""
     if not st.session_state.show_calculators:
-        st.info(tt("Ønsker du kalkulator her? Slå på i ⚙️ Innstillinger.", "Want the calculator here? Enable it in ⚙️ Settings."))
+        st.info(tt("Ønsker du kontrollkalkulator her? Slå på i ⚙️ Innstillinger.", "Enable verification calculators in ⚙️ Settings."))
         return
 
     st.markdown("#### " + tt("Kontrollkalkulator", "Verification calculator"))
 
     if kind == "unit":
         v = st.number_input(tt("Verdi", "Value"), min_value=0.0, value=1000.0, step=1.0)
-        u = st.selectbox(tt("Enhet", "Unit"), ["mm", "cm", "m"], index=0)
-        mm = to_mm(float(v), str(u))
-        out = mm_to_all(mm)
+        u = st.selectbox(tt("Enhet", "Unit"), LENGTH_UNITS, index=0)
+        m = to_m(float(v), u)
         c1, c2, c3 = st.columns(3)
-        c1.metric("mm", f"{out['mm']:.2f}")
-        c2.metric("cm", f"{out['cm']:.2f}")
-        c3.metric("m", f"{out['m']:.3f}")
+        c1.metric("mm", fmt(from_m(m, "mm")))
+        c2.metric("cm", fmt(from_m(m, "cm")))
+        c3.metric("m", fmt(m))
 
     if kind == "area_rect":
-        a = st.number_input(tt("Lengde (m)", "Length (m)"), min_value=0.0, value=6.0, step=0.1)
-        b = st.number_input(tt("Bredde (m)", "Width (m)"), min_value=0.0, value=2.0, step=0.1)
-        if st.button(tt("Beregn areal", "Calculate area")):
-            st.success(f"{a*b:.2f} m²")
+        unit = st.selectbox(tt("Enhet", "Unit"), LENGTH_UNITS, index=2, key="va_u")
+        a = st.number_input(tt(f"Lengde ({unit})", f"Length ({unit})"), min_value=0.0, value=6.0, step=0.1, key="va_a")
+        b = st.number_input(tt(f"Bredde ({unit})", f"Width ({unit})"), min_value=0.0, value=2.0, step=0.1, key="va_b")
+        if st.button(tt("Beregn areal", "Calculate area"), key="va_btn"):
+            A_m2 = to_m(a, unit) * to_m(b, unit)
+            st.success(f"{fmt(area_from_m2(A_m2, unit))} {unit}²  |  {fmt(A_m2)} m²")
 
     if kind == "perimeter_rect":
-        a = st.number_input(tt("Lengde (m)", "Length (m)"), min_value=0.0, value=2.0, step=0.1, key="p_a")
-        b = st.number_input(tt("Bredde (m)", "Width (m)"), min_value=0.0, value=2.0, step=0.1, key="p_b")
-        if st.button(tt("Beregn omkrets", "Calculate perimeter")):
-            st.success(f"{2*(a+b):.2f} m")
+        unit = st.selectbox(tt("Enhet", "Unit"), LENGTH_UNITS, index=2, key="vp_u")
+        a = st.number_input(tt(f"Lengde ({unit})", f"Length ({unit})"), min_value=0.0, value=2.0, step=0.1, key="vp_a")
+        b = st.number_input(tt(f"Bredde ({unit})", f"Width ({unit})"), min_value=0.0, value=2.0, step=0.1, key="vp_b")
+        if st.button(tt("Beregn omkrets", "Calculate perimeter"), key="vp_btn"):
+            O_m = 2 * (to_m(a, unit) + to_m(b, unit))
+            st.success(f"{fmt(from_m(O_m, unit))} {unit}  |  {fmt(O_m)} m")
 
     if kind == "volume_box":
-        l = st.number_input(tt("Lengde (m)", "Length (m)"), min_value=0.0, value=6.0, step=0.1, key="v_l")
-        b = st.number_input(tt("Bredde (m)", "Width (m)"), min_value=0.0, value=2.0, step=0.1, key="v_b")
-        h = st.number_input(tt("Høyde/tykkelse (m)", "Height/thickness (m)"), min_value=0.0, value=0.10, step=0.01, key="v_h")
-        if st.button(tt("Beregn volum", "Calculate volume")):
-            st.success(f"{l*b*h:.3f} m³")
+        unit = st.selectbox(tt("Enhet", "Unit"), LENGTH_UNITS, index=2, key="vv_u")
+        l = st.number_input(tt(f"Lengde ({unit})", f"Length ({unit})"), min_value=0.0, value=6.0, step=0.1, key="vv_l")
+        b = st.number_input(tt(f"Bredde ({unit})", f"Width ({unit})"), min_value=0.0, value=2.0, step=0.1, key="vv_b")
+        h = st.number_input(tt(f"Høyde/tykkelse ({unit})", f"Height/thickness ({unit})"), min_value=0.0, value=0.10, step=0.01, key="vv_h")
+        if st.button(tt("Beregn volum", "Calculate volume"), key="vv_btn"):
+            V_m3 = to_m(l, unit) * to_m(b, unit) * to_m(h, unit)
+            st.success(f"{fmt(volume_from_m3(V_m3, unit))} {unit}³  |  {fmt(V_m3)} m³")
 
     if kind == "diagonal":
-        a = st.number_input(tt("Side A (m)", "Side A (m)"), min_value=0.0, value=3.0, step=0.1, key="d_a")
-        b = st.number_input(tt("Side B (m)", "Side B (m)"), min_value=0.0, value=4.0, step=0.1, key="d_b")
-        if st.button(tt("Beregn diagonal", "Calculate diagonal")):
-            st.success(f"{math.sqrt(a*a + b*b):.3f} m")
+        unit = st.selectbox(tt("Enhet", "Unit"), LENGTH_UNITS, index=2, key="vd_u")
+        a = st.number_input(tt(f"Side A ({unit})", f"Side A ({unit})"), min_value=0.0, value=3.0, step=0.1, key="vd_a")
+        b = st.number_input(tt(f"Side B ({unit})", f"Side B ({unit})"), min_value=0.0, value=4.0, step=0.1, key="vd_b")
+        if st.button(tt("Beregn diagonal", "Calculate diagonal"), key="vd_btn"):
+            c_m = math.sqrt(to_m(a, unit) ** 2 + to_m(b, unit) ** 2)
+            st.success(f"{fmt(from_m(c_m, unit))} {unit}  |  {fmt(c_m)} m")
 
     if kind == "percent_of":
-        p = st.number_input(tt("Prosent (%)", "Percent (%)"), min_value=0.0, value=25.0, step=1.0, key="pc_p")
-        v = st.number_input(tt("Av (verdi)", "Of (value)"), min_value=0.0, value=800.0, step=1.0, key="pc_v")
-        if st.button(tt("Beregn", "Calculate")):
-            st.success(f"{(p/100.0)*v:.2f}")
+        p = st.number_input(tt("Prosent (%)", "Percent (%)"), min_value=0.0, value=25.0, step=1.0, key="vpc_p")
+        v = st.number_input(tt("Av (verdi)", "Of (value)"), min_value=0.0, value=800.0, step=1.0, key="vpc_v")
+        if st.button(tt("Beregn", "Calculate"), key="vpc_btn"):
+            st.success(f"{fmt((p/100.0)*v)}")
 
     if kind == "slope":
-        fall = st.number_input(tt("Fall (m)", "Fall (m)"), min_value=0.0, value=0.08, step=0.01, key="sl_f")
-        lengde = st.number_input(tt("Lengde (m)", "Length (m)"), min_value=0.0, value=4.0, step=0.1, key="sl_l")
-        if st.button(tt("Beregn fall (%)", "Calculate slope (%)")):
+        unit = st.selectbox(tt("Enhet", "Unit"), LENGTH_UNITS, index=2, key="vs_u")
+        fall = st.number_input(tt(f"Fall ({unit})", f"Drop ({unit})"), min_value=0.0, value=0.08, step=0.01, key="vs_f")
+        lengde = st.number_input(tt(f"Lengde ({unit})", f"Length ({unit})"), min_value=0.0, value=4.0, step=0.1, key="vs_l")
+        if st.button(tt("Beregn fall (%)", "Calculate slope (%)"), key="vs_btn"):
             if lengde == 0:
                 st.warning(tt("Lengde kan ikke være 0.", "Length cannot be 0."))
             else:
-                st.success(f"{(fall/lengde)*100.0:.2f} %")
+                fall_m = to_m(fall, unit)
+                lengde_m = to_m(lengde, unit)
+                st.success(f"{fmt((fall_m/lengde_m)*100.0)} %")
 
-
-def show_learning_zones():
-    st.markdown("## " + tt("Læringssoner", "Learning zones"))
+def angle_calculator():
+    st.markdown("### " + tt("Vinkelkalkulator (rettvinklet trekant)", "Angle calculator (right triangle)"))
     st.caption(tt(
-        "Her finner du forklaringer og formler. Målet er at elevene skal kunne velge riktig formel og vise mellomregning.",
-        "Here you will find explanations and formulas. The goal is that students can choose the correct formula and show working."
+        "Bruk A (hosliggende) og B (motstående). Du kan regne ut vinkel, eller finne en side fra vinkel.",
+        "Use A (adjacent) and B (opposite). Calculate the angle, or find a side from an angle."
     ))
 
-    # 1) Enheter
+    mode = st.radio(
+        tt("Velg hva du vil finne", "Choose what to find"),
+        [
+            tt("Finn vinkel (grader) fra A og B", "Find angle (degrees) from A and B"),
+            tt("Finn B fra A og vinkel", "Find B from A and angle"),
+            tt("Finn A fra B og vinkel", "Find A from B and angle"),
+        ],
+        horizontal=False
+    )
+
+    unit = st.selectbox(tt("Enhet for lengder", "Unit for lengths"), LENGTH_UNITS, index=2, key="ang_u")
+
+    if tt("Finn vinkel", "Find angle") in mode:
+        A = st.number_input(tt(f"A ({unit})", f"A ({unit})"), min_value=0.0, value=3.0, step=0.1, key="ang_A1")
+        B = st.number_input(tt(f"B ({unit})", f"B ({unit})"), min_value=0.0, value=4.0, step=0.1, key="ang_B1")
+        if st.button(tt("Beregn vinkel", "Calculate angle"), key="ang_btn1"):
+            if A == 0:
+                st.warning(tt("A kan ikke være 0.", "A cannot be 0."))
+            else:
+                theta = math.degrees(math.atan(to_m(B, unit) / to_m(A, unit)))
+                C = math.sqrt(to_m(A, unit)**2 + to_m(B, unit)**2)
+                st.success(f"θ = {theta:.2f}°")
+                st.caption(tt(f"Hypotenus C = {fmt(from_m(C, unit))} {unit}", f"Hypotenuse C = {fmt(from_m(C, unit))} {unit}"))
+
+    elif tt("Finn B", "Find B") in mode:
+        A = st.number_input(tt(f"A ({unit})", f"A ({unit})"), min_value=0.0, value=3.0, step=0.1, key="ang_A2")
+        theta = st.number_input(tt("Vinkel θ (grader)", "Angle θ (degrees)"), min_value=0.0, max_value=89.999, value=35.0, step=0.1, key="ang_t2")
+        if st.button(tt("Beregn B", "Calculate B"), key="ang_btn2"):
+            B_m = to_m(A, unit) * math.tan(math.radians(theta))
+            st.success(f"B = {fmt(from_m(B_m, unit))} {unit}")
+
+    else:
+        B = st.number_input(tt(f"B ({unit})", f"B ({unit})"), min_value=0.0, value=4.0, step=0.1, key="ang_B3")
+        theta = st.number_input(tt("Vinkel θ (grader)", "Angle θ (degrees)"), min_value=0.0, max_value=89.999, value=35.0, step=0.1, key="ang_t3")
+        if st.button(tt("Beregn A", "Calculate A"), key="ang_btn3"):
+            t = math.tan(math.radians(theta))
+            if t == 0:
+                st.warning(tt("Vinkel kan ikke være 0°.", "Angle cannot be 0°."))
+            else:
+                A_m = to_m(B, unit) / t
+                st.success(f"A = {fmt(from_m(A_m, unit))} {unit}")
+
+# ============================================================
+# ØVINGSOPPGAVER (nivåbasert)
+# ============================================================
+def make_tasks(level: int):
+    rnd = random.Random(1000 + level)  # stabilt sett per nivå
+
+    tasks = []
+    # nivå 1: enkle rektangel (areal/omkrets)
+    if level == 1:
+        for _ in range(5):
+            L = rnd.choice([2, 3, 4, 5, 6, 7])
+            B = rnd.choice([1, 1.5, 2, 2.5, 3])
+            task_type = rnd.choice(["area", "perimeter"])
+            if task_type == "area":
+                tasks.append({
+                    "topic": "Areal",
+                    "prompt": f"Et gulv er {L} m langt og {B} m bredt. Finn arealet i m².",
+                    "answer": L * B,
+                    "unit": "m²",
+                    "tolerance": 0.01,
+                })
+            else:
+                tasks.append({
+                    "topic": "Omkrets",
+                    "prompt": f"En ramme er {L} m × {B} m. Finn omkretsen i meter.",
+                    "answer": 2 * (L + B),
+                    "unit": "m",
+                    "tolerance": 0.01,
+                })
+
+    # nivå 2: volum + prosent (svinn)
+    elif level == 2:
+        for _ in range(5):
+            t = rnd.choice(["volume", "waste"])
+            if t == "volume":
+                L = rnd.choice([2, 3, 4, 5])
+                B = rnd.choice([1.5, 2, 2.5, 3])
+                H = rnd.choice([0.05, 0.08, 0.1, 0.12, 0.15])
+                tasks.append({
+                    "topic": "Volum",
+                    "prompt": f"En plate/flate er {L} m × {B} m med tykkelse {H} m. Finn volumet i m³.",
+                    "answer": L * B * H,
+                    "unit": "m³",
+                    "tolerance": 0.001,
+                })
+            else:
+                qty = rnd.choice([20, 25, 30, 40, 50])
+                waste = rnd.choice([10, 12, 15])
+                tasks.append({
+                    "topic": "Prosent",
+                    "prompt": f"Du trenger {qty} stk. Legg til {waste}% svinn. Hvor mange bør du bestille? (avrund opp til helt tall)",
+                    "answer": math.ceil(qty * (1 + waste/100)),
+                    "unit": "stk",
+                    "tolerance": 0.0,
+                    "integer": True
+                })
+
+    # nivå 3: diagonal + fall
+    else:
+        for _ in range(5):
+            t = rnd.choice(["diag", "slope"])
+            if t == "diag":
+                a = rnd.choice([1.2, 1.5, 2.0, 2.5, 3.0])
+                b = rnd.choice([1.6, 2.0, 2.4, 3.2, 4.0])
+                tasks.append({
+                    "topic": "Diagonal",
+                    "prompt": f"En rektangulær ramme har sider a={a} m og b={b} m. Finn diagonal c i meter (2 desimaler).",
+                    "answer": math.sqrt(a*a + b*b),
+                    "unit": "m",
+                    "tolerance": 0.02,
+                })
+            else:
+                fall_m = rnd.choice([0.04, 0.06, 0.08, 0.1])
+                lengde_m = rnd.choice([2.0, 3.0, 4.0, 5.0])
+                tasks.append({
+                    "topic": "Fall",
+                    "prompt": f"Det er fall {fall_m} m over lengde {lengde_m} m. Finn fall i % (2 desimaler).",
+                    "answer": (fall_m/lengde_m)*100,
+                    "unit": "%",
+                    "tolerance": 0.05,
+                })
+
+    return tasks
+
+def arena_tasks_ui():
+    st.markdown("### " + tt("Øvingsoppgaver (nivå)", "Practice tasks (levels)"))
+    st.caption(tt(
+        "Jobb deg gjennom nivåene. Du går videre når du har minst 4 av 5 riktige i nivået.",
+        "Work through the levels. Advance when you have at least 4 out of 5 correct."
+    ))
+
+    level = st.session_state.arena_level
+    st.markdown(f"<span class='bk-chip'>{tt('Nivå', 'Level')} {level}</span>", unsafe_allow_html=True)
+
+    if level not in st.session_state.arena_taskset:
+        st.session_state.arena_taskset[level] = make_tasks(level)
+
+    tasks = st.session_state.arena_taskset[level]
+    correct = st.session_state.arena_score.get(level, 0)
+
+    st.write(tt("Svar med riktig enhet der det er relevant.", "Answer with correct unit where relevant."))
+    st.divider()
+
+    for i, t in enumerate(tasks, start=1):
+        with st.container(border=True):
+            st.markdown(f"**{tt('Oppgave', 'Task')} {i} – {t['topic']}**")
+            st.write(t["prompt"])
+
+            key_in = f"arena_{level}_{i}_ans"
+            ans = st.text_input(tt("Ditt svar", "Your answer"), key=key_in, placeholder=t["unit"])
+
+            colA, colB = st.columns([1.2, 2.8])
+            with colA:
+                if st.button(tt("Sjekk", "Check"), key=f"arena_{level}_{i}_check", use_container_width=True):
+                    try:
+                        if t.get("integer"):
+                            user_val = int(float(ans.replace(",", ".")))
+                        else:
+                            user_val = float(ans.replace(",", "."))
+                        ok = abs(user_val - t["answer"]) <= t["tolerance"]
+                    except Exception:
+                        ok = False
+
+                    res_key = f"arena_{level}_{i}_ok"
+                    if ok:
+                        if not st.session_state.get(res_key, False):
+                            st.session_state[res_key] = True
+                            st.session_state.arena_score[level] = st.session_state.arena_score.get(level, 0) + 1
+                            st.rerun()
+                        else:
+                            st.success(tt("Riktig ✔️", "Correct ✔️"))
+                    else:
+                        st.error(tt("Ikke helt. Prøv igjen.", "Not quite. Try again."))
+
+            with colB:
+                if st.toggle(tt("Vis fasit", "Show answer"), key=f"arena_{level}_{i}_show"):
+                    st.info(f"{tt('Fasit', 'Answer')}: {fmt(t['answer'])} {t['unit']}")
+
+    st.divider()
+    score = st.session_state.arena_score.get(level, 0)
+    st.metric(tt("Riktige i nivået", "Correct in level"), f"{score} / {len(tasks)}")
+
+    if score >= 4:
+        st.success(tt("Du kan gå videre til neste nivå!", "You can advance to the next level!"))
+        if level < 3 and st.button(tt("➡️ Neste nivå", "➡️ Next level"), use_container_width=True):
+            st.session_state.arena_level = level + 1
+            st.rerun()
+    else:
+        st.info(tt("Tips: Sjekk formelbanken og bruk mellomregning.", "Tip: Use the formula bank and show working."))
+
+    if st.button(tt("🔁 Start nivået på nytt", "🔁 Restart level"), use_container_width=True):
+        # Nullstill nivå
+        for i in range(1, 6):
+            st.session_state.pop(f"arena_{level}_{i}_ans", None)
+            st.session_state.pop(f"arena_{level}_{i}_ok", None)
+            st.session_state.pop(f"arena_{level}_{i}_show", None)
+        st.session_state.arena_score[level] = 0
+        st.session_state.arena_taskset[level] = make_tasks(level)
+        st.rerun()
+
+def formula_bank_ui():
+    st.markdown("### " + tt("Formelbank", "Formula bank"))
+    st.caption(tt(
+        "Forklaringer og formler (tilpasset byggfaget).",
+        "Explanations and formulas (construction-focused)."
+    ))
+
     with st.expander("📏 " + tt("Enheter og omregning", "Units and conversion"), expanded=True):
         st.markdown(tt(
             """
-**Hvorfor:** I bygg oppstår feil ofte fordi vi blander mm, cm og m.  
 **Regel:** Gjør om til *samme enhet* før du regner.
 
 - `mm → cm`: ÷ 10  
@@ -395,7 +627,6 @@ def show_learning_zones():
 - `m → mm`: × 1000
             """,
             """
-**Why:** In construction, mistakes often happen because mm, cm and m get mixed.  
 **Rule:** Convert to the *same unit* before calculating.
 
 - `mm → cm`: ÷ 10  
@@ -406,273 +637,320 @@ def show_learning_zones():
             """
         ))
         render_asset_image("enhetsomregner.png")
-        calculator_block("unit")
+        verification_calculator("unit")
 
-    # 2) Areal
     with st.expander("⬛ " + tt("Areal (flate)", "Area (surface)"), expanded=False):
         formula_block(
             tt("Areal – vanlige formler", "Area – common formulas"),
-            formulas=[
+            [
                 "A_rektangel = lengde × bredde",
                 "A_trekant = (grunnlinje × høyde) / 2",
                 "A_sirkel = π × r²",
                 "A_trapes = ((a + b) / 2) × h",
             ],
-            notes=[
-                tt("Svar i m² når målene er i meter.", "Answer is in m² when measurements are in meters."),
-                tt("Trekk fra åpninger (dør/vindu) for nettoareal.", "Subtract openings (door/window) for net area."),
-                tt("Legg til svinn ved bestilling (ofte 10–15 %).", "Add waste when ordering (often 10–15%)."),
+            [
+                tt("Svar i m² når målene er i meter.", "Answer in m² when measurements are in meters."),
+                tt("Trekk fra åpninger (dør/vindu) for nettoareal.", "Subtract openings for net area."),
             ],
         )
-        st.markdown(tt(
-            "**Eksempel (rektangel):** Gulv 6,0 m × 2,0 m → `A = 12,0 m²`.",
-            "**Example (rectangle):** Floor 6.0 m × 2.0 m → `A = 12.0 m²`.",
-        ))
         render_asset_image("areal.png")
-        calculator_block("area_rect")
+        verification_calculator("area_rect")
 
-    # 3) Omkrets
     with st.expander("🧵 " + tt("Omkrets (lengde rundt)", "Perimeter (length around)"), expanded=False):
         formula_block(
             tt("Omkrets – vanlige formler", "Perimeter – common formulas"),
-            formulas=[
+            [
                 "O_rektangel = 2 × (lengde + bredde)",
                 "O_trekant = a + b + c",
                 "O_sirkel = 2 × π × r  (eller π × d)",
             ],
-            notes=[
-                tt("Svar i meter (m) når målene er i meter.", "Answer is in meters (m) when measurements are in meters."),
-                tt("Brukes mye til lister, sviller, rammer og løpemeter.", "Often used for trim, sills, frames and running meters."),
+            [
+                tt("Brukes mye til lister, sviller, rammer og løpemeter.", "Often used for trim, sills and running meters."),
             ],
         )
         render_asset_image("omkrets.png")
-        calculator_block("perimeter_rect")
+        verification_calculator("perimeter_rect")
 
-    # 4) Volum
     with st.expander("🧱 " + tt("Volum (mengde)", "Volume (quantity)"), expanded=False):
         formula_block(
             tt("Volum – vanlige formler", "Volume – common formulas"),
-            formulas=[
+            [
                 "V_boks = lengde × bredde × høyde",
                 "V_plate = lengde × bredde × tykkelse",
                 "V_sylinder = π × r² × h",
             ],
-            notes=[
-                tt("Tykkelse står ofte i mm – gjør om til meter først.", "Thickness is often given in mm — convert to meters first."),
-                tt("Svar i m³.", "Answer is in m³."),
+            [
+                tt("Tykkelse står ofte i mm – gjør om til meter først.", "Thickness is often in mm — convert to meters first."),
+                tt("Svar i m³.", "Answer in m³."),
             ],
         )
-        st.markdown(tt(
-            "**Eksempel (plate):** 100 mm = 0,10 m → `V = 6,0 × 2,0 × 0,10 = 1,2 m³`.",
-            "**Example (slab):** 100 mm = 0.10 m → `V = 6.0 × 2.0 × 0.10 = 1.2 m³`.",
-        ))
         render_asset_image("volum.png")
-        calculator_block("volume_box")
+        verification_calculator("volume_box")
 
-    # 5) Diagonal og kontroll av rett vinkel
     with st.expander("📐 " + tt("Diagonal og rett vinkel (Pytagoras)", "Diagonal and right angle (Pythagoras)"), expanded=False):
         formula_block(
-            tt("Diagonal – formel", "Diagonal – formula"),
-            formulas=[
+            tt("Pytagoras", "Pythagoras"),
+            [
                 "c = √(a² + b²)",
                 "a = √(c² − b²)",
                 "b = √(c² − a²)",
             ],
-            notes=[
-                tt("Brukes for å kontrollere om en ramme er i vinkel.", "Used to check if a frame is square."),
-                tt("Klassiker: 3–4–5 (m) gir rett vinkel.", "Classic: 3–4–5 (m) gives a right angle."),
+            [
+                tt("Klassiker: 3–4–5 gir rett vinkel.", "Classic: 3–4–5 gives a right angle."),
             ],
         )
         render_asset_image("diagonal.png")
-        calculator_block("diagonal")
+        verification_calculator("diagonal")
 
-    # 6) Vinkler (grunnleggende trig)
-    with st.expander("📐 " + tt("Vinkler (grunnleggende)", "Angles (basics)"), expanded=False):
+    with st.expander("📐 " + tt("Vinkler (trigonometri)", "Angles (trigonometry)"), expanded=False):
         formula_block(
-            tt("Vinkler – vanlige formler", "Angles – common formulas"),
-            formulas=[
-                "sin(A) = motstående / hypotenus",
-                "cos(B) = hosliggende / hypotenus",
-                "tan(C) = motstående / hosliggende",
+            tt("Trig – grunnformler", "Trig – basic formulas"),
+            [
+                "tan(θ) = B / A",
+                "θ = arctan(B / A)",
+                "B = A × tan(θ)",
+                "A = B / tan(θ)",
             ],
-            notes=[
-                tt("Bruk A, B, C som sider dersom det er enklere å huske.", "Use A, B, C as sides if that is easier to remember."),
-                tt("Vær konsekvent: samme enhet på alle lengder.", "Be consistent: same unit for all lengths."),
+            [
+                tt("Her bruker vi A=hosliggende, B=motstående.", "Here A=adjacent, B=opposite."),
             ],
         )
-        render_asset_image("vinkler.png")
-        st.info(tt(
-            "Tips i undervisning: La elevene tegne en rettvinklet trekant og merke sider før de bruker kalkulator.",
-            "Class tip: Let students sketch a right triangle and label sides before using a calculator."
-        ))
+        angle_calculator()
 
-    # 7) Målestokk
     with st.expander("📐 " + tt("Målestokk", "Scale"), expanded=False):
         formula_block(
             tt("Målestokk – formler", "Scale – formulas"),
-            formulas=[
+            [
                 "Målestokk = tegning / virkelighet",
                 "Tegning = virkelighet × målestokk",
                 "Virkelighet = tegning / målestokk",
                 "Ved 1:n → målestokk = 1/n",
             ],
-            notes=[
+            [
                 tt("Pass på enheter (mm på tegning, m i virkelighet).", "Watch units (mm on drawing, m in reality)."),
-                tt("Skriv alltid målestokk som 1:n.", "Always write scale as 1:n."),
             ],
         )
-        render_asset_image("malestokk.png")
 
-    # 8) Fall
     with st.expander("📉 " + tt("Fall (gulv / sluk)", "Slope (floors / drains)"), expanded=False):
         formula_block(
             tt("Fall – formler", "Slope – formulas"),
-            formulas=[
+            [
                 "Fall (%) = (fall / lengde) × 100",
                 "Fall (m) = (fall% / 100) × lengde",
             ],
-            notes=[
-                tt("Fall måles ofte i mm per meter: 1:50 = 20 mm per meter.", "Slope is often expressed as mm per meter: 1:50 = 20 mm per meter."),
-                tt("Bruk grovsjekk: virker fallet rimelig på lengden?", "Sanity-check: does the slope make sense for the length?"),
+            [
+                tt("Ofte uttrykt som 1:50 (≈2%).", "Often expressed as 1:50 (≈2%)."),
             ],
         )
         render_asset_image("fall.png")
-        calculator_block("slope")
+        verification_calculator("slope")
 
-    # 9) Prosent
     with st.expander("🧮 " + tt("Prosent (svinn, rabatt, påslag)", "Percent (waste, discount, markup)"), expanded=False):
         formula_block(
             tt("Prosent – formler", "Percent – formulas"),
-            formulas=[
+            [
                 "Prosentandel = (del / hel) × 100",
                 "Del = (prosent / 100) × hel",
                 "Hel = del / (prosent / 100)",
                 "Ny verdi = gammel verdi × (1 ± prosent/100)",
             ],
-            notes=[
-                tt("Svinn: bestillingsmengde = mengde × (1 + svinn%).", "Waste: order quantity = quantity × (1 + waste%)."),
-                tt("Rabatt: pris etter rabatt = pris × (1 − rabatt%).", "Discount: price after discount = price × (1 − discount%)."),
+            [
+                tt("Svinn: bestillingsmengde = mengde × (1 + svinn%).", "Waste: order = qty × (1 + waste%)."),
             ],
         )
-        render_asset_image("prosent.png")
-        calculator_block("percent_of")
-
-    # 10) Økonomi (enkel)
-    with st.expander("💰 " + tt("Økonomi (enkel overslagsregning)", "Economy (simple estimating)"), expanded=False):
-        formula_block(
-            tt("Økonomi – formler", "Economy – formulas"),
-            formulas=[
-                "Sum = materialkost + timekost",
-                "Timekost = timer × pris_per_time",
-                "Pris inkl. MVA = pris eks. MVA × (1 + mva/100)",
-            ],
-            notes=[
-                tt("Poenget er å kunne forklare regnegangen, ikke bare få et tall.", "The goal is to explain your working, not just get a number."),
-            ],
-        )
-        render_asset_image("okonomi.png")
-
-    st.divider()
-    with st.container(border=True):
-        st.markdown("### " + tt("Refleksjon (kan leveres)", "Reflection (can be submitted)"))
-        st.markdown(
-            tt(
-                "- Hvilken formel valgte du – og hvorfor?\n"
-                "- Hvilke enheter brukte du – og hvordan kontrollerte du dem?\n"
-                "- Hvordan kan du grovsjekke om svaret er realistisk?\n"
-                "- Hva kan gå galt i praksis hvis du regner feil?",
-                "- Which formula did you choose — and why?\n"
-                "- Which units did you use — and how did you verify them?\n"
-                "- How can you sanity-check if the answer is realistic?\n"
-                "- What can go wrong in practice if the calculation is wrong?",
-            )
-        )
-
-
+        verification_calculator("percent_of")
 
 # ============================================================
-# PRO (info + lås)
+# LÆRINGSARENA (nytt navn + oppgaver)
 # ============================================================
-def show_pro_page():
-    st.markdown("## 🔒 " + tt("Ønsker du å utvikle deg enda mere?", "Want to develop even more?"))
+def show_learning_arena():
+    st.markdown("## " + tt("Læringsarena", "Learning arena"))
+    tab1, tab2 = st.tabs([tt("Formelbank", "Formula bank"), tt("Øvingsoppgaver", "Practice tasks")])
 
-    st.markdown(
-        tt(
-            f"""
-I Pro-versjonen finner du **utvidet innhold** (slik som i din tidligere Pro-del), for eksempel:
-- Nivåbaserte øvingsoppgaver (med tydelig progresjon)
-- Mer vurderingsrettet støtte (egenkontroll, dokumentasjon)
-- Flere praktiske case knyttet til verksted og byggeplass
-- Tek-kravene i byggebransjen
-- Hvorfor er HMS så viktig?
-- Verktøyopplæring
-- Tegneforståelse
+    with tab1:
+        formula_bank_ui()
 
-> «Alt dere trenger for å forstå og bestå fagene ligger i gratisdelen.  
-> I denne versjonen er for dere som vil øve mer, bli tryggere og dokumentere bedre.  
-> Denne koster **{PRO_PRICE_MONTH} kr/mnd** (eller **{PRO_PRICE_YEAR} kr/år**) for å komme videre»
-            """,
-            f"""
-In the Pro version you get **extended content** (like your previous Pro section), for example:
-- Level-based practice tasks (clear progression)
-- More assessment-oriented support (self-check, documentation)
-- More practical cases linked to workshop and site
-- Technical requirements in the construction industry
-- Why is HSE so important?
-- Tool training
-- Drawing comprehension
+    with tab2:
+        arena_tasks_ui()
 
-> “Everything you need to understand and pass is in the free version.  
-> This version is for those who want more practice, confidence and better documentation.  
-> This costs **{PRO_PRICE_MONTH} NOK/month** (or **{PRO_PRICE_YEAR} NOK/year**) to continue”
-            """
-        )
+# ============================================================
+# BEREGNING (tilbake som egen fane)
+# ============================================================
+def show_working_page():
+    st.markdown("## " + tt("Beregning", "Working"))
+    st.caption(tt(
+        "Her får eleven en struktur for mellomregning – slik man forventer i yrkesfag og vurdering.",
+        "A structure for showing working — useful for assessment."
+    ))
+
+    topic = st.selectbox(
+        tt("Velg tema", "Choose topic"),
+        [
+            tt("Areal (rektangel)", "Area (rectangle)"),
+            tt("Omkrets (rektangel)", "Perimeter (rectangle)"),
+            tt("Volum (boks/plate)", "Volume (box/slab)"),
+            tt("Diagonal (Pytagoras)", "Diagonal (Pythagoras)"),
+            tt("Fall (%)", "Slope (%)"),
+            tt("Prosent (svinn)", "Percent (waste)"),
+            tt("Vinkel (grader)", "Angle (degrees)"),
+        ],
     )
 
     st.divider()
 
-    # ---------- "Betal" (pilot) ----------
-    c1, c2, c3 = st.columns([1.2, 1.6, 2.2])
-
-    with c1:
-        if st.button("💳 " + tt(f"{PRO_PRICE_MONTH} kr / mnd (pilot)", f"{PRO_PRICE_MONTH} NOK / month (pilot)"), use_container_width=True):
-            pro_paywall()
-            st.stop()
-
-    # ---------- Lærerkode ----------
-    with c2:
-        code = st.text_input(tt("Lærerkode (lærer)", "Teacher code"), type="password", key="teacher_code_pro_page")
-        if code == "2150":
-            st.session_state.is_pro_user = True
-            st.session_state.pro_teacher_mode = True
-            st.success(tt("Lærertilgang aktiv.", "Teacher access enabled."))
-
-    with c3:
-        st.caption(
-            tt(
-                "Lærerkode gir tilgang i pilotperioden (f.eks. for lærere/klasserom).",
-                "Teacher code grants access during the pilot (e.g., teachers/classroom).",
+    if topic.startswith(tt("Areal", "Area")):
+        unit = st.selectbox(tt("Enhet", "Unit"), LENGTH_UNITS, index=2, key="wk_a_u")
+        L = st.number_input(tt(f"Lengde ({unit})", f"Length ({unit})"), min_value=0.0, value=6.0, step=0.1, key="wk_a_L")
+        B = st.number_input(tt(f"Bredde ({unit})", f"Width ({unit})"), min_value=0.0, value=2.0, step=0.1, key="wk_a_B")
+        st.markdown("**Formel:** `A = L × B`")
+        if st.button(tt("Vis mellomregning", "Show working"), key="wk_a_btn"):
+            Lm = to_m(L, unit); Bm = to_m(B, unit)
+            A = Lm * Bm
+            st.code(
+                f"L = {L} {unit} = {fmt(Lm)} m\n"
+                f"B = {B} {unit} = {fmt(Bm)} m\n"
+                f"A = L × B = {fmt(Lm)} × {fmt(Bm)} = {fmt(A)} m²",
+                language="text"
             )
-        )
+            st.success(f"{fmt(area_from_m2(A, unit))} {unit}²  |  {fmt(A)} m²")
 
-    st.divider()
+    elif topic.startswith(tt("Omkrets", "Perimeter")):
+        unit = st.selectbox(tt("Enhet", "Unit"), LENGTH_UNITS, index=2, key="wk_o_u")
+        L = st.number_input(tt(f"Lengde ({unit})", f"Length ({unit})"), min_value=0.0, value=6.0, step=0.1, key="wk_o_L")
+        B = st.number_input(tt(f"Bredde ({unit})", f"Width ({unit})"), min_value=0.0, value=2.0, step=0.1, key="wk_o_B")
+        st.markdown("**Formel:** `O = 2 × (L + B)`")
+        if st.button(tt("Vis mellomregning", "Show working"), key="wk_o_btn"):
+            Lm = to_m(L, unit); Bm = to_m(B, unit)
+            O = 2 * (Lm + Bm)
+            st.code(
+                f"L = {L} {unit} = {fmt(Lm)} m\n"
+                f"B = {B} {unit} = {fmt(Bm)} m\n"
+                f"O = 2 × (L + B) = 2 × ({fmt(Lm)} + {fmt(Bm)}) = {fmt(O)} m",
+                language="text"
+            )
+            st.success(f"{fmt(from_m(O, unit))} {unit}  |  {fmt(O)} m")
 
-    # ---------- Til Pro-innhold ----------
-    can_open = bool(st.session_state.get("is_pro_user", False))
-    if st.button('📦 ' + tt('Gå til Pro-innhold', 'Go to Pro content'), use_container_width=True, disabled=not can_open):
-        st.session_state.view = 'ProInnhold'
-        st.rerun()
+    elif topic.startswith(tt("Volum", "Volume")):
+        unit = st.selectbox(tt("Enhet", "Unit"), LENGTH_UNITS, index=2, key="wk_v_u")
+        L = st.number_input(tt(f"Lengde ({unit})", f"Length ({unit})"), min_value=0.0, value=6.0, step=0.1, key="wk_v_L")
+        B = st.number_input(tt(f"Bredde ({unit})", f"Width ({unit})"), min_value=0.0, value=2.0, step=0.1, key="wk_v_B")
+        H = st.number_input(tt(f"Høyde/tykkelse ({unit})", f"Height/thickness ({unit})"), min_value=0.0, value=0.1, step=0.01, key="wk_v_H")
+        st.markdown("**Formel:** `V = L × B × H`")
+        if st.button(tt("Vis mellomregning", "Show working"), key="wk_v_btn"):
+            Lm = to_m(L, unit); Bm = to_m(B, unit); Hm = to_m(H, unit)
+            V = Lm * Bm * Hm
+            st.code(
+                f"L = {L} {unit} = {fmt(Lm)} m\n"
+                f"B = {B} {unit} = {fmt(Bm)} m\n"
+                f"H = {H} {unit} = {fmt(Hm)} m\n"
+                f"V = L × B × H = {fmt(Lm)} × {fmt(Bm)} × {fmt(Hm)} = {fmt(V)} m³",
+                language="text"
+            )
+            st.success(f"{fmt(volume_from_m3(V, unit))} {unit}³  |  {fmt(V)} m³")
 
+    elif topic.startswith(tt("Diagonal", "Diagonal")):
+        unit = st.selectbox(tt("Enhet", "Unit"), LENGTH_UNITS, index=2, key="wk_d_u")
+        a = st.number_input(tt(f"A ({unit})", f"A ({unit})"), min_value=0.0, value=3.0, step=0.1, key="wk_d_a")
+        b = st.number_input(tt(f"B ({unit})", f"B ({unit})"), min_value=0.0, value=4.0, step=0.1, key="wk_d_b")
+        st.markdown("**Formel:** `c = √(a² + b²)`")
+        if st.button(tt("Vis mellomregning", "Show working"), key="wk_d_btn"):
+            am = to_m(a, unit); bm = to_m(b, unit)
+            c = math.sqrt(am*am + bm*bm)
+            st.code(
+                f"a = {a} {unit} = {fmt(am)} m\n"
+                f"b = {b} {unit} = {fmt(bm)} m\n"
+                f"c = √(a² + b²) = √({fmt(am)}² + {fmt(bm)}²) = {fmt(c)} m",
+                language="text"
+            )
+            st.success(f"{fmt(from_m(c, unit))} {unit}  |  {fmt(c)} m")
+
+    elif topic.startswith(tt("Fall", "Slope")):
+        unit = st.selectbox(tt("Enhet", "Unit"), LENGTH_UNITS, index=2, key="wk_f_u")
+        fall = st.number_input(tt(f"Fall ({unit})", f"Drop ({unit})"), min_value=0.0, value=0.08, step=0.01, key="wk_f_f")
+        lengde = st.number_input(tt(f"Lengde ({unit})", f"Length ({unit})"), min_value=0.0, value=4.0, step=0.1, key="wk_f_L")
+        st.markdown("**Formel:** `Fall(%) = (fall / lengde) × 100`")
+        if st.button(tt("Vis mellomregning", "Show working"), key="wk_f_btn"):
+            fm = to_m(fall, unit); lm = to_m(lengde, unit)
+            if lm == 0:
+                st.warning(tt("Lengde kan ikke være 0.", "Length cannot be 0."))
+            else:
+                pct = (fm/lm)*100
+                st.code(
+                    f"fall = {fall} {unit} = {fmt(fm)} m\n"
+                    f"lengde = {lengde} {unit} = {fmt(lm)} m\n"
+                    f"Fall(%) = ({fmt(fm)} / {fmt(lm)}) × 100 = {pct:.2f} %",
+                    language="text"
+                )
+                st.success(f"{pct:.2f} %")
+
+    elif topic.startswith(tt("Prosent", "Percent")):
+        qty = st.number_input(tt("Mengde uten svinn (stk)", "Quantity without waste (pcs)"), min_value=0.0, value=40.0, step=1.0, key="wk_p_q")
+        waste = st.number_input(tt("Svinn (%)", "Waste (%)"), min_value=0.0, value=10.0, step=1.0, key="wk_p_w")
+        st.markdown("**Formel:** `bestilling = mengde × (1 + svinn/100)`")
+        if st.button(tt("Vis mellomregning", "Show working"), key="wk_p_btn"):
+            order = qty * (1 + waste/100)
+            st.code(
+                f"bestilling = {qty} × (1 + {waste}/100)\n"
+                f"= {qty} × (1 + {waste/100:.2f})\n"
+                f"= {order:.2f} → (avrund opp) {math.ceil(order)}",
+                language="text"
+            )
+            st.success(f"{math.ceil(order)} {tt('stk', 'pcs')}")
+
+    else:
+        # vinkel
+        angle_calculator()
+
+# ============================================================
+# KALKULATORER (med enhetsvalg)
+# ============================================================
+def show_calculators():
+    st.markdown("## " + tt("Kalkulatorer", "Calculators"))
     st.caption(tt(
-        "Elever trenger ikke Pro for å bestå: gratisdelen er laget som et komplett undervisningsopplegg.",
-        "Students don't need Pro to pass: the free part is designed as a complete learning sequence."
+        "Her kan du kontrollregne. Velg enhet (mm/cm/m) der det er relevant.",
+        "Verify your results. Choose unit (mm/cm/m) where relevant."
     ))
 
-    if st.button("⬅️ " + tt("Tilbake", "Back"), use_container_width=True):
-        st.session_state.view = "Forside"
-        st.rerun()
+    tabs = st.tabs(
+        [
+            "📏 " + tt("Enhetsomregning", "Unit conversion"),
+            "⬛ " + tt("Areal", "Area"),
+            "🧵 " + tt("Omkrets", "Perimeter"),
+            "🧱 " + tt("Volum", "Volume"),
+            "📐 " + tt("Diagonal", "Diagonal"),
+            "📐 " + tt("Vinkler", "Angles"),
+            "📉 " + tt("Fall", "Slope"),
+            "🧮 " + tt("Prosent", "Percent"),
+        ]
+    )
 
+    with tabs[0]:
+        verification_calculator("unit")
 
+    with tabs[1]:
+        verification_calculator("area_rect")
+
+    with tabs[2]:
+        verification_calculator("perimeter_rect")
+
+    with tabs[3]:
+        verification_calculator("volume_box")
+
+    with tabs[4]:
+        verification_calculator("diagonal")
+
+    with tabs[5]:
+        angle_calculator()
+
+    with tabs[6]:
+        verification_calculator("slope")
+
+    with tabs[7]:
+        verification_calculator("percent_of")
+
+# ============================================================
+# PRO (info + lås)
+# ============================================================
 def pro_paywall():
     st.warning(
         tt(
@@ -689,12 +967,75 @@ def pro_paywall():
         "This is a paywall. When you’re ready, we can connect this to Stripe/Vipps."
     ))
 
+def show_pro_page():
+    st.markdown("## 🔒 " + tt("Ønsker du å utvikle deg enda mere?", "Want to develop even more?"))
+    st.markdown(
+        tt(
+            f"""
+I Pro-versjonen finner du **utvidet innhold**, for eksempel:
+- Nivåbaserte øvingsoppgaver (med tydelig progresjon)
+- Mer vurderingsrettet støtte (egenkontroll, dokumentasjon)
+- Flere praktiske case knyttet til verksted og byggeplass
+- TEK-kravene i byggebransjen
+- Hvorfor er HMS så viktig?
+- Verktøyopplæring og tegneforståelse
+
+> «Alt dere trenger for å forstå og bestå fagene ligger i gratisdelen.  
+> I denne versjonen er for dere som vil øve mer, bli tryggere og dokumentere bedre.  
+> Denne koster **{PRO_PRICE_MONTH} kr/mnd** (eller **{PRO_PRICE_YEAR} kr/år**) for å komme videre»
+            """,
+            f"""
+In the Pro version you get extended content:
+- Level-based practice tasks
+- Assessment-oriented support
+- Practical cases linked to workshop/site
+- Regulations (TEK), HSE, tool training, drawings
+
+> “Everything you need to pass is in the free version.  
+> Pro is for extra practice, confidence and documentation.  
+> This costs **{PRO_PRICE_MONTH} NOK/month** (or **{PRO_PRICE_YEAR} NOK/year**) to continue.”
+            """
+        )
+    )
+
+    st.divider()
+    c1, c2, c3 = st.columns([1.2, 1.6, 2.2])
+
+    with c1:
+        if st.button("💳 " + tt(f"{PRO_PRICE_MONTH} kr / mnd (pilot)", f"{PRO_PRICE_MONTH} NOK / month (pilot)"), use_container_width=True):
+            pro_paywall()
+            st.stop()
+
+    with c2:
+        code = st.text_input(tt("Lærerkode (lærer)", "Teacher code"), type="password", key="teacher_code_pro_page")
+        if code == TEACHER_CODE:
+            st.session_state.is_pro_user = True
+            st.session_state.pro_teacher_mode = True
+            st.success(tt("Lærertilgang aktiv.", "Teacher access enabled."))
+
+    with c3:
+        st.caption(tt(
+            "Lærerkode gir tilgang i pilotperioden (for lærere/klasserom).",
+            "Teacher code grants access during the pilot (teachers/classroom)."
+        ))
+
+    st.divider()
+
+    can_open = bool(st.session_state.get("is_pro_user", False))
+    if st.button("📦 " + tt("Gå til Pro-innhold", "Go to Pro content"), use_container_width=True, disabled=not can_open):
+        st.session_state.view = "ProInnhold"
+        st.rerun()
+
+    st.caption(tt(
+        "Elever trenger ikke Pro for å bestå: gratisdelen er laget som et komplett undervisningsopplegg.",
+        "Students don't need Pro to pass: the free part is designed as a complete learning sequence."
+    ))
 
 def show_pro_content():
     st.markdown("## 🔓 " + tt("Pro-innhold", "Pro content"))
     st.caption(tt(
         "Her ligger utvidet innhold. Gratisversjonen er fullt brukbar som undervisningsopplegg.",
-        "Here is extended content. The free version is fully usable as a learning sequence."
+        "Extended content lives here. The free version is fully usable as a learning sequence."
     ))
 
     with st.container(border=True):
@@ -703,7 +1044,7 @@ def show_pro_content():
         cta1, cta2 = st.columns([1.2, 2.8])
         with cta1:
             if st.button("🔑 " + tt("Lås opp", "Unlock"), use_container_width=True):
-                if teacher_code == "2150":
+                if teacher_code == TEACHER_CODE:
                     st.session_state.is_pro_user = True
                     st.session_state.pro_teacher_mode = True
                     st.success(tt("Lærertilgang aktiv.", "Teacher access enabled."))
@@ -714,279 +1055,111 @@ def show_pro_content():
             st.caption(tt("Koden gir tilgang i pilotperioden.", "Code grants access during the pilot."))
 
     sections = [
-        ("🧩 " + tt("Øvingsoppgaver med skjult fasit (arbeidsplass)", "Practice tasks with hidden solutions (workplace)"), "ovingsoppgaver"),
+        ("🧩 " + tt("Oppgaver (nivå og progresjon)", "Tasks (levels and progression)"), "oppgaver"),
         ("🦺 " + tt("HMS – Hvorfor er HMS viktig?", "HSE – Why HSE matters"), "hms"),
         ("🏗️ " + tt("TEK-krav i praksis (enkel oversikt)", "Building regulations (TEK) in practice"), "tek"),
-        ("🪚 " + tt("Verktøyopplæring – hvorfor og hva", "Tool training – why and what"), "verktoy"),
-        ("📝 " + tt("Dokumentasjon av eget arbeid – hvorfor", "Documentation of your work – why"), "dokumentasjon"),
+        ("🪚 " + tt("Verktøyopplæring", "Tool training"), "verktoy"),
+        ("📝 " + tt("Dokumentasjon av eget arbeid", "Documentation of your work"), "dokumentasjon"),
     ]
-
     labels = [s[0] for s in sections]
     keys = {s[0]: s[1] for s in sections}
-
     pick = st.radio(tt("Velg Pro-del", "Choose Pro section"), labels, horizontal=False)
     key = keys[pick]
-
     st.divider()
 
     if not st.session_state.is_pro_user:
-        # Vis oversikt + betalingslås
         st.markdown("### " + pick)
-        st.markdown(tt(
-            "Dette er en del av Pro-versjonen. Under ser du hva denne delen typisk inneholder:",
-            "This is part of Pro. Below you see what this section typically contains:"
-        ))
-
-        if key == "ovingsoppgaver":
-            st.markdown(tt(
-                "- nivådelte oppgaver knyttet til areal/omkrets/volum/diagonal/målestokk\n"
-                "- skjult fasit + kontrollspørsmål\n"
-                "- refleksjon: valg av formel, enheter, grovsjekk",
-                "- leveled tasks for area/perimeter/volume/diagonal/scale\n"
-                "- hidden solution + check questions\n"
-                "- reflection: formula choice, units, sanity check"
-            ))
-        elif key == "hms":
-            st.markdown(tt(
-                "- kort HMS-tekst tilpasset verksted\n"
-                "- mini-risikovurdering (SJA-light)\n"
-                "- sjekklister og vurderingskriterier",
-                "- short HSE text adapted to workshop\n"
-                "- mini risk assessment\n"
-                "- checklists and assessment criteria"
-            ))
-        elif key == "verktoy":
-            st.markdown(tt(
-                "- standard rutiner før/under/etter bruk\n"
-                "- typiske feil og risikomomenter\n"
-                "- krav til dokumentasjon (bilde/tekst)",
-                "- standard routines before/during/after use\n"
-                "- typical mistakes and risk points\n"
-                "- documentation requirements (photo/text)"
-            ))
-        elif key == "dokumentasjon":
-            st.markdown(tt(
-                "- mal for egenkontroll\n"
-                "- logg: mål, materialvalg, avvik\n"
-                "- kobling mot vurdering i faget",
-                "- self-check template\n"
-                "- log: measurements, material choice, deviations\n"
-                "- link to assessment"
-            ))
-
-        st.divider()
+        st.markdown(tt("Dette er Pro. For å komme videre må du ha tilgang.", "This is Pro. Access is required."))
         pro_paywall()
         return
 
-    # Hvis Pro er aktiv: vis innhold
     st.success(tt("Pro er aktiv ✔️", "Pro is active ✔️"))
-
     st.markdown("### " + pick)
 
-    if key == "ovingsoppgaver":
+    if key == "oppgaver":
         st.markdown(tt(
             """
-#### Oppgaver (nivåbasert og vurderingsrettet)
-Her er et eksempel på hvordan Pro-oppgavene er bygget opp:
+**Struktur (slik Pro-oppgavene er bygget):**
+- Nivå 1: velg formel + enheter
+- Nivå 2: mellomregning
+- Nivå 3: egenkontroll + refleksjon
 
-**Nivå 1 – Forstå og velg formel**
-- Les en kort praksiscase (f.eks. gulv, vegg, platekledning)
-- Skriv: *hvilken formel passer* og *hvorfor*
-- Gjør om til riktige enheter
-
-**Nivå 2 – Mellomregning**
-- Regn for hånd med tydelig mellomregning
-- Lever: inndata, enheter, regnevei, svar
-
-**Nivå 3 – Egenkontroll**
-- Grovsjekk (gir svaret mening?)
-- Kontroller med kalkulator / alternativ metode
-- Kort refleksjon: *hva kunne gått galt i praksis?*
-
-**Skjult fasit**
-- Elevene kan åpne fasiten etter at de har levert sitt forslag.
+Her kan vi legge inn samme oppgavebank som i tidligere versjon (ordrett), delt per tema.
             """,
             """
-#### Tasks (leveled and assessment-oriented)
-Example structure:
-
-**Level 1 – Understand and choose formula**
-**Level 2 – Working**
-**Level 3 – Self-check**
-**Hidden solution**
+**Structure:**
+Level 1 formula+units, Level 2 working, Level 3 self-check+reflection.
             """
         ))
-        st.info(tt(
-            "Vil du at jeg skal fylle inn 20–40 konkrete oppgaver (areal/omkrets/volum/diagonal/målestokk/fall/prosent) slik du hadde i forrige Pro-del, så gjør jeg det.",
-            "If you want, I can generate a full bank of concrete tasks like your previous Pro section."
-        ))
-
     elif key == "hms":
         st.markdown(tt(
             """
-#### HMS – hvorfor det er viktig (BA verksted / byggeplass)
-**Mål:** Elevene skal kunne jobbe sikkert, forebygge skader og dokumentere risikovurdering.
+**Kort HMS-oppsett til BA verksted/byggeplass**
+- Før: plan + PVU + rydd/orden
+- Under: rutiner + stopp ved endring
+- Etter: rydd + avvik + logg
 
-**1. Før jobben (plan)**
-- Hva skal gjøres – hvilke farer finnes?
-- Hvilket verneutstyr trengs (PVU)?
-- Sjekk arbeidsområde (rydd, lys, orden)
-
-**2. Under jobben (gjennomføring)**
-- Følg rutiner for verktøy/maskin
-- Stopp og vurder hvis noe endrer seg
-- Hold orden: kabler, avkapp, støv
-
-**3. Etter jobben (kontroll)**
-- Rydd og sikre utstyr
-- Rapportér avvik/nestenulykker
-- Kort logg: hva fungerte / hva må forbedres
-
-**Mini SJA (Sikker Jobb Analyse) – 3 spørsmål**
+**Mini SJA (3 spørsmål):**
 1) Hva kan gå galt?  
-2) Hvordan kan vi forebygge?  
+2) Hvordan forebygger vi?  
 3) Hva gjør vi hvis det skjer?
             """,
-            """
-#### HSE – why it matters
-Plan – Do – Check + a mini risk assessment.
-            """
+            "HSE plan–do–check with a mini risk assessment."
         ))
-
     elif key == "tek":
         st.markdown(tt(
             """
-#### TEK-krav i praksis (enkel oversikt for elever)
-TEK (Byggteknisk forskrift) handler om minimumskrav til bygg – og påvirker valg av løsning og utførelse.
+**TEK i praksis (elevnivå)**
+- Sikkerhet (rekkverk, orden, fallfare)
+- Fukt (tetting, overganger, lufting)
+- Brann (materialvalg, gjennomføringer – begrepsnivå)
+- Universell utforming (terskler, bredder – begrepsnivå)
 
-**Typiske TEK-nære temaer i verksted/BA:**
-- **Sikkerhet:** rekkverk, fallfare, orden på arbeidsplass
-- **Fukt:** riktig materialvalg, lufting, tetting, overganger
-- **Brann:** materialvalg, gjennomføringer, rømningsveier (på overordnet nivå)
-- **Inneklima:** lufttetthet, kuldebroer (begrepsnivå)
-- **Universell utforming:** tilgjengelighet, terskler, bredder (begrepsnivå)
-
-**Slik kobler vi TEK til elevoppgaver**
-- Elevene beskriver *hvorfor* en løsning velges (f.eks. fuktsikring)
-- De dokumenterer arbeid med bilde + kort tekst
-- De peker på 1–2 “kritiske punkter” der feil kan gi konsekvens (fukt, brann, sikkerhet)
-
-> Pro gir ferdige små “TEK-kort” til oppgaver (maks 5 min lesing) som kan brukes i undervisning.
+Pro kan gi korte “TEK-kort” til oppgaver (5 min lesing) som elever bruker i dokumentasjon.
             """,
-            """
-#### Building regulations (TEK) in practice
-Short practical overview + TEK-cards for tasks.
-            """
+            "Simple TEK overview + TEK-cards for tasks."
         ))
-
     elif key == "verktoy":
         st.markdown(tt(
             """
-#### Verktøyopplæring – hvorfor og hva
-**Hvorfor:** Riktig verktøybruk gir bedre kvalitet, mindre svinn og færre skader.
+**Verktøyopplæring (struktur)**
+1) Før: kontroll + PVU + innstillinger  
+2) Under: håndplassering + sikring av emne  
+3) Etter: stopp + rengjøring + vedlikehold
 
-**Standard struktur for opplæring**
-1) **Før bruk:** kontroll, innstillinger, PVU, arbeidsstilling  
-2) **Under bruk:** håndplassering, sikring av emne, fokusområde  
-3) **Etter bruk:** stopp, rengjøring, vedlikehold, lagring  
-
-**Dokumentasjon (for vurdering)**
-- 3 bilder: før / under / etter
-- 5–8 setninger: rutine + risiko + tiltak
+**Dokumentasjon:** 3 bilder + 5–8 setninger (rutine/risiko/tiltak).
             """,
-            """
-#### Tool training
-Before / during / after + documentation requirements.
-            """
+            "Tool training structure + documentation."
         ))
-
-    elif key == "dokumentasjon":
+    else:
         st.markdown(tt(
             """
-#### Dokumentasjon av eget arbeid – hvorfor det er viktig
-I bygg er dokumentasjon en del av kvalitet og ansvar.
-
-**Hva dokumenterer vi?**
+**Dokumentasjon av eget arbeid**
 - Mål og kontrollmålinger (før/etter)
-- Materialvalg (dimensjoner, impregnert/ikke)
-- Avvik og tiltak (hva ble endret og hvorfor)
-- HMS: risikovurdering og PVU
+- Materialvalg (dimensjoner/impregnert)
+- Avvik og tiltak
+- HMS: risikovurdering + PVU
 
-**Enkel mal (elev)**
-- Oppgave: ______  
-- Mål/enheter: ______  
-- Formel/valg: ______  
-- Mellomregning: ______  
-- Kontroll: ______  
-- Avvik/tiltak: ______  
-- Refleksjon: ______  
+**Mal (elev):**
+Oppgave – Mål/enheter – Formelvalg – Mellomregning – Kontroll – Avvik – Refleksjon.
             """,
-            """
-#### Documentation
-A simple student template for verification and quality.
-            """
+            "Documentation template."
         ))
-
-    st.divider()
-    if st.button("⬅️ " + tt("Tilbake til Pro (info)", "Back to Pro (info)"), use_container_width=True):
-        st.session_state.view = "Pro"
-        st.rerun()
-
-
-# ============================================================
-# KALKULATORER (valgfritt)
-# ============================================================
-def show_calculators():
-    st.markdown("## " + tt("Kalkulatorer", "Calculators"))
-    st.caption(tt(
-        "Bruk disse som kontroll etter at du har jobbet i læringssonene.",
-        "Use these for verification after you have worked in the learning zones."
-    ))
-
-    tabs = st.tabs(
-        [
-            "📏 " + tt("Enhetsomregning", "Unit conversion"),
-            "⬛ " + tt("Areal", "Area"),
-            "🧵 " + tt("Omkrets", "Perimeter"),
-            "🧱 " + tt("Volum", "Volume"),
-            "📐 " + tt("Diagonal", "Diagonal"),
-            "📉 " + tt("Fall", "Slope"),
-            "🧮 " + tt("Prosent", "Percent"),
-        ]
-    )
-
-    with tabs[0]:
-        calculator_block("unit")
-
-    with tabs[1]:
-        calculator_block("area_rect")
-
-    with tabs[2]:
-        calculator_block("perimeter_rect")
-
-    with tabs[3]:
-        calculator_block("volume_box")
-
-    with tabs[4]:
-        calculator_block("diagonal")
-
-    with tabs[5]:
-        calculator_block("slope")
-
-    with tabs[6]:
-        calculator_block("percent_of")
-
 
 # ============================================================
 # Router
 # ============================================================
 if st.session_state.view == "Forside":
     show_front_page()
-elif st.session_state.view == "Læringssoner":
-    show_learning_zones()
+elif st.session_state.view == "Læringsarena":
+    show_learning_arena()
+elif st.session_state.view == "Beregning":
+    show_working_page()
+elif st.session_state.view == "Kalkulatorer":
+    show_calculators()
 elif st.session_state.view == "Pro":
     show_pro_page()
 elif st.session_state.view == "ProInnhold":
     show_pro_content()
 else:
-    show_calculators()
+    show_front_page()
