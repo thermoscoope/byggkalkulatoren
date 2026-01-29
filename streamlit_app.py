@@ -228,11 +228,11 @@ def show_front_page():
     left, right = st.columns([1.25, 1], gap="large")
 
     with left:
-        st.markdown("## " + tt("Matematikk i byggfaget – før du bruker kalkulator", "Math in construction – before you use a calculator"))
+        st.markdown("## " + tt("Matematikk i byggfaget – hvorfor trenger vi det?", "Math in construction – why do we need it?"))
         st.markdown(
             tt(
                 """
-**Byggmatte** er laget som et *undervisningsopplegg* – ikke bare et verktøy.  
+**Byggmatte** er laget som et *undervisningsopplegg*, men også et verktøy for å kontrollere om det vi har gjort, er riktig.  
 Målet er at du skal **forstå**, **vurdere** og **kontrollere** regningene du gjør i verkstedet og på byggeplass.
 
 ### Hvorfor trenger vi matematikk i bygg?
