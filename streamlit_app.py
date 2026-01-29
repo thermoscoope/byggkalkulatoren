@@ -600,19 +600,27 @@ def show_pro_page():
         tt(
             f"""
 I Pro-versjonen finner du **utvidet innhold** (slik som i din tidligere Pro-del), for eksempel:
-- nivåbaserte øvingsoppgaver (med tydelig progresjon)
-- mer vurderingsrettet støtte (egenkontroll, dokumentasjon)
-- flere praktiske case knyttet til verksted og byggeplass
+- Nivåbaserte øvingsoppgaver (med tydelig progresjon)
+- Mer vurderingsrettet støtte (egenkontroll, dokumentasjon)
+- Flere praktiske case knyttet til verksted og byggeplass
+- Tek-kravene i byggebransjen
+- Hvorfor er HMS så viktig?
+- Verktøyopplæring
+- Tegneforståelse
 
-> «Alt dere trenger for å forstå og bestå faget ligger i gratisdelen.  
+> «Alt dere trenger for å forstå og bestå fagene ligger i gratisdelen.  
 > I denne versjonen er for dere som vil øve mer, bli tryggere og dokumentere bedre.  
 > Denne koster **{PRO_PRICE_MONTH} kr/mnd** (eller **{PRO_PRICE_YEAR} kr/år**) for å komme videre»
             """,
             f"""
 In the Pro version you get **extended content** (like your previous Pro section), for example:
-- level-based practice tasks (clear progression)
-- more assessment-oriented support (self-check, documentation)
-- more practical cases linked to workshop and site
+- Level-based practice tasks (clear progression)
+- More assessment-oriented support (self-check, documentation)
+- More practical cases linked to workshop and site
+- Technical requirements in the construction industry
+- Why is HSE so important?
+- Tool training
+- Drawing comprehension
 
 > “Everything you need to understand and pass is in the free version.  
 > This version is for those who want more practice, confidence and better documentation.  
