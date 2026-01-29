@@ -237,10 +237,10 @@ Målet er at du skal **forstå**, **vurdere** og **kontrollere** regningene du g
 
 ### Hvorfor trenger vi matematikk i bygg?
 Du bruker matematikk for å:
-- bestille riktig mengde materialer (og redusere svinn)  
-- sikre at konstruksjoner blir rette, stabile og trygge  
-- lese og bruke arbeidstegninger og målestokk  
-- dokumentere eget arbeid og gjøre egenkontroll  
+- Bestille riktig mengde materialer (og redusere svinn)  
+- Sikre at konstruksjoner blir rette, stabile og trygge  
+- Lese og bruke arbeidstegninger og målestokk  
+- Dokumentere eget arbeid og gjøre egenkontroll  
 
 > **Fagarbeiderlogikk:** Først forstår jeg oppgaven → så velger jeg formel → så regner jeg → så kontrollerer jeg.
 
@@ -273,28 +273,6 @@ You use math to:
             )
         )
 
-        with st.container(border=True):
-            st.markdown("### " + tt("Mini-økt (2×45 min) – forslag", "Mini-lesson (2×45 min) – suggestion"))
-            st.markdown(
-                tt(
-                    """
-**Økt 1 (45 min):** Felles gjennomgang av forsiden + én læringssone. Elevene forklarer *hvilken formel* de velger og *hvorfor*.  
-**Økt 2 (45 min):** Elevene jobber med en praktisk case (gulv, vegg, list, betong). De leverer:  
-- valgt formel  
-- inndata (med enheter)  
-- mellomregning  
-- kontroll (kalkulator / grovsjekk)
-                    """,
-                    """
-**Session 1 (45 min):** Whole-class walkthrough of the front page + one learning zone. Students explain *which formula* they choose and *why*.  
-**Session 2 (45 min):** Students work on a practical case (floor, wall, trim, concrete). They submit:  
-- chosen formula  
-- inputs (with units)  
-- working  
-- verification (calculator / sanity check)
-                    """
-                )
-            )
 
     with right:
         with st.container(border=True):
