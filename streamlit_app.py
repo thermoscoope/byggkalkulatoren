@@ -119,22 +119,22 @@ st.markdown("<div style='margin-top:-10px;'></div>", unsafe_allow_html=True)
 b1, b2, b3, b4, b5 = st.columns([1.2, 1.7, 1.6, 1.6, 2.2])
 
 with b1:
-    if st.button("🏠 " + tt("Forside", "Front page"), use_container_width=True):
+    if st.button("🏠 " + tt("Forside", "Front page"), use_container_width=True, key="nav_home"):
         st.session_state.view = "Forside"
         st.rerun()
 
 with b2:
-    if st.button("📚 " + tt("Læringsarena", "Learning arena"), use_container_width=True):
+    if st.button("📚 " + tt("Læringsarena", "Learning arena"), use_container_width=True, key="nav_arena"):
         st.session_state.view = "Læringsarena"
         st.rerun()
 
 with b3:
-    if st.button("🧾 " + tt("Beregning", "Working"), use_container_width=True):
+    if st.button("🧾 " + tt("Beregning", "Working"), use_container_width=True, key="nav_working"):
         st.session_state.view = "Beregning"
         st.rerun()
 
 with b4:
-    if st.button("🧮 " + tt("Kalkulatorer", "Calculators"), use_container_width=True):
+    if st.button("🧮 " + tt("Kalkulatorer", "Calculators"), use_container_width=True, key="nav_calcs"):
         st.session_state.view = "Kalkulatorer"
         st.rerun()
 
@@ -300,11 +300,11 @@ You use math to:
             st.write(tt("Velg hva du vil gjøre nå:", "Choose what you want to do now:"))
             c1, c2 = st.columns(2)
             with c1:
-                if st.button("📚 " + tt("Læringsarena", "Learning arena"), use_container_width=True):
+                if st.button("📚 " + tt("Læringsarena", "Learning arena"), use_container_width=True, key="nav_arena"):
                     st.session_state.view = "Læringsarena"
                     st.rerun()
             with c2:
-                if st.button("🧮 " + tt("Kalkulatorer", "Calculators"), use_container_width=True):
+                if st.button("🧮 " + tt("Kalkulatorer", "Calculators"), use_container_width=True, key="nav_calcs"):
                     st.session_state.view = "Kalkulatorer"
                     st.rerun()
 
@@ -331,73 +331,86 @@ def formula_block(title: str, formulas: list[str], notes: list[str] | None = Non
             for n in notes:
                 st.markdown(f"- {n}")
 
-def verification_calculator(kind: str):
-    """Enkle kontrollkalkulatorer knyttet til tema."""
+def verification_calculator(kind: str, key_prefix: str | None = None):
+    """Enkle kontrollkalkulatorer knyttet til tema.
+
+    Viktig: Streamlit krever unike widget-keys når samme type widget kan dukke opp flere steder
+    (forside + faner + læringsarena). Derfor bruker vi key_prefix.
+    """
     if not st.session_state.show_calculators:
         st.info(tt("Ønsker du kontrollkalkulator her? Slå på i ⚙️ Innstillinger.", "Enable verification calculators in ⚙️ Settings."))
         return
 
+    kp = key_prefix or f"vc_{kind}"
     st.markdown("#### " + tt("Kontrollkalkulator", "Verification calculator"))
 
     if kind == "unit":
-        v = st.number_input(tt("Verdi", "Value"), min_value=0.0, value=1000.0, step=1.0)
-        u = st.selectbox(tt("Enhet", "Unit"), LENGTH_UNITS, index=0)
-        m = to_m(float(v), u)
+        v = st.number_input(tt("Verdi", "Value"), min_value=0.0, value=1000.0, step=1.0, key=f"{kp}_val")
+        u = st.selectbox(tt("Enhet", "Unit"), ["mm", "cm", "m"], index=0, key=f"{kp}_unit")
+        mm = to_mm(float(v), str(u))
+        out = mm_to_all(mm)
         c1, c2, c3 = st.columns(3)
-        c1.metric("mm", fmt(from_m(m, "mm")))
-        c2.metric("cm", fmt(from_m(m, "cm")))
-        c3.metric("m", fmt(m))
+        c1.metric("mm", f"{out['mm']:.2f}")
+        c2.metric("cm", f"{out['cm']:.2f}")
+        c3.metric("m", f"{out['m']:.3f}")
 
-    if kind == "area_rect":
-        unit = st.selectbox(tt("Enhet", "Unit"), LENGTH_UNITS, index=2, key="va_u")
-        a = st.number_input(tt(f"Lengde ({unit})", f"Length ({unit})"), min_value=0.0, value=6.0, step=0.1, key="va_a")
-        b = st.number_input(tt(f"Bredde ({unit})", f"Width ({unit})"), min_value=0.0, value=2.0, step=0.1, key="va_b")
-        if st.button(tt("Beregn areal", "Calculate area"), key="va_btn"):
-            A_m2 = to_m(a, unit) * to_m(b, unit)
-            st.success(f"{fmt(area_from_m2(A_m2, unit))} {unit}²  |  {fmt(A_m2)} m²")
+    elif kind == "area_rect":
+        a = st.number_input(tt("Lengde", "Length"), min_value=0.0, value=6.0, step=0.1, key=f"{kp}_a")
+        b = st.number_input(tt("Bredde", "Width"), min_value=0.0, value=2.0, step=0.1, key=f"{kp}_b")
+        u = st.selectbox(tt("Enhet", "Unit"), ["mm", "cm", "m"], index=2, key=f"{kp}_unit")
+        a_m = to_mm(a, u) / 1000.0
+        b_m = to_mm(b, u) / 1000.0
+        if st.button(tt("Beregn areal", "Calculate area"), key=f"{kp}_btn"):
+            st.success(f"{a_m*b_m:.3f} m²")
 
-    if kind == "perimeter_rect":
-        unit = st.selectbox(tt("Enhet", "Unit"), LENGTH_UNITS, index=2, key="vp_u")
-        a = st.number_input(tt(f"Lengde ({unit})", f"Length ({unit})"), min_value=0.0, value=2.0, step=0.1, key="vp_a")
-        b = st.number_input(tt(f"Bredde ({unit})", f"Width ({unit})"), min_value=0.0, value=2.0, step=0.1, key="vp_b")
-        if st.button(tt("Beregn omkrets", "Calculate perimeter"), key="vp_btn"):
-            O_m = 2 * (to_m(a, unit) + to_m(b, unit))
-            st.success(f"{fmt(from_m(O_m, unit))} {unit}  |  {fmt(O_m)} m")
+    elif kind == "perimeter_rect":
+        a = st.number_input(tt("Lengde", "Length"), min_value=0.0, value=2.0, step=0.1, key=f"{kp}_a")
+        b = st.number_input(tt("Bredde", "Width"), min_value=0.0, value=2.0, step=0.1, key=f"{kp}_b")
+        u = st.selectbox(tt("Enhet", "Unit"), ["mm", "cm", "m"], index=2, key=f"{kp}_unit")
+        a_m = to_mm(a, u) / 1000.0
+        b_m = to_mm(b, u) / 1000.0
+        if st.button(tt("Beregn omkrets", "Calculate perimeter"), key=f"{kp}_btn"):
+            st.success(f"{2*(a_m+b_m):.3f} m")
 
-    if kind == "volume_box":
-        unit = st.selectbox(tt("Enhet", "Unit"), LENGTH_UNITS, index=2, key="vv_u")
-        l = st.number_input(tt(f"Lengde ({unit})", f"Length ({unit})"), min_value=0.0, value=6.0, step=0.1, key="vv_l")
-        b = st.number_input(tt(f"Bredde ({unit})", f"Width ({unit})"), min_value=0.0, value=2.0, step=0.1, key="vv_b")
-        h = st.number_input(tt(f"Høyde/tykkelse ({unit})", f"Height/thickness ({unit})"), min_value=0.0, value=0.10, step=0.01, key="vv_h")
-        if st.button(tt("Beregn volum", "Calculate volume"), key="vv_btn"):
-            V_m3 = to_m(l, unit) * to_m(b, unit) * to_m(h, unit)
-            st.success(f"{fmt(volume_from_m3(V_m3, unit))} {unit}³  |  {fmt(V_m3)} m³")
+    elif kind == "volume_box":
+        l = st.number_input(tt("Lengde", "Length"), min_value=0.0, value=6.0, step=0.1, key=f"{kp}_l")
+        b = st.number_input(tt("Bredde", "Width"), min_value=0.0, value=2.0, step=0.1, key=f"{kp}_b")
+        h = st.number_input(tt("Høyde/tykkelse", "Height/thickness"), min_value=0.0, value=0.10, step=0.01, key=f"{kp}_h")
+        u = st.selectbox(tt("Enhet", "Unit"), ["mm", "cm", "m"], index=2, key=f"{kp}_unit")
+        l_m = to_mm(l, u) / 1000.0
+        b_m = to_mm(b, u) / 1000.0
+        h_m = to_mm(h, u) / 1000.0
+        if st.button(tt("Beregn volum", "Calculate volume"), key=f"{kp}_btn"):
+            st.success(f"{l_m*b_m*h_m:.4f} m³")
 
-    if kind == "diagonal":
-        unit = st.selectbox(tt("Enhet", "Unit"), LENGTH_UNITS, index=2, key="vd_u")
-        a = st.number_input(tt(f"Side A ({unit})", f"Side A ({unit})"), min_value=0.0, value=3.0, step=0.1, key="vd_a")
-        b = st.number_input(tt(f"Side B ({unit})", f"Side B ({unit})"), min_value=0.0, value=4.0, step=0.1, key="vd_b")
-        if st.button(tt("Beregn diagonal", "Calculate diagonal"), key="vd_btn"):
-            c_m = math.sqrt(to_m(a, unit) ** 2 + to_m(b, unit) ** 2)
-            st.success(f"{fmt(from_m(c_m, unit))} {unit}  |  {fmt(c_m)} m")
+    elif kind == "diagonal":
+        a = st.number_input(tt("Side A", "Side A"), min_value=0.0, value=3.0, step=0.1, key=f"{kp}_a")
+        b = st.number_input(tt("Side B", "Side B"), min_value=0.0, value=4.0, step=0.1, key=f"{kp}_b")
+        u = st.selectbox(tt("Enhet", "Unit"), ["mm", "cm", "m"], index=2, key=f"{kp}_unit")
+        a_m = to_mm(a, u) / 1000.0
+        b_m = to_mm(b, u) / 1000.0
+        if st.button(tt("Beregn diagonal", "Calculate diagonal"), key=f"{kp}_btn"):
+            st.success(f"{math.sqrt(a_m*a_m + b_m*b_m):.4f} m")
 
-    if kind == "percent_of":
-        p = st.number_input(tt("Prosent (%)", "Percent (%)"), min_value=0.0, value=25.0, step=1.0, key="vpc_p")
-        v = st.number_input(tt("Av (verdi)", "Of (value)"), min_value=0.0, value=800.0, step=1.0, key="vpc_v")
-        if st.button(tt("Beregn", "Calculate"), key="vpc_btn"):
-            st.success(f"{fmt((p/100.0)*v)}")
-
-    if kind == "slope":
-        unit = st.selectbox(tt("Enhet", "Unit"), LENGTH_UNITS, index=2, key="vs_u")
-        fall = st.number_input(tt(f"Fall ({unit})", f"Drop ({unit})"), min_value=0.0, value=0.08, step=0.01, key="vs_f")
-        lengde = st.number_input(tt(f"Lengde ({unit})", f"Length ({unit})"), min_value=0.0, value=4.0, step=0.1, key="vs_l")
-        if st.button(tt("Beregn fall (%)", "Calculate slope (%)"), key="vs_btn"):
-            if lengde == 0:
+    elif kind == "slope":
+        fall = st.number_input(tt("Fall", "Drop"), min_value=0.0, value=0.08, step=0.01, key=f"{kp}_fall")
+        lengde = st.number_input(tt("Lengde", "Length"), min_value=0.0, value=4.0, step=0.1, key=f"{kp}_len")
+        u = st.selectbox(tt("Enhet", "Unit"), ["mm", "cm", "m"], index=2, key=f"{kp}_unit")
+        fall_m = to_mm(fall, u) / 1000.0
+        lengde_m = to_mm(lengde, u) / 1000.0
+        if st.button(tt("Beregn fall (%)", "Calculate slope (%)"), key=f"{kp}_btn"):
+            if lengde_m == 0:
                 st.warning(tt("Lengde kan ikke være 0.", "Length cannot be 0."))
             else:
-                fall_m = to_m(fall, unit)
-                lengde_m = to_m(lengde, unit)
-                st.success(f"{fmt((fall_m/lengde_m)*100.0)} %")
+                st.success(f"{(fall_m/lengde_m)*100.0:.2f} %")
+
+    elif kind == "percent_of":
+        p = st.number_input(tt("Prosent (%)", "Percent (%)"), min_value=0.0, value=25.0, step=1.0, key=f"{kp}_p")
+        v = st.number_input(tt("Av (verdi)", "Of (value)"), min_value=0.0, value=800.0, step=1.0, key=f"{kp}_v")
+        if st.button(tt("Beregn", "Calculate"), key=f"{kp}_btn"):
+            st.success(f"{(p/100.0)*v:.2f}")
+
+
 
 def angle_calculator():
     st.markdown("### " + tt("Vinkelkalkulator (rettvinklet trekant)", "Angle calculator (right triangle)"))
@@ -637,7 +650,7 @@ def formula_bank_ui():
             """
         ))
         render_asset_image("enhetsomregner.png")
-        verification_calculator("unit")
+        verification_calculator("unit", key_prefix="arena_unit")
 
     with st.expander("⬛ " + tt("Areal (flate)", "Area (surface)"), expanded=False):
         formula_block(
@@ -654,7 +667,7 @@ def formula_bank_ui():
             ],
         )
         render_asset_image("areal.png")
-        verification_calculator("area_rect")
+        verification_calculator("area_rect", key_prefix="arena_area_rect")
 
     with st.expander("🧵 " + tt("Omkrets (lengde rundt)", "Perimeter (length around)"), expanded=False):
         formula_block(
@@ -669,7 +682,7 @@ def formula_bank_ui():
             ],
         )
         render_asset_image("omkrets.png")
-        verification_calculator("perimeter_rect")
+        verification_calculator("perimeter_rect", key_prefix="arena_perimeter_rect")
 
     with st.expander("🧱 " + tt("Volum (mengde)", "Volume (quantity)"), expanded=False):
         formula_block(
@@ -685,7 +698,7 @@ def formula_bank_ui():
             ],
         )
         render_asset_image("volum.png")
-        verification_calculator("volume_box")
+        verification_calculator("volume_box", key_prefix="arena_volume_box")
 
     with st.expander("📐 " + tt("Diagonal og rett vinkel (Pytagoras)", "Diagonal and right angle (Pythagoras)"), expanded=False):
         formula_block(
@@ -700,7 +713,7 @@ def formula_bank_ui():
             ],
         )
         render_asset_image("diagonal.png")
-        verification_calculator("diagonal")
+        verification_calculator("diagonal", key_prefix="arena_diagonal")
 
     with st.expander("📐 " + tt("Vinkler (trigonometri)", "Angles (trigonometry)"), expanded=False):
         formula_block(
@@ -743,7 +756,7 @@ def formula_bank_ui():
             ],
         )
         render_asset_image("fall.png")
-        verification_calculator("slope")
+        verification_calculator("slope", key_prefix="arena_slope")
 
     with st.expander("🧮 " + tt("Prosent (svinn, rabatt, påslag)", "Percent (waste, discount, markup)"), expanded=False):
         formula_block(
@@ -758,7 +771,7 @@ def formula_bank_ui():
                 tt("Svinn: bestillingsmengde = mengde × (1 + svinn%).", "Waste: order = qty × (1 + waste%)."),
             ],
         )
-        verification_calculator("percent_of")
+        verification_calculator("percent_of", key_prefix="arena_percent_of")
 
 # ============================================================
 # LÆRINGSARENA (nytt navn + oppgaver)
@@ -925,28 +938,28 @@ def show_calculators():
     )
 
     with tabs[0]:
-        verification_calculator("unit")
+        verification_calculator("unit", key_prefix="tab_unit")
 
     with tabs[1]:
-        verification_calculator("area_rect")
+        verification_calculator("area_rect", key_prefix="tab_area_rect")
 
     with tabs[2]:
-        verification_calculator("perimeter_rect")
+        verification_calculator("perimeter_rect", key_prefix="tab_perimeter_rect")
 
     with tabs[3]:
-        verification_calculator("volume_box")
+        verification_calculator("volume_box", key_prefix="tab_volume_box")
 
     with tabs[4]:
-        verification_calculator("diagonal")
+        verification_calculator("diagonal", key_prefix="tab_diagonal")
 
     with tabs[5]:
         angle_calculator()
 
     with tabs[6]:
-        verification_calculator("slope")
+        verification_calculator("slope", key_prefix="tab_slope")
 
     with tabs[7]:
-        verification_calculator("percent_of")
+        verification_calculator("percent_of", key_prefix="tab_percent_of")
 
 # ============================================================
 # PRO (info + lås)
