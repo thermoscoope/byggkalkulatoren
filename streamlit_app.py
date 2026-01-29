@@ -492,9 +492,9 @@ def show_learning_zones():
         formula_block(
             tt("Vinkler – vanlige formler", "Angles – common formulas"),
             formulas=[
-                "sin(θ) = motstående / hypotenus",
-                "cos(θ) = hosliggende / hypotenus",
-                "tan(θ) = motstående / hosliggende",
+                "sin (A) (θ) = motstående / hypotenus",
+                "cos (B) (θ) = hosliggende / hypotenus",
+                "tan (C) (θ) = motstående / hosliggende",
                 "θ = arctan(motstående / hosliggende)",
             ],
             notes=[
