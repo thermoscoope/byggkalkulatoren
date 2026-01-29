@@ -90,7 +90,7 @@ with header_right:
         f"""
         <div class="bk-header-tight">
           <div class="bk-title-row">
-            <div class="bk-title"></div>
+            <div class="bk-title">Byggmatte</div>
             <div class="bk-sub" style="margin-top:10px;">
               {tt("Fra skole til yrke – matematikk tilpasset yrkeslivet!",
                   "From school to trade – practical math for the workplace!")}
@@ -170,33 +170,30 @@ st.divider()
 # ============================================================
 with st.sidebar:
     st.markdown("### " + tt("Navigasjon", "Navigation"))
-    nav = st.radio(
+    nav_options = [
+        ("Forside", tt("Forside", "Front page")),
+        ("Læringssoner", tt("Læringssoner", "Learning zones")),
+        ("Kalkulatorer", tt("Kalkulatorer", "Calculators")),
+        ("Pro", tt("Pro (info)", "Pro (info)")),
+        ("ProInnhold", tt("Pro-innhold", "Pro content")),
+    ]
+
+    # Finn valgt indeks basert på nåværende view
+    view_to_index = {key: i for i, (key, _) in enumerate(nav_options)}
+    current_index = view_to_index.get(st.session_state.view, 0)
+
+    nav_label = st.radio(
         tt("Gå til", "Go to"),
-        options=[
-            tt("Forside", "Front page"),
-            tt("Læringssoner", "Learning zones"),
-            tt("Kalkulatorer", "Calculators"),
-            tt("Pro", "Pro"),
-        ],
-        index=[
-            "Forside",
-            "Læringssoner",
-            "Kalkulatorer",
-            "Pro",
-        ].index(st.session_state.view) if st.session_state.view in ["Forside","Læringssoner","Kalkulatorer","Pro"] else 0
+        options=[label for _, label in nav_options],
+        index=current_index,
     )
-    # Synkroniser radio -> view
-    mapping = {
-        tt("Forside", "Front page"): "Forside",
-        tt("Læringssoner", "Learning zones"): "Læringssoner",
-        tt("Kalkulatorer", "Calculators"): "Kalkulatorer",
-        tt("Pro", "Pro"): "Pro",
-    }
-    chosen_view = mapping.get(nav, "Forside")
+
+    label_to_view = {label: key for key, label in nav_options}
+    chosen_view = label_to_view.get(nav_label, "Forside")
+
     if chosen_view != st.session_state.view:
         st.session_state.view = chosen_view
         st.rerun()
-
 
 
 # ============================================================
@@ -276,6 +273,29 @@ You use math to:
             )
         )
 
+        with st.container(border=True):
+            st.markdown("### " + tt("Mini-økt (2×45 min) – forslag", "Mini-lesson (2×45 min) – suggestion"))
+            st.markdown(
+                tt(
+                    """
+**Økt 1 (45 min):** Felles gjennomgang av forsiden + én læringssone. Elevene forklarer *hvilken formel* de velger og *hvorfor*.  
+**Økt 2 (45 min):** Elevene jobber med en praktisk case (gulv, vegg, list, betong). De leverer:  
+- valgt formel  
+- inndata (med enheter)  
+- mellomregning  
+- kontroll (kalkulator / grovsjekk)
+                    """,
+                    """
+**Session 1 (45 min):** Whole-class walkthrough of the front page + one learning zone. Students explain *which formula* they choose and *why*.  
+**Session 2 (45 min):** Students work on a practical case (floor, wall, trim, concrete). They submit:  
+- chosen formula  
+- inputs (with units)  
+- working  
+- verification (calculator / sanity check)
+                    """
+                )
+            )
+
     with right:
         with st.container(border=True):
             st.markdown("### " + tt("Start her", "Start here"))
@@ -299,6 +319,9 @@ You use math to:
                     "- Do I have correct measurements?\n- Are all units consistent (mm/cm/m)?\n- Do I know which formula fits?\n- Can I sanity-check if the answer is realistic?",
                 )
             )
+
+        st.caption(tt("Illustrasjoner kan ligge i mappen **assets/** (valgfritt).", "Illustrations can be placed in the **assets/** folder (optional)."))
+        render_asset_image("areal.png")
 
 
 # ============================================================
@@ -492,9 +515,9 @@ def show_learning_zones():
         formula_block(
             tt("Vinkler – vanlige formler", "Angles – common formulas"),
             formulas=[
-                "sin (A) (θ) = motstående / hypotenus",
-                "cos (B) (θ) = hosliggende / hypotenus",
-                "tan (C) (θ) = motstående / hosliggende",
+                "sin(θ) = motstående / hypotenus",
+                "cos(θ) = hosliggende / hypotenus",
+                "tan(θ) = motstående / hosliggende",
                 "θ = arctan(motstående / hosliggende)",
             ],
             notes=[
@@ -693,16 +716,24 @@ def show_pro_content():
 
     with st.container(border=True):
         st.markdown("**" + tt("Lærertilgang (pilot)", "Teacher access (pilot)") + "**")
-        code = st.text_input(tt("Lærerkode", "Teacher code"), type="password", key="teacher_code_pro_content")
-        if code == "2150":
-            st.session_state.is_pro_user = True
-            st.session_state.pro_teacher_mode = True
-            st.success(tt("Lærertilgang aktiv.", "Teacher access enabled."))
-        st.caption(tt("Koden gir tilgang i pilotperioden.", "Code grants access during the pilot."))
+        teacher_code = st.text_input(tt("Lærerkode", "Teacher code"), type="password", key="teacher_code_pro_content")
+        cta1, cta2 = st.columns([1.2, 2.8])
+        with cta1:
+            if st.button("🔑 " + tt("Lås opp", "Unlock"), use_container_width=True):
+                if teacher_code == "2150":
+                    st.session_state.is_pro_user = True
+                    st.session_state.pro_teacher_mode = True
+                    st.success(tt("Lærertilgang aktiv.", "Teacher access enabled."))
+                    st.rerun()
+                else:
+                    st.error(tt("Feil kode.", "Wrong code."))
+        with cta2:
+            st.caption(tt("Koden gir tilgang i pilotperioden.", "Code grants access during the pilot."))
 
     sections = [
         ("🧩 " + tt("Øvingsoppgaver med skjult fasit (arbeidsplass)", "Practice tasks with hidden solutions (workplace)"), "ovingsoppgaver"),
         ("🦺 " + tt("HMS – Hvorfor er HMS viktig?", "HSE – Why HSE matters"), "hms"),
+        ("🏗️ " + tt("TEK-krav i praksis (enkel oversikt)", "Building regulations (TEK) in practice"), "tek"),
         ("🪚 " + tt("Verktøyopplæring – hvorfor og hva", "Tool training – why and what"), "verktoy"),
         ("📝 " + tt("Dokumentasjon av eget arbeid – hvorfor", "Documentation of your work – why"), "dokumentasjon"),
     ]
@@ -764,18 +795,159 @@ def show_pro_content():
         pro_paywall()
         return
 
-    # Hvis Pro er aktiv: vis "innhold" (placeholder nå – kan fylles senere)
+    # Hvis Pro er aktiv: vis innhold
     st.success(tt("Pro er aktiv ✔️", "Pro is active ✔️"))
+
     st.markdown("### " + pick)
-    st.info(tt(
-        "Dette er et Pro-område. Her kan vi fylle inn nøyaktig samme Pro-innhold som du hadde i forrige versjon, "
-        "men strukturert i disse delene.",
-        "This is a Pro area. Here we can add the exact same Pro content you had previously, structured into these sections."
-    ))
-    st.markdown(tt(
-        "Send meg gjerne teksten/kravene fra forrige Pro-del, så kan jeg legge det inn 1:1.",
-        "Share the text/requirements from your previous Pro section and I can insert it 1:1."
-    ))
+
+    if key == "ovingsoppgaver":
+        st.markdown(tt(
+            """
+#### Oppgaver (nivåbasert og vurderingsrettet)
+Her er et eksempel på hvordan Pro-oppgavene er bygget opp:
+
+**Nivå 1 – Forstå og velg formel**
+- Les en kort praksiscase (f.eks. gulv, vegg, platekledning)
+- Skriv: *hvilken formel passer* og *hvorfor*
+- Gjør om til riktige enheter
+
+**Nivå 2 – Mellomregning**
+- Regn for hånd med tydelig mellomregning
+- Lever: inndata, enheter, regnevei, svar
+
+**Nivå 3 – Egenkontroll**
+- Grovsjekk (gir svaret mening?)
+- Kontroller med kalkulator / alternativ metode
+- Kort refleksjon: *hva kunne gått galt i praksis?*
+
+**Skjult fasit**
+- Elevene kan åpne fasiten etter at de har levert sitt forslag.
+            """,
+            """
+#### Tasks (leveled and assessment-oriented)
+Example structure:
+
+**Level 1 – Understand and choose formula**
+**Level 2 – Working**
+**Level 3 – Self-check**
+**Hidden solution**
+            """
+        ))
+        st.info(tt(
+            "Vil du at jeg skal fylle inn 20–40 konkrete oppgaver (areal/omkrets/volum/diagonal/målestokk/fall/prosent) slik du hadde i forrige Pro-del, så gjør jeg det.",
+            "If you want, I can generate a full bank of concrete tasks like your previous Pro section."
+        ))
+
+    elif key == "hms":
+        st.markdown(tt(
+            """
+#### HMS – hvorfor det er viktig (BA verksted / byggeplass)
+**Mål:** Elevene skal kunne jobbe sikkert, forebygge skader og dokumentere risikovurdering.
+
+**1. Før jobben (plan)**
+- Hva skal gjøres – hvilke farer finnes?
+- Hvilket verneutstyr trengs (PVU)?
+- Sjekk arbeidsområde (rydd, lys, orden)
+
+**2. Under jobben (gjennomføring)**
+- Følg rutiner for verktøy/maskin
+- Stopp og vurder hvis noe endrer seg
+- Hold orden: kabler, avkapp, støv
+
+**3. Etter jobben (kontroll)**
+- Rydd og sikre utstyr
+- Rapportér avvik/nestenulykker
+- Kort logg: hva fungerte / hva må forbedres
+
+**Mini SJA (Sikker Jobb Analyse) – 3 spørsmål**
+1) Hva kan gå galt?  
+2) Hvordan kan vi forebygge?  
+3) Hva gjør vi hvis det skjer?
+            """,
+            """
+#### HSE – why it matters
+Plan – Do – Check + a mini risk assessment.
+            """
+        ))
+
+    elif key == "tek":
+        st.markdown(tt(
+            """
+#### TEK-krav i praksis (enkel oversikt for elever)
+TEK (Byggteknisk forskrift) handler om minimumskrav til bygg – og påvirker valg av løsning og utførelse.
+
+**Typiske TEK-nære temaer i verksted/BA:**
+- **Sikkerhet:** rekkverk, fallfare, orden på arbeidsplass
+- **Fukt:** riktig materialvalg, lufting, tetting, overganger
+- **Brann:** materialvalg, gjennomføringer, rømningsveier (på overordnet nivå)
+- **Inneklima:** lufttetthet, kuldebroer (begrepsnivå)
+- **Universell utforming:** tilgjengelighet, terskler, bredder (begrepsnivå)
+
+**Slik kobler vi TEK til elevoppgaver**
+- Elevene beskriver *hvorfor* en løsning velges (f.eks. fuktsikring)
+- De dokumenterer arbeid med bilde + kort tekst
+- De peker på 1–2 “kritiske punkter” der feil kan gi konsekvens (fukt, brann, sikkerhet)
+
+> Pro gir ferdige små “TEK-kort” til oppgaver (maks 5 min lesing) som kan brukes i undervisning.
+            """,
+            """
+#### Building regulations (TEK) in practice
+Short practical overview + TEK-cards for tasks.
+            """
+        ))
+
+    elif key == "verktoy":
+        st.markdown(tt(
+            """
+#### Verktøyopplæring – hvorfor og hva
+**Hvorfor:** Riktig verktøybruk gir bedre kvalitet, mindre svinn og færre skader.
+
+**Standard struktur for opplæring**
+1) **Før bruk:** kontroll, innstillinger, PVU, arbeidsstilling  
+2) **Under bruk:** håndplassering, sikring av emne, fokusområde  
+3) **Etter bruk:** stopp, rengjøring, vedlikehold, lagring  
+
+**Dokumentasjon (for vurdering)**
+- 3 bilder: før / under / etter
+- 5–8 setninger: rutine + risiko + tiltak
+            """,
+            """
+#### Tool training
+Before / during / after + documentation requirements.
+            """
+        ))
+
+    elif key == "dokumentasjon":
+        st.markdown(tt(
+            """
+#### Dokumentasjon av eget arbeid – hvorfor det er viktig
+I bygg er dokumentasjon en del av kvalitet og ansvar.
+
+**Hva dokumenterer vi?**
+- Mål og kontrollmålinger (før/etter)
+- Materialvalg (dimensjoner, impregnert/ikke)
+- Avvik og tiltak (hva ble endret og hvorfor)
+- HMS: risikovurdering og PVU
+
+**Enkel mal (elev)**
+- Oppgave: ______  
+- Mål/enheter: ______  
+- Formel/valg: ______  
+- Mellomregning: ______  
+- Kontroll: ______  
+- Avvik/tiltak: ______  
+- Refleksjon: ______  
+            """,
+            """
+#### Documentation
+A simple student template for verification and quality.
+            """
+        ))
+
+    st.divider()
+    if st.button("⬅️ " + tt("Tilbake til Pro (info)", "Back to Pro (info)"), use_container_width=True):
+        st.session_state.view = "Pro"
+        st.rerun()
 
 
 # ============================================================
