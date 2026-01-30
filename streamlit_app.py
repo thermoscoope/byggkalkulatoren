@@ -292,6 +292,8 @@ def get_student_record(db: dict, student_id: str) -> dict:
     return db.get(student_id, {
         "student_id": student_id,
         "class_name": "",
+        "global_level": 1,
+        "completed_topics": {},
         "topics": {},
         "updated_at": time.time()
     })
@@ -299,6 +301,18 @@ def get_student_record(db: dict, student_id: str) -> dict:
 def put_student_record(db: dict, record: dict) -> None:
     record["updated_at"] = time.time()
     db[record["student_id"]] = record
+
+LEVELS = [
+    (1, "7. trinn", "Grade 7"),
+    (2, "8. trinn", "Grade 8"),
+    (3, "9. trinn", "Grade 9"),
+    (4, "10. trinn", "Grade 10"),
+    (5, "VG1 (grunnnivå)", "VG1 (foundation)"),
+    (6, "VG2 (videre)", "VG2 (intermediate)"),
+    (7, "VG3 (lærling-nivå)", "VG3 (apprentice level)"),
+]
+
+REQUIRED_TOPICS_PER_LEVEL = 3  # må bestå 3 tema i nivået for å låse opp neste
 
 TOPICS = [
     ("areal", "Areal", "Area"),
@@ -317,16 +331,29 @@ def topic_label(topic_key: str) -> str:
             return tt(no, en)
     return topic_key
 
-def ensure_topic_state(record: dict, topic_key: str) -> None:
+def level_label(level: int) -> str:
+    for lv, no, en in LEVELS:
+        if lv == level:
+            return tt(no, en)
+    return str(level)
+
+def ensure_topic_level_state(record: dict, topic_key: str, level: int) -> None:
+    """
+    Lagrer progresjon per tema per globalt nivå:
+    record["topics"][topic_key]["levels"][str(level)] = stats
+    """
     topics = record.setdefault("topics", {})
-    if topic_key not in topics:
-        topics[topic_key] = {
-            "level": 1,
+    t = topics.setdefault(topic_key, {"levels": {}})
+    levels = t.setdefault("levels", {})
+    key = str(level)
+    if key not in levels:
+        levels[key] = {
             "q_index": 0,
-            "correct_in_level": 0,
-            "answered_in_level": 0,
+            "correct": 0,
+            "answered": 0,
             "total_correct": 0,
             "total_answered": 0,
+            "passed": False,
         }
 
 def deterministic_rng(student_id: str, topic_key: str, level: int):
@@ -334,156 +361,210 @@ def deterministic_rng(student_id: str, topic_key: str, level: int):
     return random.Random(seed)
 
 def generate_question(student_id: str, topic_key: str, level: int, qn: int) -> dict:
+    """
+    10 spørsmål per tema per nivå (qn=0..9).
+    Vokser fra 7. trinn -> VG3 lærling.
+    """
     rnd = deterministic_rng(student_id, topic_key, level)
-    # advance rng
-    for _ in range(qn + 3):
+    # deterministisk "shuffle" frem til index
+    for _ in range(qn + 5):
         rnd.random()
 
+    # Hjelpere for nivåtilpassede tall
+    def pick_len_small():  # barneskole
+        return rnd.choice([2, 3, 4, 5, 6, 7, 8])
+
+    def pick_len_med():  # ungdomsskole
+        return rnd.choice([2.4, 3.0, 3.6, 4.2, 4.8, 5.4, 6.0])
+
+    def pick_len_large():  # vgs/lærling
+        return rnd.choice([6.0, 7.2, 8.4, 9.6, 10.8, 12.0])
+
+    def with_opening(area, level):
+        # VG1+ trekker fra åpning 0.9x2.1
+        if level >= 5 and rnd.random() < 0.5:
+            return max(0.0, area - (0.9 * 2.1)), True
+        return area, False
+
     if topic_key == "areal":
-        if level == 1:
-            L = rnd.choice([2,3,4,5,6,7,8])
-            B = rnd.choice([1,1.5,2,2.5,3,3.5])
-            return {"prompt": f"Et gulv er {L} m langt og {B} m bredt. Finn arealet (m²).",
-                    "answer": L*B, "unit":"m²", "tol":0.01}
-        if level == 2:
-            g = rnd.choice([2,3,4,5,6,7])
-            h = rnd.choice([1.5,2,2.5,3,3.5,4])
-            return {"prompt": f"En trekant har grunnlinje {g} m og høyde {h} m. Finn arealet (m²).",
-                    "answer": (g*h)/2, "unit":"m²", "tol":0.01}
-        r = rnd.choice([0.5,0.8,1.0,1.2,1.5,2.0])
-        return {"prompt": f"En sirkel har radius r={r} m. Finn arealet (m²). Bruk π≈3.1416.",
-                "answer": math.pi*(r**2), "unit":"m²", "tol":0.05}
+        if level <= 2:
+            L = pick_len_small()
+            B = rnd.choice([1, 2, 3, 4, 5])
+            return {"prompt": f"Finn arealet av et rektangel: L={L} m og B={B} m. (m²)",
+                    "answer": L * B, "unit": "m²", "tol": 0.01}
+        if level <= 4:
+            L = pick_len_med()
+            B = rnd.choice([2.0, 2.5, 3.0, 3.5, 4.0])
+            return {"prompt": f"Et rom er {L} m langt og {B} m bredt. Finn gulvarealet (m²).",
+                    "answer": L * B, "unit": "m²", "tol": 0.02}
+        # VG1-VG3: vegg/gulv med åpning og svinn
+        H = rnd.choice([2.4, 2.7, 3.0])
+        L = pick_len_large()
+        area = H * L
+        area2, opening = with_opening(area, level)
+        if opening:
+            return {"prompt": f"En vegg er {L} m lang og {H} m høy. Trekk fra én dør (0,9×2,1 m). Finn nettoareal (m²).",
+                    "answer": area2, "unit": "m²", "tol": 0.05}
+        return {"prompt": f"En vegg er {L} m lang og {H} m høy. Finn arealet (m²).",
+                "answer": area2, "unit": "m²", "tol": 0.05}
 
     if topic_key == "omkrets":
-        if level == 1:
-            L = rnd.choice([2,3,4,5,6,7])
-            B = rnd.choice([1,1.5,2,2.5,3])
-            return {"prompt": f"En ramme er {L} m × {B} m. Finn omkretsen (m).",
-                    "answer": 2*(L+B), "unit":"m", "tol":0.01}
-        if level == 2:
-            a = rnd.choice([2,2.5,3,3.5,4])
-            b = rnd.choice([2,3,4,5])
-            c = rnd.choice([2,2.5,3,3.5,4])
-            return {"prompt": f"En trekant har sider a={a} m, b={b} m, c={c} m. Finn omkretsen (m).",
-                    "answer": a+b+c, "unit":"m", "tol":0.01}
-        d = rnd.choice([0.8,1.0,1.2,1.5,2.0])
-        return {"prompt": f"En sirkel har diameter d={d} m. Finn omkrets (m). Bruk π≈3.1416.",
-                "answer": math.pi*d, "unit":"m", "tol":0.05}
+        if level <= 2:
+            L = pick_len_small()
+            B = rnd.choice([1, 2, 3, 4, 5])
+            return {"prompt": f"Finn omkretsen av et rektangel: L={L} m og B={B} m. (m)",
+                    "answer": 2 * (L + B), "unit": "m", "tol": 0.01}
+        if level <= 4:
+            L = pick_len_med()
+            B = rnd.choice([2.0, 2.5, 3.0, 3.5])
+            return {"prompt": f"Du skal sette gulvlister rundt et rom {L} m × {B} m. Finn omkrets (m).",
+                    "answer": 2 * (L + B), "unit": "m", "tol": 0.02}
+        # VG1+: løpemeter + svinn
+        L = pick_len_large()
+        B = rnd.choice([3.6, 4.2, 4.8, 5.4])
+        base = 2 * (L + B)
+        if level >= 6:
+            waste = rnd.choice([5, 8, 10])
+            return {"prompt": f"Du skal ha lister rundt et rom {L} m × {B} m. Legg til {waste}% svinn. Hvor mange meter bestiller du?",
+                    "answer": base * (1 + waste/100), "unit": "m", "tol": 0.2}
+        return {"prompt": f"Du skal ha lister rundt et rom {L} m × {B} m. Finn løpemeter (m).",
+                "answer": base, "unit": "m", "tol": 0.05}
 
     if topic_key == "enheter":
-        conv = [
-            ("mm","cm",10), ("cm","mm",0.1),
-            ("cm","m",100), ("m","cm",0.01),
-            ("mm","m",1000), ("m","mm",0.001),
-        ]
-        frm, to, factor = rnd.choice(conv)
-        val = rnd.choice([5,12,25,40,75,120,250,400,800,1250])
-        if frm == "m":
-            val = rnd.choice([0.2,0.35,0.5,1.2,2.5,3.8,5.0])
-        # convert: to_m handles; use actual math
-        if frm == "mm" and to == "cm":
-            ans = val/10
+        # nivåøkning: mer realistiske byggmål og flere steg
+        if level <= 2:
+            val = rnd.choice([10, 25, 50, 120, 250, 500, 1000])
+            return {"prompt": f"Gjør om {val} mm til cm.", "answer": val/10, "unit": "cm", "tol": 0.001}
+        if level <= 4:
+            val = rnd.choice([30, 45, 60, 90, 120, 150, 240])
+            return {"prompt": f"Gjør om {val} cm til meter (m).", "answer": val/100, "unit": "m", "tol": 0.0005}
+        # VG1+: blandede enheter slik elevene møter i verksted
+        choice = rnd.choice([
+            ("mm", "m", rnd.choice([18, 22, 48, 70, 98, 148])),
+            ("m", "mm", rnd.choice([0.6, 1.2, 2.4, 3.6])),
+            ("cm", "mm", rnd.choice([7.3, 9.8, 14.8])),
+            ("mm", "cm", rnd.choice([600, 1200, 2400, 3600])),
+        ])
+        frm, to, val = choice
+        if frm == "mm" and to == "m":
+            ans = val/1000
+        elif frm == "m" and to == "mm":
+            ans = val*1000
         elif frm == "cm" and to == "mm":
             ans = val*10
-        elif frm == "cm" and to == "m":
-            ans = val/100
-        elif frm == "m" and to == "cm":
-            ans = val*100
-        elif frm == "mm" and to == "m":
-            ans = val/1000
         else:
-            ans = val*1000
-        return {"prompt": f"Gjør om {val} {frm} til {to}.", "answer": ans, "unit":to, "tol":0.001}
-
-    if topic_key == "volum":
-        if level == 1:
-            L = rnd.choice([2,3,4,5])
-            B = rnd.choice([1.5,2,2.5,3])
-            H = rnd.choice([0.05,0.08,0.10,0.12,0.15])
-            return {"prompt": f"En plate er {L} m × {B} m og {H} m tykk. Finn volum (m³).",
-                    "answer": L*B*H, "unit":"m³", "tol":0.001}
-        if level == 2:
-            L = rnd.choice([2,3,4,5])
-            B = rnd.choice([1.5,2,2.5,3])
-            tmm = rnd.choice([18,22,48,70,98])
-            return {"prompt": f"En plate er {L} m × {B} m og {tmm} mm tykk. Finn volum (m³).",
-                    "answer": L*B*(tmm/1000), "unit":"m³", "tol":0.001}
-        r = rnd.choice([0.15,0.2,0.25,0.3,0.4])
-        h = rnd.choice([1.0,1.2,1.5,2.0,2.5])
-        return {"prompt": f"En sylinder har radius r={r} m og høyde h={h} m. Finn volum (m³). Bruk π≈3.1416.",
-                "answer": math.pi*(r**2)*h, "unit":"m³", "tol":0.02}
-
-    if topic_key == "diagonal":
-        if level == 1:
-            a = rnd.choice([1.2,1.5,2.0,2.5,3.0])
-            b = rnd.choice([1.6,2.0,2.4,3.2,4.0])
-            return {"prompt": f"Rektangel med sider A={a} m og B={b} m. Finn diagonal C (m).",
-                    "answer": math.sqrt(a*a+b*b), "unit":"m", "tol":0.02}
-        if level == 2:
-            a = rnd.choice([1.2,1.5,2.0,2.5,3.0])
-            b = rnd.choice([1.6,2.0,2.4,3.2])
-            c = math.sqrt(a*a+b*b)
-            return {"prompt": f"Rettvinklet trekant: C={c:.2f} m og B={b} m. Finn A (m).",
-                    "answer": a, "unit":"m", "tol":0.03}
-        a = rnd.choice([2.0,2.5,3.0,3.5])
-        b = rnd.choice([3.0,3.5,4.0,4.5])
-        return {"prompt": f"En trekant har A={a} m og B={b} m. Finn C (m).",
-                "answer": math.sqrt(a*a+b*b), "unit":"m", "tol":0.05}
-
-    if topic_key == "fall":
-        if level == 1:
-            fall_m = rnd.choice([0.02,0.03,0.04,0.06])
-            lengde_m = rnd.choice([2.0,3.0,4.0,5.0])
-            return {"prompt": f"Fall er {fall_m} m over lengde {lengde_m} m. Finn fall i %.",
-                    "answer": (fall_m/lengde_m)*100, "unit":"%", "tol":0.05}
-        if level == 2:
-            pct = rnd.choice([1.0,1.5,2.0,2.5])
-            lengde_m = rnd.choice([2.0,3.0,4.0,5.0])
-            return {"prompt": f"Du skal ha fall {pct}% over {lengde_m} m. Hvor mange meter fall blir det?",
-                    "answer": (pct/100)*lengde_m, "unit":"m", "tol":0.005}
-        pct = rnd.choice([1.0,1.5,2.0,2.5])
-        lengde_m = rnd.choice([2.0,3.0,4.0,5.0])
-        return {"prompt": f"Du skal ha fall {pct}% over {lengde_m} m. Hvor mange mm fall blir det?",
-                "answer": (pct/100)*lengde_m*1000, "unit":"mm", "tol":2.0}
-
-    if topic_key == "prosent":
-        if level == 1:
-            qty = rnd.choice([20,25,30,40,50,60])
-            waste = rnd.choice([5,10,12,15])
-            return {"prompt": f"Du trenger {qty} stk. Legg til {waste}% svinn. Hvor mange bestiller du? (avrund opp)",
-                    "answer": math.ceil(qty*(1+waste/100)), "unit":"stk", "tol":0.0, "integer": True}
-        if level == 2:
-            old = rnd.choice([1200,1500,2000,2500,3200])
-            disc = rnd.choice([10,15,20,25])
-            return {"prompt": f"En pris er {old} kr. Rabatt {disc}%. Hva er ny pris (kr)?",
-                    "answer": old*(1-disc/100), "unit":"kr", "tol":0.5}
-        base = rnd.choice([80,120,150,200])
-        inc = rnd.choice([10,12,15,20])
-        return {"prompt": f"Du øker {base} med {inc}%. Hva blir ny verdi?",
-                "answer": base*(1+inc/100), "unit":"", "tol":0.1}
+            ans = val/10
+        return {"prompt": f"Gjør om {val} {frm} til {to}.", "answer": ans, "unit": to, "tol": 0.01 if to=="mm" else 0.001}
 
     if topic_key == "vinkler":
-        if level == 1:
+        # rettvinklet trekant med A (hosliggende) og B (motstående): A, B = C og vinkler
+        if level <= 3:
             A = rnd.choice([2,3,4,5,6])
-            B = rnd.choice([1,1.5,2,2.5,3,3.5])
+            B = rnd.choice([1,2,3,4])
             theta = math.degrees(math.atan(B/A))
-            return {"prompt": f"Rettvinklet trekant: A={A} m, B={B} m. Finn vinkel θ (grader).",
-                    "answer": theta, "unit":"°", "tol":0.5}
-        if level == 2:
-            A = rnd.choice([2,3,4,5,6])
-            theta = rnd.choice([20,25,30,35,40,45,50])
-            B = A*math.tan(math.radians(theta))
-            return {"prompt": f"Rettvinklet trekant: A={A} m og θ={theta}°. Finn B (m).",
-                    "answer": B, "unit":"m", "tol":0.05}
-        B = rnd.choice([1.5,2,2.5,3,3.5,4])
-        theta = rnd.choice([20,25,30,35,40,45,50])
-        A = B/math.tan(math.radians(theta))
-        return {"prompt": f"Rettvinklet trekant: B={B} m og θ={theta}°. Finn A (m).",
-                "answer": A, "unit":"m", "tol":0.05}
+            return {"prompt": f"Rettvinklet trekant: A={A} og B={B}. Finn vinkelen θ (grader).",
+                    "answer": theta, "unit": "°", "tol": 0.6}
+        if level <= 5:
+            A = rnd.choice([2.4, 3.0, 3.6, 4.2])
+            theta = rnd.choice([15, 20, 25, 30, 35, 40, 45])
+            B = A * math.tan(math.radians(theta))
+            return {"prompt": f"Du skal lage skråavstivning. A={A} m og θ={theta}°. Finn B (m).",
+                    "answer": B, "unit": "m", "tol": 0.05}
+        # VG2/VG3: takvinkel/utstikk (mer realistiske tall)
+        run = rnd.choice([3.6, 4.2, 4.8, 5.4])
+        rise = rnd.choice([1.2, 1.5, 1.8, 2.1])
+        theta = math.degrees(math.atan(rise/run))
+        return {"prompt": f"Tak: horisontal lengde (A)={run} m og høyde (B)={rise} m. Finn takvinkel θ (grader).",
+                "answer": theta, "unit": "°", "tol": 0.6}
+
+    if topic_key == "diagonal":
+        if level <= 3:
+            a = rnd.choice([3,4,5,6])
+            b = rnd.choice([4,5,6,7,8])
+            return {"prompt": f"Finn diagonal C når A={a} og B={b}. (C = √(A²+B²))",
+                    "answer": math.sqrt(a*a+b*b), "unit": "", "tol": 0.1}
+        if level <= 5:
+            a = rnd.choice([1.2, 2.4, 3.6, 4.8])
+            b = rnd.choice([1.6, 2.0, 3.2, 4.0])
+            return {"prompt": f"Ramme: A={a} m og B={b} m. Finn diagonal C (m) for å sjekke vinkel.",
+                    "answer": math.sqrt(a*a+b*b), "unit": "m", "tol": 0.03}
+        # VG2/VG3: 3-4-5 skalert
+        k = rnd.choice([1.0, 1.5, 2.0, 2.5])
+        a = 3*k; b = 4*k; c = 5*k
+        ask = rnd.choice(["c", "a", "b"])
+        if ask == "c":
+            return {"prompt": f"Kontrollmål: A={a} m og B={b} m. Hva skal C være (m) for rett vinkel?",
+                    "answer": c, "unit": "m", "tol": 0.05}
+        if ask == "a":
+            return {"prompt": f"Kontrollmål: C={c} m og B={b} m. Hva skal A være (m)?",
+                    "answer": a, "unit": "m", "tol": 0.05}
+        return {"prompt": f"Kontrollmål: C={c} m og A={a} m. Hva skal B være (m)?",
+                "answer": b, "unit": "m", "tol": 0.05}
+
+    if topic_key == "volum":
+        if level <= 3:
+            L = rnd.choice([2,3,4,5])
+            B = rnd.choice([1,2,3])
+            H = rnd.choice([1,2,3])
+            return {"prompt": f"Finn volum: L={L}, B={B}, H={H}. (V=L×B×H)",
+                    "answer": L*B*H, "unit": "", "tol": 0.01}
+        if level <= 5:
+            L = rnd.choice([2.4, 3.6, 4.8, 6.0])
+            B = rnd.choice([1.2, 2.4, 3.0])
+            t = rnd.choice([0.05, 0.08, 0.10])
+            return {"prompt": f"Betongplate: {L} m × {B} m × {t} m. Finn volum (m³).",
+                    "answer": L*B*t, "unit": "m³", "tol": 0.01}
+        # VG2/VG3: tykkelse i mm
+        L = rnd.choice([6.0, 7.2, 8.4])
+        B = rnd.choice([2.4, 3.0, 3.6])
+        tmm = rnd.choice([80, 100, 120, 150])
+        return {"prompt": f"Plate: {L} m × {B} m × {tmm} mm. Finn volum (m³).",
+                "answer": L*B*(tmm/1000), "unit": "m³", "tol": 0.02}
+
+    if topic_key == "fall":
+        if level <= 3:
+            fall_cm = rnd.choice([2,3,4,5,6])
+            lengde_m = rnd.choice([2,3,4,5])
+            fall_m = fall_cm/100
+            return {"prompt": f"Fall er {fall_cm} cm over {lengde_m} m. Finn fall i %.",
+                    "answer": (fall_m/lengde_m)*100, "unit": "%", "tol": 0.2}
+        if level <= 5:
+            fall_mm_per_m = rnd.choice([10, 15, 20, 25])
+            lengde_m = rnd.choice([2.0, 3.0, 4.0, 5.0])
+            fall_mm = fall_mm_per_m*lengde_m
+            return {"prompt": f"Du har fall {fall_mm_per_m} mm per meter over {lengde_m} m. Hvor mange mm fall totalt?",
+                    "answer": fall_mm, "unit": "mm", "tol": 1.0}
+        # VG2/VG3: fall i % -> mm
+        pct = rnd.choice([1.0, 1.5, 2.0, 2.5])
+        lengde_m = rnd.choice([3.0, 4.0, 5.0, 6.0])
+        fall_mm = (pct/100)*lengde_m*1000
+        return {"prompt": f"Prosjekt: Fall {pct}% over {lengde_m} m. Hvor mange mm fall blir det?",
+                "answer": fall_mm, "unit": "mm", "tol": 2.0}
+
+    if topic_key == "prosent":
+        if level <= 3:
+            base = rnd.choice([50, 80, 100, 120, 200])
+            p = rnd.choice([10, 20, 25, 50])
+            return {"prompt": f"Hva er {p}% av {base}?",
+                    "answer": (p/100)*base, "unit": "", "tol": 0.2}
+        if level <= 5:
+            qty = rnd.choice([20, 25, 30, 40, 50])
+            waste = rnd.choice([5, 10, 12, 15])
+            return {"prompt": f"Du trenger {qty} stk. Legg til {waste}% svinn. Hvor mange bestiller du? (avrund opp)",
+                    "answer": math.ceil(qty*(1+waste/100)), "unit": "stk", "tol": 0.0, "integer": True}
+        # VG2/VG3: prisendring
+        old = rnd.choice([1200, 1500, 2000, 2500, 3200])
+        change = rnd.choice([8, 10, 12, 15, 20])
+        direction = rnd.choice(["opp", "ned"])
+        if direction == "opp":
+            return {"prompt": f"En vare koster {old} kr. Prisøkning {change}%. Hva er ny pris?",
+                    "answer": old*(1+change/100), "unit": "kr", "tol": 1.0}
+        return {"prompt": f"En vare koster {old} kr. Rabatt {change}%. Hva er ny pris?",
+                "answer": old*(1-change/100), "unit": "kr", "tol": 1.0}
 
     return {"prompt": "(mangler)", "answer": 0.0, "unit": "", "tol": 0.0}
 
-def check_answer(user_text: str, q: dict):
+def check_answerdef check_answer(user_text: str, q: dict):
     try:
         s = (user_text or "").strip().replace(",", ".")
         if s == "":
@@ -803,8 +884,8 @@ def make_tasks(level: int):
 def arena_tasks_ui():
     st.markdown("### " + tt("Øvingsoppgaver", "Practice tasks"))
     st.caption(tt(
-        "Skriv inn elev-ID og klasse. Systemet husker progresjon på samme elev-ID (lokalt).",
-        "Enter student ID and class. Progress is remembered for the same student ID (locally)."
+        "Velg selv hvilke formler/tema du vil øve på. Når du har bestått nok tema i nivået, låser du opp neste nivå.",
+        "Choose which formulas/topics to practice. When you pass enough topics in a level, you unlock the next level."
     ))
 
     db = load_progress_db()
@@ -812,7 +893,7 @@ def arena_tasks_ui():
     with st.container(border=True):
         c1, c2, c3 = st.columns([1.2, 1.4, 1.4])
         with c1:
-            student_id = st.text_input(tt("Elev-ID", "Student ID"), key="arena_student_id", placeholder="f.eks. 7A-12")
+            student_id = st.text_input(tt("Elev-ID", "Student ID"), key="arena_student_id", placeholder="f.eks. VG1BA-12")
         with c2:
             class_name = st.text_input(tt("Klasse", "Class"), key="arena_class_name", placeholder="f.eks. VG1BA-1")
         with c3:
@@ -823,120 +904,161 @@ def arena_tasks_ui():
         if teacher_mode:
             st.success(tt("Lærermodus aktiv.", "Teacher mode enabled."))
 
+    # Læreroversikt
     if teacher_mode:
         st.markdown("#### " + tt("Læreroversikt (progresjon)", "Teacher overview (progress)"))
         records = []
         for sid, rec in db.items():
             if class_name and rec.get("class_name","") != class_name:
                 continue
-            row = {"Elev-ID": sid, "Klasse": rec.get("class_name","")}
+            glv = int(rec.get("global_level", 1))
+            comp = rec.get("completed_topics", {}).get(str(glv), [])
+            row = {
+                "Elev-ID": sid,
+                "Klasse": rec.get("class_name",""),
+                tt("Nivå", "Level"): f"{glv} – {level_label(glv)}",
+                tt("Bestått i nivået", "Passed in level"): f"{len(comp)}/{REQUIRED_TOPICS_PER_LEVEL}",
+            }
+            # legg ved status per tema (siste pass-status i elevens nivå)
             for k, no, en in TOPICS:
                 t = rec.get("topics", {}).get(k, {})
-                row[tt(no,en)] = f"L{t.get('level',1)} ({t.get('total_correct',0)}/{t.get('total_answered',0)})"
+                lv_state = (t.get("levels", {}) or {}).get(str(glv), {})
+                row[tt(no,en)] = "✔️" if lv_state.get("passed") else "—"
             records.append(row)
 
-        if records:
-            if pd is not None:
-                st.dataframe(pd.DataFrame(records), use_container_width=True, hide_index=True)
-            else:
-                for r in records:
-                    st.write(r)
+        if records and pd is not None:
+            st.dataframe(pd.DataFrame(records), use_container_width=True, hide_index=True)
+        elif records:
+            for r in records:
+                st.write(r)
         else:
             st.info(tt("Ingen elever lagret ennå for valgt klasse.", "No saved students yet for selected class."))
         st.divider()
 
     if not student_id:
-        st.info(tt("Skriv inn Elev-ID for å starte oppgavene.", "Enter a Student ID to start tasks."))
+        st.info(tt("Skriv inn Elev-ID for å starte.", "Enter a Student ID to start."))
         return
 
     rec = get_student_record(db, student_id)
     if class_name:
         rec["class_name"] = class_name
-    put_student_record(db, rec)
-    save_progress_db(db)
+    rec.setdefault("global_level", 1)
+    rec.setdefault("completed_topics", {})
+    put_student_record(db, rec); save_progress_db(db)
 
-    topic_options = [topic_label(k) for k,_,_ in TOPICS]
-    label_to_key = {topic_label(k): k for k,_,_ in TOPICS}
-    pick_label = st.selectbox(tt("Velg tema", "Choose topic"), topic_options, key="arena_topic_pick")
-    topic_key = label_to_key[pick_label]
+    global_level = int(rec.get("global_level", 1))
+    global_level = max(1, min(7, global_level))
+    level_name = level_label(global_level)
 
-    ensure_topic_state(rec, topic_key)
-    tstate = rec["topics"][topic_key]
-    level = int(tstate["level"])
-
-    st.markdown(f"**{tt('Tema', 'Topic')}:** {pick_label}  ·  **{tt('Nivå', 'Level')}:** {level}")
+    st.markdown(f"**{tt('Ditt nivå', 'Your level')}:** {global_level} – {level_name}")
     st.caption(tt(
-        "Du må fullføre nivå 1 for å låse opp nivå 2 osv. Du går videre når du har 8 av 10 riktige i nivået.",
-        "You must finish level 1 to unlock level 2, etc. Advance when you have 8 of 10 correct in the level."
+        f"For å gå videre må du bestå {REQUIRED_TOPICS_PER_LEVEL} ulike tema (8 av 10 riktige) på dette nivået.",
+        f"To advance you must pass {REQUIRED_TOPICS_PER_LEVEL} different topics (8/10 correct) on this level."
     ))
 
-    q_index = int(tstate.get("q_index", 0))
+    # Tema-velger
+    topic_options = [topic_label(k) for k,_,_ in TOPICS]
+    label_to_key = {topic_label(k): k for k,_,_ in TOPICS}
+    pick_label = st.selectbox(tt("Velg tema du vil øve på", "Choose a topic to practice"), topic_options, key="arena_topic_pick")
+    topic_key = label_to_key[pick_label]
+
+    ensure_topic_level_state(rec, topic_key, global_level)
+    t = rec["topics"][topic_key]["levels"][str(global_level)]
+
+    # Vis status i nivået
+    completed = rec.get("completed_topics", {}).get(str(global_level), [])
+    st.markdown(f"**{tt('Beståtte tema i nivået', 'Passed topics in this level')}:** {len(completed)}/{REQUIRED_TOPICS_PER_LEVEL}")
+    if completed:
+        st.write(", ".join([topic_label(x) for x in completed]))
+
+    # Spørsmål
+    q_index = int(t.get("q_index", 0))
     q_index = max(0, min(9, q_index))
-    q = generate_question(student_id, topic_key, level, q_index)
+    q = generate_question(student_id, topic_key, global_level, q_index)
 
     with st.container(border=True):
-        st.markdown(f"### {tt('Oppgave', 'Task')} {q_index+1}/10")
+        st.markdown(f"### {tt('Oppgave', 'Task')} {q_index+1}/10 · {pick_label}")
         st.write(q["prompt"])
         ans = st.text_input(tt("Ditt svar", "Your answer"), key="arena_answer", placeholder=q.get("unit",""))
 
         cA, cB, cC = st.columns([1.0, 1.0, 2.0])
         with cA:
-            if st.button(tt("Sjekk", "Check"), key=f"arena_check_{topic_key}_{level}_{q_index}", use_container_width=True):
+            if st.button(tt("Sjekk", "Check"), key=f"arena_check_{topic_key}_{global_level}_{q_index}", use_container_width=True):
                 ok, _ = check_answer(ans, q)
-                tstate["answered_in_level"] = int(tstate.get("answered_in_level", 0)) + 1
-                tstate["total_answered"] = int(tstate.get("total_answered", 0)) + 1
+                t["answered"] = int(t.get("answered", 0)) + 1
+                t["total_answered"] = int(t.get("total_answered", 0)) + 1
                 if ok:
-                    tstate["correct_in_level"] = int(tstate.get("correct_in_level", 0)) + 1
-                    tstate["total_correct"] = int(tstate.get("total_correct", 0)) + 1
+                    t["correct"] = int(t.get("correct", 0)) + 1
+                    t["total_correct"] = int(t.get("total_correct", 0)) + 1
                     st.success(tt("Riktig ✔️", "Correct ✔️"))
                 else:
-                    st.error(tt("Ikke helt. Prøv igjen eller trykk 'Pass'.", "Not quite. Try again or press 'Pass'."))
+                    st.error(tt("Ikke helt. Du kan prøve igjen senere i neste runde.", "Not quite. You can try again later."))
 
-                # neste kort uansett (som trening)
-                tstate["q_index"] = min(9, q_index + 1)
-                rec["topics"][topic_key] = tstate
+                t["q_index"] = min(9, q_index + 1)
+                rec["topics"][topic_key]["levels"][str(global_level)] = t
                 put_student_record(db, rec); save_progress_db(db)
                 st.rerun()
 
         with cB:
-            if st.button(tt("Pass", "Pass"), key=f"arena_pass_{topic_key}_{level}_{q_index}", use_container_width=True):
-                tstate["answered_in_level"] = int(tstate.get("answered_in_level", 0)) + 1
-                tstate["total_answered"] = int(tstate.get("total_answered", 0)) + 1
-                tstate["q_index"] = min(9, q_index + 1)
-                rec["topics"][topic_key] = tstate
+            if st.button(tt("Pass", "Pass"), key=f"arena_pass_{topic_key}_{global_level}_{q_index}", use_container_width=True):
+                t["answered"] = int(t.get("answered", 0)) + 1
+                t["total_answered"] = int(t.get("total_answered", 0)) + 1
+                t["q_index"] = min(9, q_index + 1)
+                rec["topics"][topic_key]["levels"][str(global_level)] = t
                 put_student_record(db, rec); save_progress_db(db)
                 st.rerun()
 
         with cC:
-            if st.toggle(tt("Vis fasit", "Show answer"), key=f"arena_show_{topic_key}_{level}_{q_index}"):
+            if st.toggle(tt("Vis fasit", "Show answer"), key=f"arena_show_{topic_key}_{global_level}_{q_index}"):
                 st.info(f"{tt('Fasit', 'Answer')}: {fmt(q['answer'])} {q.get('unit','')}".strip())
 
     st.divider()
-    st.metric(tt("Riktige i nivået", "Correct in level"), f"{tstate.get('correct_in_level',0)} / 10")
-    st.metric(tt("Besvart i nivået", "Answered in level"), f"{tstate.get('answered_in_level',0)} / 10")
+    st.metric(tt("Riktige", "Correct"), f"{t.get('correct',0)} / 10")
+    st.metric(tt("Besvart", "Answered"), f"{t.get('answered',0)} / 10")
 
-    finished = int(tstate.get("answered_in_level",0)) >= 10
+    finished = int(t.get("answered", 0)) >= 10
     if finished:
-        if int(tstate.get("correct_in_level",0)) >= 8:
-            st.success(tt("Nivå fullført! Du har låst opp neste nivå.", "Level completed! Next level unlocked."))
-            if level < 3:
-                if st.button(tt("➡️ Neste nivå", "➡️ Next level"), key=f"arena_next_{topic_key}_{level}", use_container_width=True):
-                    tstate["level"] = level + 1
-                    tstate["q_index"] = 0
-                    tstate["correct_in_level"] = 0
-                    tstate["answered_in_level"] = 0
-                    rec["topics"][topic_key] = tstate
-                    put_student_record(db, rec); save_progress_db(db)
-                    st.rerun()
-        else:
-            st.warning(tt("Ikke nok riktige til å gå videre. Start nivået på nytt.",
-                          "Not enough correct to advance. Restart the level."))
+        if int(t.get("correct", 0)) >= 8:
+            st.success(tt("Tema bestått på dette nivået!", "Topic passed on this level!"))
+            t["passed"] = True
+            # mark completed topic
+            comp = rec.setdefault("completed_topics", {}).setdefault(str(global_level), [])
+            if topic_key not in comp:
+                comp.append(topic_key)
+            rec["completed_topics"][str(global_level)] = comp
+            rec["topics"][topic_key]["levels"][str(global_level)] = t
+            put_student_record(db, rec); save_progress_db(db)
 
-    if st.button(tt("🔁 Start nivå på nytt", "🔁 Restart level"), key=f"arena_restart_{topic_key}_{level}", use_container_width=True):
-        tstate["q_index"] = 0
-        tstate["correct_in_level"] = 0
-        tstate["answered_in_level"] = 0
-        rec["topics"][topic_key] = tstate
+            comp = rec.get("completed_topics", {}).get(str(global_level), [])
+            if len(comp) >= REQUIRED_TOPICS_PER_LEVEL:
+                st.success(tt("Du har bestått nok tema til å gå videre!", "You passed enough topics to advance!"))
+                if global_level < 7:
+                    if st.button(tt("➡️ Gå til neste nivå", "➡️ Go to next level"), key=f"arena_advance_{global_level}", use_container_width=True):
+                        rec["global_level"] = global_level + 1
+                        put_student_record(db, rec); save_progress_db(db)
+                        st.rerun()
+                else:
+                    st.balloons()
+                    st.success(tt("Du er på VG3/lærling-nivå. Sterkt jobba!", "You are at VG3/apprentice level. Great work!"))
+        else:
+            st.warning(tt("Du fikk ikke nok riktige for å bestå temaet. Start temaet på nytt.",
+                          "Not enough correct to pass the topic. Restart the topic."))
+
+    # Restart topic on this level
+    if st.button(tt("🔁 Start tema på nytt (dette nivået)", "🔁 Restart topic (this level)"),
+                 key=f"arena_restart_{topic_key}_{global_level}", use_container_width=True):
+        rec["topics"].setdefault(topic_key, {"levels": {}})
+        rec["topics"][topic_key]["levels"][str(global_level)] = {
+            "q_index": 0, "correct": 0, "answered": 0,
+            "total_correct": int(t.get("total_correct",0)),
+            "total_answered": int(t.get("total_answered",0)),
+            "passed": False,
+        }
+        # fjern fra completed hvis den var der
+        comp = rec.get("completed_topics", {}).get(str(global_level), [])
+        if topic_key in comp:
+            comp.remove(topic_key)
+            rec["completed_topics"][str(global_level)] = comp
         put_student_record(db, rec); save_progress_db(db)
         st.rerun()
 
@@ -1640,6 +1762,8 @@ elif st.session_state.view == "ProInnhold":
     show_pro_content()
 else:
     show_front_page()
+
+
 
 
 
