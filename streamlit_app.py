@@ -100,7 +100,7 @@ with header_right:
         f"""
         <div class="bk-header-tight">
           <div class="bk-title-row">
-            <div class="bk-title"></div>
+            <div class="bk-title">Byggmatte</div>
             <div class="bk-sub" style="margin-top:10px;">
               {tt("Fra skole til yrke – matematikk tilpasset yrkeslivet!",
                   "From school to trade – practical math for the workplace!")}
@@ -217,6 +217,17 @@ def from_m(value_m: float, unit: str) -> float:
     if unit == "cm":
         return value_m * 100.0
     return value_m
+
+
+def to_mm(value: float, unit: str) -> float:
+    """Konverter lengde til millimeter."""
+    return to_m(value, unit) * 1000.0
+
+
+def mm_to_all(mm: float) -> dict:
+    """Hjelpevisning: mm -> mm/cm/m."""
+    return {"mm": mm, "cm": mm / 10.0, "m": mm / 1000.0}
+
 
 def area_from_m2(value_m2: float, unit: str) -> float:
     if unit == "mm":
@@ -1176,3 +1187,4 @@ elif st.session_state.view == "ProInnhold":
     show_pro_content()
 else:
     show_front_page()
+
