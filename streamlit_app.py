@@ -564,7 +564,7 @@ def generate_question(student_id: str, topic_key: str, level: int, qn: int) -> d
 
     return {"prompt": "(mangler)", "answer": 0.0, "unit": "", "tol": 0.0}
 
-def check_answerdef check_answer(user_text: str, q: dict):
+def check_answer(user_text: str, q: dict):
     try:
         s = (user_text or "").strip().replace(",", ".")
         if s == "":
@@ -1762,8 +1762,4 @@ elif st.session_state.view == "ProInnhold":
     show_pro_content()
 else:
     show_front_page()
-
-
-
-
 
