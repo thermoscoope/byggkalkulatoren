@@ -124,7 +124,7 @@ with b1:
         st.rerun()
 
 with b2:
-    if st.button("📚 " + tt("Læringsarena", "Learning arena"), use_container_width=True, key="nav_arena"):
+    if st.button("📚 " + tt("Læringsarena", "Learning arena"), use_container_width=True, key="top_nav_arena"):
         st.session_state.view = "Læringsarena"
         st.rerun()
 
@@ -134,7 +134,7 @@ with b3:
         st.rerun()
 
 with b4:
-    if st.button("🧮 " + tt("Kalkulatorer", "Calculators"), use_container_width=True, key="nav_calcs"):
+    if st.button("🧮 " + tt("Kalkulatorer", "Calculators"), use_container_width=True, key="top_nav_calcs"):
         st.session_state.view = "Kalkulatorer"
         st.rerun()
 
@@ -300,11 +300,11 @@ You use math to:
             st.write(tt("Velg hva du vil gjøre nå:", "Choose what you want to do now:"))
             c1, c2 = st.columns(2)
             with c1:
-                if st.button("📚 " + tt("Læringsarena", "Learning arena"), use_container_width=True, key="nav_arena"):
+                if st.button("📚 " + tt("Læringsarena", "Learning arena"), use_container_width=True, key="front_nav_arena"):
                     st.session_state.view = "Læringsarena"
                     st.rerun()
             with c2:
-                if st.button("🧮 " + tt("Kalkulatorer", "Calculators"), use_container_width=True, key="nav_calcs"):
+                if st.button("🧮 " + tt("Kalkulatorer", "Calculators"), use_container_width=True, key="front_nav_calcs"):
                     st.session_state.view = "Kalkulatorer"
                     st.rerun()
 
