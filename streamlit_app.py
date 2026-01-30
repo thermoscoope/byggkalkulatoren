@@ -1744,7 +1744,7 @@ Oppgave – Mål/enheter – Formelvalg – Mellomregning – Kontroll – Avvik
             """,
             "Documentation template."
         ))
-
+        
 # ============================================================
 # Router
 # ============================================================
