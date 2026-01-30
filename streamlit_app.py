@@ -265,17 +265,17 @@ def show_front_page():
         st.markdown(
             tt(
                 """
-**Byggmatte** er laget som et *undervisningsopplegg*, men også et verktøy for å kontrollere om det vi har gjort, er riktig.  
-Målet er at du skal **forstå**, **vurdere** og **kontrollere** regningene du gjør i verkstedet og på byggeplass.
+**Byggmatte** er forståelsen av en oppgave → så velger jeg formel → så regner jeg → så kontrollerer jeg.  
+Målet er at du skal **forstå**, **vurdere** og **kontrollere** regningene du gjør i verkstedet og videre på en byggeplass.
 
-### Hvorfor trenger vi matematikk i bygg?
+### Hvorfor trenger vi matematikk når vi bygger?
 Du bruker matematikk for å:
-- Bestille riktig mengde materialer (og redusere svinn)  
-- Sikre at konstruksjoner blir rette, stabile og trygge  
-- Lese og bruke arbeidstegninger og målestokk  
+- Bestille riktig mengde materialer
+- Kostnader på både produksjon og ulike materialer vi bruker
+- Velge riktig materialer til riktig bruk  
+- Forståelse av å lese og bruke arbeidstegninger og målestokk 
 - Dokumentere eget arbeid og gjøre egenkontroll  
 
-> **Fagarbeiderlogikk:** Først forstår jeg oppgaven → så velger jeg formel → så regner jeg → så kontrollerer jeg.
 
 ### Slik bruker du appen i undervisning
 1. **Les forsiden**  
