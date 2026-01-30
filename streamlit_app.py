@@ -897,15 +897,18 @@ def arena_tasks_ui():
         with c2:
             class_name = st.text_input(tt("Klasse", "Class"), key="arena_class_name", placeholder="f.eks. VG1BA-1")
         with c3:
-            teacher_code = st.text_input(tt("Lærerkode (lærer)", "Teacher code (teacher)"),
-                                         type="password", key="arena_teacher_code", placeholder="2150")
+            teacher_code = st.text_input(
+                tt("Lærerkode (lærer)", "Teacher code (teacher)"),
+                type="password",
+                key="arena_teacher_code",
+                placeholder=""
+            )
 
-        teacher_mode = (teacher_code == TEACHER_CODE)
-        if teacher_mode:
-            st.success(tt("Lærermodus aktiv.", "Teacher mode enabled."))
+        teacher_mode = (teacher_code == TEACHER_CODE) if teacher_code else False
 
     # Læreroversikt
     if teacher_mode:
+        st.success(tt("Lærermodus aktiv.", "Teacher mode enabled."))
         st.markdown("#### " + tt("Læreroversikt (progresjon)", "Teacher overview (progress)"))
         records = []
         for sid, rec in db.items():
@@ -919,7 +922,6 @@ def arena_tasks_ui():
                 tt("Nivå", "Level"): f"{glv} – {level_label(glv)}",
                 tt("Bestått i nivået", "Passed in level"): f"{len(comp)}/{REQUIRED_TOPICS_PER_LEVEL}",
             }
-            # legg ved status per tema (siste pass-status i elevens nivå)
             for k, no, en in TOPICS:
                 t = rec.get("topics", {}).get(k, {})
                 lv_state = (t.get("levels", {}) or {}).get(str(glv), {})
@@ -939,6 +941,7 @@ def arena_tasks_ui():
         st.info(tt("Skriv inn Elev-ID for å starte.", "Enter a Student ID to start."))
         return
 
+    # Hent elev
     rec = get_student_record(db, student_id)
     if class_name:
         rec["class_name"] = class_name
@@ -956,111 +959,115 @@ def arena_tasks_ui():
         f"To advance you must pass {REQUIRED_TOPICS_PER_LEVEL} different topics (8/10 correct) on this level."
     ))
 
-    # Tema-velger
-    topic_options = [topic_label(k) for k,_,_ in TOPICS]
-    label_to_key = {topic_label(k): k for k,_,_ in TOPICS}
-    pick_label = st.selectbox(tt("Velg tema du vil øve på", "Choose a topic to practice"), topic_options, key="arena_topic_pick")
-    topic_key = label_to_key[pick_label]
-
-    ensure_topic_level_state(rec, topic_key, global_level)
-    t = rec["topics"][topic_key]["levels"][str(global_level)]
-
-    # Vis status i nivået
     completed = rec.get("completed_topics", {}).get(str(global_level), [])
     st.markdown(f"**{tt('Beståtte tema i nivået', 'Passed topics in this level')}:** {len(completed)}/{REQUIRED_TOPICS_PER_LEVEL}")
     if completed:
         st.write(", ".join([topic_label(x) for x in completed]))
 
-    # Spørsmål
-    q_index = int(t.get("q_index", 0))
-    q_index = max(0, min(9, q_index))
-    q = generate_question(student_id, topic_key, global_level, q_index)
-
-    with st.container(border=True):
-        st.markdown(f"### {tt('Oppgave', 'Task')} {q_index+1}/10 · {pick_label}")
-        st.write(q["prompt"])
-        ans = st.text_input(tt("Ditt svar", "Your answer"), key="arena_answer", placeholder=q.get("unit",""))
-
-        cA, cB, cC = st.columns([1.0, 1.0, 2.0])
-        with cA:
-            if st.button(tt("Sjekk", "Check"), key=f"arena_check_{topic_key}_{global_level}_{q_index}", use_container_width=True):
-                ok, _ = check_answer(ans, q)
-                t["answered"] = int(t.get("answered", 0)) + 1
-                t["total_answered"] = int(t.get("total_answered", 0)) + 1
-                if ok:
-                    t["correct"] = int(t.get("correct", 0)) + 1
-                    t["total_correct"] = int(t.get("total_correct", 0)) + 1
-                    st.success(tt("Riktig ✔️", "Correct ✔️"))
-                else:
-                    st.error(tt("Ikke helt. Du kan prøve igjen senere i neste runde.", "Not quite. You can try again later."))
-
-                t["q_index"] = min(9, q_index + 1)
-                rec["topics"][topic_key]["levels"][str(global_level)] = t
-                put_student_record(db, rec); save_progress_db(db)
-                st.rerun()
-
-        with cB:
-            if st.button(tt("Pass", "Pass"), key=f"arena_pass_{topic_key}_{global_level}_{q_index}", use_container_width=True):
-                t["answered"] = int(t.get("answered", 0)) + 1
-                t["total_answered"] = int(t.get("total_answered", 0)) + 1
-                t["q_index"] = min(9, q_index + 1)
-                rec["topics"][topic_key]["levels"][str(global_level)] = t
-                put_student_record(db, rec); save_progress_db(db)
-                st.rerun()
-
-        with cC:
-            if st.toggle(tt("Vis fasit", "Show answer"), key=f"arena_show_{topic_key}_{global_level}_{q_index}"):
-                st.info(f"{tt('Fasit', 'Answer')}: {fmt(q['answer'])} {q.get('unit','')}".strip())
-
     st.divider()
-    st.metric(tt("Riktige", "Correct"), f"{t.get('correct',0)} / 10")
-    st.metric(tt("Besvart", "Answered"), f"{t.get('answered',0)} / 10")
+    st.markdown("#### " + tt("Velg hva du vil øve på", "Choose what to practice"))
 
-    finished = int(t.get("answered", 0)) >= 10
-    if finished:
-        if int(t.get("correct", 0)) >= 8:
-            st.success(tt("Tema bestått på dette nivået!", "Topic passed on this level!"))
-            t["passed"] = True
-            # mark completed topic
-            comp = rec.setdefault("completed_topics", {}).setdefault(str(global_level), [])
-            if topic_key not in comp:
-                comp.append(topic_key)
-            rec["completed_topics"][str(global_level)] = comp
-            rec["topics"][topic_key]["levels"][str(global_level)] = t
-            put_student_record(db, rec); save_progress_db(db)
+    # --- Tema som faner (eleven velger selv) ---
+    topic_keys = [k for k,_,_ in TOPICS]
+    topic_titles = [topic_label(k) for k in topic_keys]
+    tabs = st.tabs(topic_titles)
 
+    def render_topic(topic_key: str, pick_label: str):
+        ensure_topic_level_state(rec, topic_key, global_level)
+        t = rec["topics"][topic_key]["levels"][str(global_level)]
+
+        q_index = int(t.get("q_index", 0))
+        q_index = max(0, min(9, q_index))
+        q = generate_question(student_id, topic_key, global_level, q_index)
+
+        with st.container(border=True):
+            st.markdown(f"### {tt('Oppgave', 'Task')} {q_index+1}/10 · {pick_label}")
+            st.write(q["prompt"])
+            ans = st.text_input(tt("Ditt svar", "Your answer"), key=f"arena_answer_{topic_key}", placeholder=q.get("unit",""))
+
+            cA, cB, cC = st.columns([1.0, 1.0, 2.0])
+            with cA:
+                if st.button(tt("Sjekk", "Check"), key=f"arena_check_{topic_key}_{global_level}_{q_index}", use_container_width=True):
+                    ok, _ = check_answer(ans, q)
+                    t["answered"] = int(t.get("answered", 0)) + 1
+                    t["total_answered"] = int(t.get("total_answered", 0)) + 1
+                    if ok:
+                        t["correct"] = int(t.get("correct", 0)) + 1
+                        t["total_correct"] = int(t.get("total_correct", 0)) + 1
+                        st.success(tt("Riktig ✔️", "Correct ✔️"))
+                    else:
+                        st.error(tt("Ikke helt. Du kan prøve igjen senere i neste runde.", "Not quite. You can try again later."))
+
+                    t["q_index"] = min(9, q_index + 1)
+                    rec["topics"][topic_key]["levels"][str(global_level)] = t
+                    put_student_record(db, rec); save_progress_db(db)
+                    st.rerun()
+
+            with cB:
+                if st.button(tt("Pass", "Pass"), key=f"arena_pass_{topic_key}_{global_level}_{q_index}", use_container_width=True):
+                    t["answered"] = int(t.get("answered", 0)) + 1
+                    t["total_answered"] = int(t.get("total_answered", 0)) + 1
+                    t["q_index"] = min(9, q_index + 1)
+                    rec["topics"][topic_key]["levels"][str(global_level)] = t
+                    put_student_record(db, rec); save_progress_db(db)
+                    st.rerun()
+
+            with cC:
+                # Fasit kun for lærer (kode tastes inn ved behov)
+                if teacher_mode:
+                    if st.toggle(tt("Vis fasit", "Show answer"), key=f"arena_show_{topic_key}_{global_level}_{q_index}"):
+                        st.info(f"{tt('Fasit', 'Answer')}: {fmt(q['answer'])} {q.get('unit','')}".strip())
+
+        st.metric(tt("Riktige", "Correct"), f"{t.get('correct',0)} / 10")
+        st.metric(tt("Besvart", "Answered"), f"{t.get('answered',0)} / 10")
+
+        finished = int(t.get("answered", 0)) >= 10
+        if finished:
+            if int(t.get("correct", 0)) >= 8:
+                st.success(tt("Tema bestått på dette nivået!", "Topic passed on this level!"))
+                t["passed"] = True
+                comp = rec.setdefault("completed_topics", {}).setdefault(str(global_level), [])
+                if topic_key not in comp:
+                    comp.append(topic_key)
+                rec["completed_topics"][str(global_level)] = comp
+                rec["topics"][topic_key]["levels"][str(global_level)] = t
+                put_student_record(db, rec); save_progress_db(db)
+
+                comp = rec.get("completed_topics", {}).get(str(global_level), [])
+                if len(comp) >= REQUIRED_TOPICS_PER_LEVEL:
+                    st.success(tt("Du har bestått nok tema til å gå videre!", "You passed enough topics to advance!"))
+                    if global_level < 7:
+                        if st.button(tt("➡️ Gå til neste nivå", "➡️ Go to next level"),
+                                     key=f"arena_advance_{global_level}", use_container_width=True):
+                            rec["global_level"] = global_level + 1
+                            put_student_record(db, rec); save_progress_db(db)
+                            st.rerun()
+                    else:
+                        st.balloons()
+                        st.success(tt("Du er på VG3/lærling-nivå. Sterkt jobba!", "You are at VG3/apprentice level. Great work!"))
+            else:
+                st.warning(tt("Du fikk ikke nok riktige for å bestå temaet. Start temaet på nytt.",
+                              "Not enough correct to pass the topic. Restart the topic."))
+
+        if st.button(tt("🔁 Start tema på nytt (dette nivået)", "🔁 Restart topic (this level)"),
+                     key=f"arena_restart_{topic_key}_{global_level}", use_container_width=True):
+            rec["topics"].setdefault(topic_key, {"levels": {}})
+            rec["topics"][topic_key]["levels"][str(global_level)] = {
+                "q_index": 0, "correct": 0, "answered": 0,
+                "total_correct": int(t.get("total_correct",0)),
+                "total_answered": int(t.get("total_answered",0)),
+                "passed": False,
+            }
             comp = rec.get("completed_topics", {}).get(str(global_level), [])
-            if len(comp) >= REQUIRED_TOPICS_PER_LEVEL:
-                st.success(tt("Du har bestått nok tema til å gå videre!", "You passed enough topics to advance!"))
-                if global_level < 7:
-                    if st.button(tt("➡️ Gå til neste nivå", "➡️ Go to next level"), key=f"arena_advance_{global_level}", use_container_width=True):
-                        rec["global_level"] = global_level + 1
-                        put_student_record(db, rec); save_progress_db(db)
-                        st.rerun()
-                else:
-                    st.balloons()
-                    st.success(tt("Du er på VG3/lærling-nivå. Sterkt jobba!", "You are at VG3/apprentice level. Great work!"))
-        else:
-            st.warning(tt("Du fikk ikke nok riktige for å bestå temaet. Start temaet på nytt.",
-                          "Not enough correct to pass the topic. Restart the topic."))
+            if topic_key in comp:
+                comp.remove(topic_key)
+                rec["completed_topics"][str(global_level)] = comp
+            put_student_record(db, rec); save_progress_db(db)
+            st.rerun()
 
-    # Restart topic on this level
-    if st.button(tt("🔁 Start tema på nytt (dette nivået)", "🔁 Restart topic (this level)"),
-                 key=f"arena_restart_{topic_key}_{global_level}", use_container_width=True):
-        rec["topics"].setdefault(topic_key, {"levels": {}})
-        rec["topics"][topic_key]["levels"][str(global_level)] = {
-            "q_index": 0, "correct": 0, "answered": 0,
-            "total_correct": int(t.get("total_correct",0)),
-            "total_answered": int(t.get("total_answered",0)),
-            "passed": False,
-        }
-        # fjern fra completed hvis den var der
-        comp = rec.get("completed_topics", {}).get(str(global_level), [])
-        if topic_key in comp:
-            comp.remove(topic_key)
-            rec["completed_topics"][str(global_level)] = comp
-        put_student_record(db, rec); save_progress_db(db)
-        st.rerun()
+    for i, (topic_key, tab) in enumerate(zip(topic_keys, tabs)):
+        with tab:
+            render_topic(topic_key, topic_titles[i])
 
 
 def formula_bank_ui():
@@ -1744,7 +1751,7 @@ Oppgave – Mål/enheter – Formelvalg – Mellomregning – Kontroll – Avvik
             """,
             "Documentation template."
         ))
-        
+
 # ============================================================
 # Router
 # ============================================================
