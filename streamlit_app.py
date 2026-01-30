@@ -261,7 +261,7 @@ def show_front_page():
     left, right = st.columns([1.25, 1], gap="large")
 
     with left:
-        st.markdown("## " + tt("Matematikk i byggfaget – hvorfor trenger vi det?", "Math in construction – why do we need it?"))
+        st.markdown("## " + tt("Matematikk i byggfaget - Forståelsen med praktisk matematikk!", "Math in construction – Understanding practical mathematics?"))
         st.markdown(
             tt(
                 """
