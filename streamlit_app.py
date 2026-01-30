@@ -667,10 +667,10 @@ def formula_bank_ui():
         formula_block(
             tt("Areal – vanlige formler", "Area – common formulas"),
             [
-                "A_rektangel = lengde × bredde",
-                "A_trekant = (grunnlinje × høyde) / 2",
-                "A_sirkel = π × r²",
-                "A_trapes = ((a + b) / 2) × h",
+                "Rektangel = lengde × bredde",
+                "Trekant = (grunnlinje × høyde) / 2",
+                "Sirkel = π × r²",
+                "Trapes = ((a + b) / 2) × h",
             ],
             [
                 tt("Svar i m² når målene er i meter.", "Answer in m² when measurements are in meters."),
@@ -684,9 +684,9 @@ def formula_bank_ui():
         formula_block(
             tt("Omkrets – vanlige formler", "Perimeter – common formulas"),
             [
-                "O_rektangel = 2 × (lengde + bredde)",
-                "O_trekant = a + b + c",
-                "O_sirkel = 2 × π × r  (eller π × d)",
+                "Rektangel = 2 × (lengde + bredde)",
+                "Trekant = a + b + c",
+                "Sirkel = 2 × π × r  (eller π × d)",
             ],
             [
                 tt("Brukes mye til lister, sviller, rammer og løpemeter.", "Often used for trim, sills and running meters."),
@@ -699,9 +699,9 @@ def formula_bank_ui():
         formula_block(
             tt("Volum – vanlige formler", "Volume – common formulas"),
             [
-                "V_boks = lengde × bredde × høyde",
-                "V_plate = lengde × bredde × tykkelse",
-                "V_sylinder = π × r² × h",
+                "Boks = lengde × bredde × høyde",
+                "Plate = lengde × bredde × tykkelse",
+                "Sylinder = π × r² × h",
             ],
             [
                 tt("Tykkelse står ofte i mm – gjør om til meter først.", "Thickness is often in mm — convert to meters first."),
@@ -730,10 +730,10 @@ def formula_bank_ui():
         formula_block(
             tt("Trig – grunnformler", "Trig – basic formulas"),
             [
-                "tan(θ) = B / A",
+                "Tanengs = B / A",
                 "θ = arctan(B / A)",
-                "B = A × tan(θ)",
-                "A = B / tan(θ)",
+                "B = A × tanengs",
+                "Cosinus = B / C",
             ],
             [
                 tt("Her bruker vi A=hosliggende, B=motstående.", "Here A=adjacent, B=opposite."),
