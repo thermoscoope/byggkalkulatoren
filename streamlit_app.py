@@ -589,8 +589,18 @@ def show_front_page():
         st.markdown(
             tt(
                 """
-**Byggmatte** er forståelsen av en oppgave → så velger jeg formel → så regner jeg → så kontrollerer jeg.  
-Målet er at du skal **forstå**, **vurdere** og **kontrollere** regningene du gjør i verkstedet og videre på en byggeplass. Byggmatte trener deg til å tenke som en yrkesutøver, ikke som en kalkulator.
+I denne appen lærer du ikke bare å regne.
+Du lærer å forstå oppgaven, velge riktig formel, regne selv og kontrollere svaret ditt – akkurat slik en fagarbeider gjør.
+
+Her jobber vi med praktiske oppgaver hentet fra byggfaget.
+Du øver på å tenke som en yrkesutøver, ikke som en kalkulator.
+
+👉 Start i Læringsarenaen
+Der finner du formler, eksempler og oppgaver i ulike nivåer.
+Regn for hånd først – bruk kalkulatoren kun som kontroll.
+
+Målet er at du skal bli trygg på regningene du gjør,
+slik at du kan stole på dem i verkstedet – og senere i yrket ditt.
 
 ### Hvorfor trenger vi matematikk når vi bygger?
 Du bruker matematikk for å:
