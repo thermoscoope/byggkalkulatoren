@@ -585,12 +585,12 @@ def show_front_page():
     left, right = st.columns([1.25, 1], gap="large")
 
     with left:
-        st.markdown("## " + tt("Matematikk i byggfaget - Forståelsen med praktisk matematikk!", "Math in construction – Understanding practical mathematics?"))
+        st.markdown("## " + tt("Lær praktisk matematikk som brukes i yrkeslivet!", "Learn practical mathematics in your professional life!"))
         st.markdown(
             tt(
                 """
 **Byggmatte** er forståelsen av en oppgave → så velger jeg formel → så regner jeg → så kontrollerer jeg.  
-Målet er at du skal **forstå**, **vurdere** og **kontrollere** regningene du gjør i verkstedet og videre på en byggeplass.
+Målet er at du skal **forstå**, **vurdere** og **kontrollere** regningene du gjør i verkstedet og videre på en byggeplass. Byggmatte trener deg til å tenke som en yrkesutøver, ikke som en kalkulator.
 
 ### Hvorfor trenger vi matematikk når vi bygger?
 Du bruker matematikk for å:
