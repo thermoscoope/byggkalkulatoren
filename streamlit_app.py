@@ -685,6 +685,11 @@ def formula_block(title: str, formulas: list[str], notes: list[str] | None = Non
                 st.markdown(f"- {n}")
 
 def verification_calculator(kind: str, key_prefix: str | None = None):
+    # Unique instance prefix to avoid StreamlitDuplicateElementKey when the same
+    # calculator UI is rendered in multiple tabs/containers.
+    _uid = st.session_state.get('_vc_uid', 0)
+    st.session_state['_vc_uid'] = _uid + 1
+    kp = f"{key_prefix}_{_uid}" if key_prefix else f"vc_{_uid}"
     """Enkle kontrollkalkulatorer knyttet til tema.
 
     Viktig: Streamlit krever unike widget-keys når samme type widget kan dukke opp flere steder
@@ -1388,6 +1393,8 @@ def guess_formula_ui():
 
 
 def show_learning_arena():
+    # Reset widget instance counter (prevents duplicate keys across tabs)
+    st.session_state['_vc_uid'] = 0
     st.markdown("## " + tt("Læringsarena", "Learning arena"))
     tab1, tab2, tab3 = st.tabs([
         tt("Formelbank", "Formula bank"),
