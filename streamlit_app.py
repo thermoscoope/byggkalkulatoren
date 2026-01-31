@@ -1187,6 +1187,8 @@ def formula_bank_ui():
                 tt("Her bruker vi A=hosliggende, B=motstående.", "Here A=adjacent, B=opposite."),
             ],
         )
+        render_asset_image("vinkler.png")
+        verification_calculator("diagonal", key_prefix="arena_diagonal")
         angle_calculator()
 
     with st.expander("📐 " + tt("Målestokk", "Scale"), expanded=False):
