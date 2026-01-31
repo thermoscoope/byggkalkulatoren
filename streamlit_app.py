@@ -685,11 +685,6 @@ def formula_block(title: str, formulas: list[str], notes: list[str] | None = Non
                 st.markdown(f"- {n}")
 
 def verification_calculator(kind: str, key_prefix: str | None = None):
-    # Unique instance prefix to avoid StreamlitDuplicateElementKey when the same
-    # calculator UI is rendered in multiple tabs/containers.
-    _uid = st.session_state.get('_vc_uid', 0)
-    st.session_state['_vc_uid'] = _uid + 1
-    kp = f"{key_prefix}_{_uid}" if key_prefix else f"vc_{_uid}"
     """Enkle kontrollkalkulatorer knyttet til tema.
 
     Viktig: Streamlit krever unike widget-keys når samme type widget kan dukke opp flere steder
@@ -698,8 +693,11 @@ def verification_calculator(kind: str, key_prefix: str | None = None):
     if not st.session_state.show_calculators:
         st.info(tt("Ønsker du kontrollkalkulator her? Slå på i ⚙️ Innstillinger.", "Enable verification calculators in ⚙️ Settings."))
         return
-
-    kp = key_prefix or f"vc_{kind}"
+    # Make widget keys unique per render instance (prevents StreamlitDuplicateElementKey in tabs)
+    _uid = st.session_state.get('_vc_uid', 0)
+    st.session_state['_vc_uid'] = _uid + 1
+    _base = key_prefix or f"vc_{kind}"
+    kp = f"{_base}_{_uid}"
     st.markdown("#### " + tt("Kontrollkalkulator", "Verification calculator"))
 
     if kind == "unit":
@@ -1393,8 +1391,6 @@ def guess_formula_ui():
 
 
 def show_learning_arena():
-    # Reset widget instance counter (prevents duplicate keys across tabs)
-    st.session_state['_vc_uid'] = 0
     st.markdown("## " + tt("Læringsarena", "Learning arena"))
     tab1, tab2, tab3 = st.tabs([
         tt("Formelbank", "Formula bank"),
@@ -1778,7 +1774,6 @@ Oppgave – Mål/enheter – Formelvalg – Mellomregning – Kontroll – Avvik
             """,
             "Documentation template."
         ))
-
 
 # ============================================================
 # VEIEN TIL YRKESLIVET (BETA) – egen lås + innhold
@@ -2715,6 +2710,7 @@ def show_vty_content():
             """
         ))
 
+st.session_state['_vc_uid'] = 0  # reset per run
 
 # ============================================================
 # Router
