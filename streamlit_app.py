@@ -1178,13 +1178,13 @@ def formula_bank_ui():
         formula_block(
             tt("Trig – grunnformler", "Trig – basic formulas"),
             [
-                "Tanengs = B / A",
+                "Finn hypotenusen (C): - C = √a x a + b x b",
                 "θ = arctan(B / A)",
                 "B = A × tanengs",
                 "Cosinus = B / C",
             ],
             [
-                tt("Her bruker vi A=hosliggende, B=motstående.", "Here A=adjacent, B=opposite."),
+                tt("Her bruker vi Hypotenus (C) = den lengste siden. Hosliggende (A) = siden som ligger inntil vinkelen. Motstående (B) = siden som står rett overfor vinkelen", "Here A=adjacent, B=opposite."),
             ],
         )
         render_asset_image("vinkler.png")
