@@ -77,6 +77,12 @@ if "is_pro_user" not in st.session_state:
 if "pro_teacher_mode" not in st.session_state:
     st.session_state.pro_teacher_mode = False
 
+# Veien til yrkeslivet (BETA) tilgang
+if "vty_access" not in st.session_state:
+    st.session_state.vty_access = False
+if "vty_teacher_mode" not in st.session_state:
+    st.session_state.vty_teacher_mode = False
+
 # Læringsarena-progress
 if "arena_level" not in st.session_state:
     st.session_state.arena_level = 1  # 1..3
@@ -182,7 +188,7 @@ with b5:
         st.caption(tt("Veien til yrkeslivet gir ekstra øving, dokumentasjon og vurderingsstøtte.",
                       "Pro adds extra practice, documentation and assessment support."))
         if st.button("📜" + tt("Veien til yrkeslivet (BETA)", "The path to professional life (BETA)"), use_container_width=True):
-            st.session_state.view = "Veien til yrkeslivet"
+            st.session_state.view = "VeienTilYrkeslivet_Lås"
             st.rerun()
 
 st.divider()
@@ -199,6 +205,8 @@ with st.sidebar:
         ("Kalkulatorer", tt("Kalkulatorer", "Calculators")),
         ("Pro", tt("Pro (info)", "Pro (info)")),
         ("ProInnhold", tt("Pro-innhold", "Pro content")),
+        ("VeienTilYrkeslivet_Lås", tt("Veien til yrkeslivet (BETA)", "Path to professional life (BETA)")),
+        ("VeienTilYrkeslivet_Innhold", tt("Yrkeslivet: oppgaver", "Workplace: tasks")),
     ]
     view_to_index = {key: i for i, (key, _) in enumerate(nav_options)}
     current_index = view_to_index.get(st.session_state.view, 0)
@@ -1764,6 +1772,943 @@ Oppgave – Mål/enheter – Formelvalg – Mellomregning – Kontroll – Avvik
             "Documentation template."
         ))
 
+
+# ============================================================
+# VEIEN TIL YRKESLIVET (BETA) – egen lås + innhold
+# ============================================================
+
+def vty_paywall_card():
+    st.warning(
+        tt(
+            f"**Veien til yrkeslivet (BETA)** er en tilleggspakke med realistiske oppgaver fra byggeplass.\n\n"
+            f"🔒 For å gå videre må du ha tilgang.\n\n"
+            f"- Pris (pilot): {PRO_PRICE_MONTH} kr/mnd eller {PRO_PRICE_YEAR} kr/år\n"
+            f"- Lærerkode gir tilgang i pilotperioden.",
+            f"**Path to professional life (BETA)** is an add-on with realistic tasks from the job site.\n\n"
+            f"🔒 Access is required to continue.\n\n"
+            f"- Price (pilot): {PRO_PRICE_MONTH} NOK/month or {PRO_PRICE_YEAR} NOK/year\n"
+            f"- Teacher code grants pilot access."
+        )
+    )
+    st.caption(tt(
+        "Betalingsløsningen er simulert i denne demoen. Når du ønsker det kan dette kobles til Stripe/Vipps.",
+        "Payment is simulated in this demo. When you're ready, it can be connected to Stripe/Vipps."
+    ))
+
+def show_vty_gate():
+    st.markdown("## 📜 " + tt("Veien til yrkeslivet (BETA)", "Path to professional life (BETA)"))
+    st.caption(tt(
+        "Tilgangssiden: betal / lærerkode → deretter får du oppgavebanken.",
+        "Access page: pay / teacher code → then you get the task bank."
+    ))
+
+    vty_paywall_card()
+
+    c1, c2, c3 = st.columns([1.3, 1.5, 2.2], gap="medium")
+    with c1:
+        if st.button("💳 " + tt("Jeg har betalt (demo)", "I have paid (demo)"), use_container_width=True, key="vty_paid_btn"):
+            st.session_state.vty_access = True
+            st.session_state.vty_teacher_mode = False
+            st.success(tt("Tilgang aktivert (demo).", "Access enabled (demo)."))
+
+    with c2:
+        code_in = st.text_input(tt("Lærerkode (pilot)", "Teacher code (pilot)"), type="password", key="vty_teacher_code")
+        if code_in and code_in == TEACHER_CODE:
+            st.session_state.vty_access = True
+            st.session_state.vty_teacher_mode = True
+            st.success(tt("Lærertilgang aktiv.", "Teacher access enabled."))
+
+    with c3:
+        st.caption(tt(
+            "Tips: I klasserommet kan læreren bruke koden for å åpne innholdet på storskjerm.",
+            "Tip: In class, the teacher can use the code to open the content on a shared screen."
+        ))
+
+    st.divider()
+
+    if st.button("➡️ " + tt("Gå til oppgaver", "Go to tasks"), use_container_width=True, disabled=not st.session_state.vty_access):
+        st.session_state.view = "VeienTilYrkeslivet_Innhold"
+        st.rerun()
+
+def _task_check_ui(task, key_prefix: str):
+    """
+    Standard UI for en realistisk oppgave med svar-sjekk.
+    task: dict med fields:
+      title, scenario, question, formula_hint, answer, unit, tol, rounding (optional), integer(optional), lk20
+    """
+    with st.container(border=True):
+        st.markdown(f"#### {task['title']}")
+        st.write(task["scenario"])
+        st.markdown("**" + tt("Oppgave", "Task") + "**")
+        st.write(task["question"])
+        st.markdown("**" + tt("Formel-hint", "Formula hint") + "**")
+        st.code(task["formula_hint"], language="text")
+
+        st.markdown("**" + tt("LK20-kobling (eksempel)", "LK20 linkage (example)") + "**")
+        st.write(task["lk20"])
+
+        st.divider()
+        ans = st.text_input(tt("Ditt svar", "Your answer"), key=f"{key_prefix}_ans", placeholder=task.get("unit",""))
+        c1, c2 = st.columns([1.1, 2.9])
+        with c1:
+            if st.button(tt("Sjekk svar", "Check answer"), use_container_width=True, key=f"{key_prefix}_chk"):
+                ok, v = check_answer(ans, {"answer": task["answer"], "tol": task.get("tol", 0.0), "integer": task.get("integer", False)})
+                if ok:
+                    st.success(tt("Riktig ✔️", "Correct ✔️"))
+                else:
+                    # vis "nær" hint
+                    st.error(tt("Ikke helt. Sjekk enheter og formelvalg.", "Not quite. Check units and formula choice."))
+        with c2:
+            if st.session_state.get("vty_teacher_mode", False):
+                if st.toggle(tt("Vis fasit (lærer)", "Show answer (teacher)"), key=f"{key_prefix}_show"):
+                    # avrunding
+                    val = float(task["answer"])
+                    if task.get("integer"):
+                        out = str(int(round(val)))
+                    else:
+                        r = task.get("rounding", None)
+                        out = f"{val:.{r}f}" if isinstance(r, int) else fmt(val)
+                    st.info(f"{tt('Fasit', 'Answer')}: {out} {task.get('unit','')}".strip())
+
+def vty_tasks_data():
+    """
+    Returnerer oppgaver per yrke. 10 oppgaver per yrke.
+    Tallene er bevisst realistiske og enhetsnære.
+    """
+    LK20 = tt(
+        "Knyttes typisk til programfag i BA (f.eks. Praktisk yrkesutøvelse): måle og beregne, planlegge og gjennomføre arbeidsoppdrag, velge materialer, dokumentere og gjøre egenkontroll.",
+        "Typically linked to VET outcomes (e.g., Practical trade practice): measure and calculate, plan and carry out tasks, choose materials, document work, and perform self-checks."
+    )
+
+    return {
+        tt("Tømrer", "Carpenter"): [
+            {
+                "title": tt("1) Stendere i vegg", "1) Wall studs"),
+                "scenario": tt("Du skal bygge en bindingsverksvegg på byggeplass.", "You are framing a stud wall on site."),
+                "question": tt("Vegg: 4,8 m lang. Senteravstand 0,6 m. Hvor mange stendere trenger du hvis du alltid har en stender i hver ende?", 
+                               "Wall: 4.8 m long. Stud spacing 0.6 m. How many studs do you need if you always have one at each end?"),
+                "formula_hint": "antall = (lengde / c/c) + 1  (avrund opp)",
+                "answer": math.floor(4.8/0.6) + 1,
+                "unit": "stk",
+                "tol": 0.0,
+                "integer": True,
+                "lk20": LK20
+            },
+            {
+                "title": tt("2) Gips på vegg med åpning", "2) Drywall with opening"),
+                "scenario": tt("Du skal bestille gipsplater til en vegg.", "You need drywall sheets for a wall."),
+                "question": tt("Vegg: 6,0 m × 2,4 m. Trekk fra én dør: 0,9 × 2,1 m. Hvor mange m² gips trenger du?",
+                               "Wall: 6.0 m × 2.4 m. Subtract one door: 0.9 × 2.1 m. How many m² of drywall do you need?"),
+                "formula_hint": "A_netto = (L×H) − (dør_b×dør_h)",
+                "answer": (6.0*2.4) - (0.9*2.1),
+                "unit": "m²",
+                "tol": 0.05,
+                "rounding": 2,
+                "lk20": LK20
+            },
+            {
+                "title": tt("3) Diagonal for å sjekke vinkel", "3) Diagonal to check square"),
+                "scenario": tt("Du setter opp en rektangulær ramme og må kontrollere om den er i vinkel.", 
+                               "You build a rectangular frame and must verify it's square."),
+                "question": tt("Ramme: 3,0 m × 4,0 m. Hva skal diagonalen være (m) for at rammen er i vinkel?",
+                               "Frame: 3.0 m × 4.0 m. What should the diagonal be (m) if the frame is square?"),
+                "formula_hint": "c = √(a² + b²)",
+                "answer": math.sqrt(3.0**2 + 4.0**2),
+                "unit": "m",
+                "tol": 0.02,
+                "rounding": 2,
+                "lk20": LK20
+            },
+            {
+                "title": tt("4) Takvinkel", "4) Roof angle"),
+                "scenario": tt("Du skal lage takstoler og må finne takvinkel.", "You are building roof trusses and need the roof angle."),
+                "question": tt("Horisontal (A)=4,8 m og høyde (B)=1,6 m. Finn takvinkel θ i grader.",
+                               "Run (A)=4.8 m and rise (B)=1.6 m. Find roof angle θ in degrees."),
+                "formula_hint": "θ = arctan(B/A)",
+                "answer": math.degrees(math.atan(1.6/4.8)),
+                "unit": "°",
+                "tol": 0.6,
+                "rounding": 1,
+                "lk20": LK20
+            },
+            {
+                "title": tt("5) Gulvareal og svinn", "5) Floor area and waste"),
+                "scenario": tt("Du skal bestille gulv (parkett/laminat).", "You are ordering flooring (parquet/laminate)."),
+                "question": tt("Rom: 5,4 m × 3,6 m. Legg til 8% svinn. Hvor mange m² bestiller du?",
+                               "Room: 5.4 m × 3.6 m. Add 8% waste. How many m² do you order?"),
+                "formula_hint": "A = L×B;  A_bestill = A × (1 + svinn/100)",
+                "answer": (5.4*3.6) * 1.08,
+                "unit": "m²",
+                "tol": 0.1,
+                "rounding": 2,
+                "lk20": LK20
+            },
+            {
+                "title": tt("6) Listverk (løpemeter)", "6) Trim (running meters)"),
+                "scenario": tt("Du skal bestille gulvlister.", "You need baseboards."),
+                "question": tt("Rom: 4,2 m × 3,0 m. Du skal IKKE ha list foran døråpning 0,9 m. Hvor mange meter list trenger du?",
+                               "Room: 4.2 m × 3.0 m. Do NOT place trim across a 0.9 m doorway. How many meters of trim do you need?"),
+                "formula_hint": "O = 2(L+B) − dørbredde",
+                "answer": (2*(4.2+3.0)) - 0.9,
+                "unit": "m",
+                "tol": 0.05,
+                "rounding": 2,
+                "lk20": LK20
+            },
+            {
+                "title": tt("7) Materiallengde – kapp/svinn", "7) Length + cutting waste"),
+                "scenario": tt("Du skal kle en vegg med horisontale lekter.", "You are installing horizontal battens."),
+                "question": tt("Du trenger 18 stk lekter à 2,4 m. Legg til 10% svinn. Hvor mange løpemeter bestiller du?",
+                               "You need 18 battens of 2.4 m. Add 10% waste. How many running meters do you order?"),
+                "formula_hint": "LM = antall×lengde;  LM_bestill = LM×(1+svinn/100)",
+                "answer": (18*2.4)*1.10,
+                "unit": "m",
+                "tol": 0.2,
+                "rounding": 1,
+                "lk20": LK20
+            },
+            {
+                "title": tt("8) Trapp – stigning", "8) Stairs – rise per step"),
+                "scenario": tt("Du skal beregne jevn stigning i en trapp.", "You need even risers in a stair."),
+                "question": tt("Etasjehøyde: 2,70 m. Du planlegger 15 opptrinn. Hvor høy blir hvert opptrinn (cm)?",
+                               "Floor-to-floor height: 2.70 m. You plan 15 risers. What is the rise per step (cm)?"),
+                "formula_hint": "opptrinn = total høyde / antall;  (m→cm: ×100)",
+                "answer": (2.70/15)*100,
+                "unit": "cm",
+                "tol": 0.2,
+                "rounding": 1,
+                "lk20": LK20
+            },
+            {
+                "title": tt("9) Bjelkelag – c/c og antall bjelker", "9) Joists – spacing and count"),
+                "scenario": tt("Du legger bjelkelag i et gulv.", "You are laying floor joists."),
+                "question": tt("Spennvidde: 3,6 m. Bjelker c/c 0,6 m. Hvor mange bjelker trengs dersom du har bjelke i hver kant?",
+                               "Span: 3.6 m. Joist spacing 0.6 m. How many joists if you have one at each edge?"),
+                "formula_hint": "antall = (lengde / c/c) + 1",
+                "answer": math.floor(3.6/0.6)+1,
+                "unit": "stk",
+                "tol": 0.0,
+                "integer": True,
+                "lk20": LK20
+            },
+            {
+                "title": tt("10) Areal av trekantet gavl", "10) Area of triangular gable"),
+                "scenario": tt("Du skal beregne kledning på en trekantet gavl.", "You need cladding area for a triangular gable."),
+                "question": tt("Gavl: grunnlinje 6,0 m og høyde 2,4 m. Finn arealet (m²).",
+                               "Gable: base 6.0 m and height 2.4 m. Find area (m²)."),
+                "formula_hint": "A_trekant = (grunnlinje × høyde) / 2",
+                "answer": (6.0*2.4)/2,
+                "unit": "m²",
+                "tol": 0.05,
+                "rounding": 2,
+                "lk20": LK20
+            },
+        ],
+
+        tt("Rørlegger", "Plumber"): [
+            {
+                "title": tt("1) Fall på avløpsrør", "1) Drain pipe slope"),
+                "scenario": tt("Avløpsrør skal ha fall for å sikre god avrenning.", "Drain pipes need slope for proper flow."),
+                "question": tt("Krav: 20 mm fall per meter. Rørlengde: 3,5 m. Hvor mange mm fall totalt?",
+                               "Requirement: 20 mm drop per meter. Pipe length: 3.5 m. How many mm total drop?"),
+                "formula_hint": "fall_tot = (mm per m) × lengde",
+                "answer": 20*3.5,
+                "unit": "mm",
+                "tol": 1.0,
+                "rounding": 0,
+                "lk20": LK20
+            },
+            {
+                "title": tt("2) Vanntrykk – enkel prosentvis reduksjon", "2) Pressure – percent reduction"),
+                "scenario": tt("Du må ta høyde for trykktap i en installasjon (forenklet).", "You account for pressure loss (simplified)."),
+                "question": tt("Starttrykk: 4,0 bar. Trykktap 12%. Hva blir trykket etter tapet?",
+                               "Start: 4.0 bar. Loss 12%. What is the resulting pressure?"),
+                "formula_hint": "ny = gammel × (1 − p/100)",
+                "answer": 4.0*(1-0.12),
+                "unit": "bar",
+                "tol": 0.05,
+                "rounding": 2,
+                "lk20": LK20
+            },
+            {
+                "title": tt("3) Rørmengde – kapp", "3) Pipe length + cutting"),
+                "scenario": tt("Du skal bestille rør til en føringsvei.", "You order pipe for a run."),
+                "question": tt("Du trenger 9 lengder à 3,0 m. Legg til 8% kapp. Hvor mange meter bestiller du?",
+                               "You need 9 lengths of 3.0 m. Add 8% cutting waste. How many meters to order?"),
+                "formula_hint": "LM = antall×lengde;  LM_bestill = LM×(1+svinn/100)",
+                "answer": (9*3.0)*1.08,
+                "unit": "m",
+                "tol": 0.2,
+                "rounding": 1,
+                "lk20": LK20
+            },
+            {
+                "title": tt("4) Sylinder – volum i rør", "4) Cylinder – water volume in pipe"),
+                "scenario": tt("Du vil vite omtrent hvor mye vann som står i et rør (forenklet).", "Estimate water volume in a pipe."),
+                "question": tt("Rør: innvendig diameter 25 mm, lengde 12 m. Finn volum (liter). (1 m³ = 1000 liter)",
+                               "Pipe: inner diameter 25 mm, length 12 m. Find volume (liters)."),
+                "formula_hint": "V = π·r²·L  (r = d/2). Husk mm→m. liter = m³×1000",
+                "answer": (math.pi*((0.025/2)**2)*12)*1000,
+                "unit": "liter",
+                "tol": 0.2,
+                "rounding": 2,
+                "lk20": LK20
+            },
+            {
+                "title": tt("5) Blandingsforhold – prosent", "5) Mixing ratio – percent"),
+                "scenario": tt("Du blander frostvæske i et anlegg (forenklet).", "You mix antifreeze (simplified)."),
+                "question": tt("Du har 40 liter væske. 30% skal være frostvæske. Hvor mange liter frostvæske?",
+                               "You have 40 liters total. 30% should be antifreeze. How many liters antifreeze?"),
+                "formula_hint": "del = (p/100) × hel",
+                "answer": 0.30*40,
+                "unit": "liter",
+                "tol": 0.2,
+                "rounding": 1,
+                "lk20": LK20
+            },
+            {
+                "title": tt("6) Areal for gulvvarme", "6) Area for floor heating"),
+                "scenario": tt("Du planlegger gulvvarmesløyfer i et rom.", "You plan underfloor heating loops."),
+                "question": tt("Rom: 4,8 m × 3,6 m. Trekk fra fast innredning 1,2 m². Finn areal som skal varmes (m²).",
+                               "Room: 4.8 m × 3.6 m. Subtract fixed fixtures 1.2 m². Find heated area."),
+                "formula_hint": "A = L×B − A_fast",
+                "answer": (4.8*3.6) - 1.2,
+                "unit": "m²",
+                "tol": 0.05,
+                "rounding": 2,
+                "lk20": LK20
+            },
+            {
+                "title": tt("7) Rørisolasjon – omkrets", "7) Pipe insulation – circumference"),
+                "scenario": tt("Du skal beregne omkretsen for å anslå isolasjonsbehov.", "You estimate insulation needs from circumference."),
+                "question": tt("Ytre diameter på rør: 42 mm. Finn omkrets (mm).",
+                               "Outer diameter: 42 mm. Find circumference (mm)."),
+                "formula_hint": "O = π × d",
+                "answer": math.pi*42,
+                "unit": "mm",
+                "tol": 2.0,
+                "rounding": 0,
+                "lk20": LK20
+            },
+            {
+                "title": tt("8) Tappevann – volum i tank", "8) Hot water tank volume"),
+                "scenario": tt("Du sjekker kapasitet på varmtvannstank (forenklet boks).", "Estimate hot water tank capacity (box approximation)."),
+                "question": tt("Tank (forenklet): 0,5 m × 0,5 m × 1,2 m. Finn volum (liter).",
+                               "Tank: 0.5 m × 0.5 m × 1.2 m. Find volume (liters)."),
+                "formula_hint": "V = L×B×H; liter = m³×1000",
+                "answer": (0.5*0.5*1.2)*1000,
+                "unit": "liter",
+                "tol": 2.0,
+                "rounding": 0,
+                "lk20": LK20
+            },
+            {
+                "title": tt("9) Avstand mellom rørklammer", "9) Clamp spacing"),
+                "scenario": tt("Du skal sette rørklammer jevnt.", "You place pipe clamps evenly."),
+                "question": tt("Rørstrekk: 4,2 m. Klammer hver 0,6 m + én i hver ende. Hvor mange klammer?",
+                               "Run: 4.2 m. Clamps every 0.6 m + one at each end. How many clamps?"),
+                "formula_hint": "antall = (lengde / avstand) + 1",
+                "answer": math.floor(4.2/0.6)+1,
+                "unit": "stk",
+                "tol": 0.0,
+                "integer": True,
+                "lk20": LK20
+            },
+            {
+                "title": tt("10) Temperaturfall – differanse", "10) Temperature drop"),
+                "scenario": tt("Du dokumenterer enkelt temperaturfall i et system (forenklet).", "Document a simple temperature drop."),
+                "question": tt("Turtemperatur: 42°C. Retur: 34°C. Hva er temperaturfallet (°C)?",
+                               "Supply: 42°C. Return: 34°C. What is the temperature drop?"),
+                "formula_hint": "ΔT = T_tur − T_retur",
+                "answer": 42-34,
+                "unit": "°C",
+                "tol": 0.0,
+                "integer": True,
+                "lk20": LK20
+            },
+        ],
+
+        tt("Blikkenslager", "Sheet metal worker"): [
+            {
+                "title": tt("1) Renne – total lengde", "1) Gutter length"),
+                "scenario": tt("Du skal bestille takrenner.", "You are ordering gutters."),
+                "question": tt("Bygg: 10,8 m × 7,2 m. Renner på to langsider (10,8 m). Legg til 5% kapp. Hvor mange meter bestilles?",
+                               "Building: 10.8 m × 7.2 m. Gutters on two long sides (10.8 m). Add 5% waste. How many meters?"),
+                "formula_hint": "LM = 2×lengde;  LM_bestill = LM×(1+svinn/100)",
+                "answer": (2*10.8)*1.05,
+                "unit": "m",
+                "tol": 0.2,
+                "rounding": 1,
+                "lk20": LK20
+            },
+            {
+                "title": tt("2) Nedløp – antall rørstykker", "2) Downpipe count"),
+                "scenario": tt("Nedløp leveres i 3,0 m lengder.", "Downpipes come in 3.0 m lengths."),
+                "question": tt("Bygget har 2 etasjer, total høyde 5,4 m. Ett nedløp per hjørne (4 stk). Hvor mange 3,0 m rørstykker trengs totalt? (avrund opp per nedløp)",
+                               "Total height 5.4 m. One downpipe per corner (4). How many 3.0 m pieces total?"),
+                "formula_hint": "stykker per nedløp = ceil(høyde/3,0); total = per×4",
+                "answer": math.ceil(5.4/3.0)*4,
+                "unit": "stk",
+                "tol": 0.0,
+                "integer": True,
+                "lk20": LK20
+            },
+            {
+                "title": tt("3) Luftkanal – tverrsnittsareal", "3) Vent duct cross-section area"),
+                "scenario": tt("Du dimensjonerer en rektangulær kanal (forenklet).", "You size a rectangular duct (simplified)."),
+                "question": tt("Kanal: 200 mm × 150 mm. Finn tverrsnittsareal i cm².",
+                               "Duct: 200 mm × 150 mm. Find cross-sectional area in cm²."),
+                "formula_hint": "A = L×B; mm→cm: ÷10",
+                "answer": (20*15),  # cm x cm
+                "unit": "cm²",
+                "tol": 1.0,
+                "integer": True,
+                "lk20": LK20
+            },
+            {
+                "title": tt("4) Platekledning – areal med svinn", "4) Sheet area with waste"),
+                "scenario": tt("Du skal bestille plate/metall til en kasseinnkledning.", "You order sheet metal for a casing."),
+                "question": tt("Areal: 12,0 m². Legg til 12% svinn. Hvor mange m² bestiller du?",
+                               "Area: 12.0 m². Add 12% waste. How many m² to order?"),
+                "formula_hint": "A_bestill = A × (1 + svinn/100)",
+                "answer": 12.0*1.12,
+                "unit": "m²",
+                "tol": 0.1,
+                "rounding": 2,
+                "lk20": LK20
+            },
+            {
+                "title": tt("5) Pipegjennomføring – omkrets", "5) Pipe penetration – circumference"),
+                "scenario": tt("Du lager en mansjett rundt et rundt rør.", "You make a collar around a round pipe."),
+                "question": tt("Diameter på rør: 110 mm. Hvor lang stripe trengs rundt (mm) uten overlapp?",
+                               "Pipe diameter: 110 mm. What strip length is needed around it (mm), no overlap?"),
+                "formula_hint": "O = π × d",
+                "answer": math.pi*110,
+                "unit": "mm",
+                "tol": 3.0,
+                "rounding": 0,
+                "lk20": LK20
+            },
+            {
+                "title": tt("6) Koning – enkel prosentvis avkorting", "6) Tapering – percent reduction"),
+                "scenario": tt("Du lager en kon (forenklet) og må redusere omkrets 8%.", "You taper a piece and reduce circumference by 8%."),
+                "question": tt("Opprinnelig omkrets: 520 mm. Reduser 8%. Hva blir ny omkrets?",
+                               "Original circumference: 520 mm. Reduce by 8%. New circumference?"),
+                "formula_hint": "ny = gammel × (1 − p/100)",
+                "answer": 520*(1-0.08),
+                "unit": "mm",
+                "tol": 2.0,
+                "rounding": 0,
+                "lk20": LK20
+            },
+            {
+                "title": tt("7) Beslag – lengde + overlapp", "7) Flashing – length + overlap"),
+                "scenario": tt("Du legger beslag med overlapp.", "You install flashing with overlap."),
+                "question": tt("Du har 14,4 m lengde. Overlapp 100 mm per skjøt. Du bruker 6 lengder (skjøter=5). Hvor mange meter beslag går med totalt?",
+                               "Run is 14.4 m. Overlap 100 mm per joint. You use 6 lengths (5 joints). Total length used?"),
+                "formula_hint": "total = lengde + (antall_skjøter × overlapp). 100 mm = 0,1 m",
+                "answer": 14.4 + (5*0.1),
+                "unit": "m",
+                "tol": 0.05,
+                "rounding": 2,
+                "lk20": LK20
+            },
+            {
+                "title": tt("8) Takrennefall", "8) Gutter slope"),
+                "scenario": tt("Takrenne skal ha lite fall mot nedløp.", "Gutters need a slight fall to the downpipe."),
+                "question": tt("Krav: 3 mm fall per meter. Lengde: 8,0 m. Hvor mange mm fall totalt?",
+                               "Requirement: 3 mm per meter. Length: 8.0 m. Total drop (mm)?"),
+                "formula_hint": "fall_tot = mm per m × lengde",
+                "answer": 3*8.0,
+                "unit": "mm",
+                "tol": 1.0,
+                "integer": True,
+                "lk20": LK20
+            },
+            {
+                "title": tt("9) Kanal – overflateareal (for isolasjon)", "9) Duct surface area (insulation)"),
+                "scenario": tt("Du skal anslå isolasjonsbehov rundt en rektangulær kanal.", "You estimate insulation for a rectangular duct."),
+                "question": tt("Kanal: 0,30 m × 0,20 m, lengde 6,0 m. Finn overflateareal av sideflatene (m²) (ikke endeflater).",
+                               "Duct: 0.30 m × 0.20 m, length 6.0 m. Find side surface area (m²), ignore ends."),
+                "formula_hint": "A_side = omkrets_tverrsnitt × lengde = 2(a+b)×L",
+                "answer": (2*(0.30+0.20))*6.0,
+                "unit": "m²",
+                "tol": 0.05,
+                "rounding": 2,
+                "lk20": LK20
+            },
+            {
+                "title": tt("10) Platekutting – utnyttelse", "10) Sheet cutting utilization"),
+                "scenario": tt("Du vil se hvor stor andel av platen som faktisk brukes.", "You check how much of a sheet is used."),
+                "question": tt("Plate: 1,0 m². Du bruker 0,78 m². Hvor stor utnyttelse i %?",
+                               "Sheet: 1.0 m². You use 0.78 m². Utilization in %?"),
+                "formula_hint": "prosent = (del / hel) × 100",
+                "answer": (0.78/1.0)*100,
+                "unit": "%",
+                "tol": 0.5,
+                "rounding": 1,
+                "lk20": LK20
+            },
+        ],
+
+        tt("Mur og betong", "Masonry & concrete"): [
+            {
+                "title": tt("1) Betongplate – volum", "1) Slab concrete volume"),
+                "scenario": tt("Du skal bestille betong til en plate.", "You order concrete for a slab."),
+                "question": tt("Plate: 7,2 m × 3,6 m × 100 mm. Finn volum (m³).",
+                               "Slab: 7.2 m × 3.6 m × 100 mm. Find volume (m³)."),
+                "formula_hint": "V = L×B×t;  100 mm = 0,10 m",
+                "answer": 7.2*3.6*0.10,
+                "unit": "m³",
+                "tol": 0.02,
+                "rounding": 2,
+                "lk20": LK20
+            },
+            {
+                "title": tt("2) Betong med svinn", "2) Concrete with waste"),
+                "scenario": tt("Du legger til svinn for søl og ujevnheter.", "Add waste for spillage and irregularities."),
+                "question": tt("Du har beregnet 2,59 m³ betong. Legg til 8% svinn. Hvor mye bestiller du (m³)?",
+                               "You calculated 2.59 m³. Add 8% waste. How much do you order?"),
+                "formula_hint": "V_bestill = V × (1 + svinn/100)",
+                "answer": 2.59*1.08,
+                "unit": "m³",
+                "tol": 0.03,
+                "rounding": 2,
+                "lk20": LK20
+            },
+            {
+                "title": tt("3) Armering – antall jern", "3) Rebar count"),
+                "scenario": tt("Du legger armeringsjern med c/c-avstand.", "You place rebar at a given spacing."),
+                "question": tt("Platebredde: 3,6 m. Jern c/c 0,20 m. Hvor mange jern trengs hvis du har jern i hver kant?",
+                               "Width: 3.6 m. Spacing 0.20 m. How many bars if one at each edge?"),
+                "formula_hint": "antall = (bredde / c/c) + 1",
+                "answer": math.floor(3.6/0.20)+1,
+                "unit": "stk",
+                "tol": 0.0,
+                "integer": True,
+                "lk20": LK20
+            },
+            {
+                "title": tt("4) Murstein – areal og antall", "4) Bricks – area and count"),
+                "scenario": tt("Du beregner antall murstein basert på areal og forbruk.", "Estimate bricks from wall area and rate."),
+                "question": tt("Vegg: 4,8 m × 2,4 m. Forbruk: 60 stein per m². Hvor mange stein (avrund opp)?",
+                               "Wall: 4.8 m × 2.4 m. Rate: 60 bricks per m². How many (round up)?"),
+                "formula_hint": "antall = areal × forbruk; avrund opp",
+                "answer": math.ceil((4.8*2.4)*60),
+                "unit": "stk",
+                "tol": 0.0,
+                "integer": True,
+                "lk20": LK20
+            },
+            {
+                "title": tt("5) Puss – blanding (prosent)", "5) Plaster mix (percent)"),
+                "scenario": tt("Du blander mørtel (forenklet prosentandel).", "Mix mortar (simplified percent)."),
+                "question": tt("Du trenger 25 kg blanding. 12% skal være sement. Hvor mange kg sement?",
+                               "Need 25 kg total. 12% is cement. How many kg cement?"),
+                "formula_hint": "del = (p/100) × hel",
+                "answer": 0.12*25,
+                "unit": "kg",
+                "tol": 0.1,
+                "rounding": 2,
+                "lk20": LK20
+            },
+            {
+                "title": tt("6) Fundament – volum", "6) Footing volume"),
+                "scenario": tt("Du støper fundamentstripe.", "You pour a strip footing."),
+                "question": tt("Stripe: 12,0 m lang × 0,4 m bred × 0,3 m høy. Finn volum (m³).",
+                               "Footing: 12.0 m × 0.4 m × 0.3 m. Volume (m³)?"),
+                "formula_hint": "V = L×B×H",
+                "answer": 12.0*0.4*0.3,
+                "unit": "m³",
+                "tol": 0.02,
+                "rounding": 2,
+                "lk20": LK20
+            },
+            {
+                "title": tt("7) Forskaling – areal", "7) Formwork area"),
+                "scenario": tt("Du skal anslå forskalingsareal på sider av en bjelke (forenklet).", "Estimate formwork area on beam sides."),
+                "question": tt("Bjelke: lengde 6,0 m, høyde 0,5 m. To sider. Finn areal (m²).",
+                               "Beam: length 6.0 m, height 0.5 m. Two sides. Area (m²)?"),
+                "formula_hint": "A = 2 × (L × H)",
+                "answer": 2*(6.0*0.5),
+                "unit": "m²",
+                "tol": 0.05,
+                "rounding": 2,
+                "lk20": LK20
+            },
+            {
+                "title": tt("8) Fall på betonggulv mot sluk", "8) Concrete floor slope to drain"),
+                "scenario": tt("Gulvet skal ha fall mot sluk.", "Floor needs slope to drain."),
+                "question": tt("Fallkrav: 1,5% over 3,0 m. Hvor mange mm fall?",
+                               "Slope: 1.5% over 3.0 m. How many mm drop?"),
+                "formula_hint": "fall(mm) = (pct/100) × lengde(m) × 1000",
+                "answer": (1.5/100)*3.0*1000,
+                "unit": "mm",
+                "tol": 2.0,
+                "rounding": 0,
+                "lk20": LK20
+            },
+            {
+                "title": tt("9) Blandingsvann – liter", "9) Mixing water liters"),
+                "scenario": tt("Sekketøy krever vann pr. sekk (forenklet).", "Bagged mix needs water per bag."),
+                "question": tt("Du bruker 12 sekker. 2,8 liter vann per sekk. Hvor mange liter vann totalt?",
+                               "You use 12 bags. 2.8 L per bag. Total liters?"),
+                "formula_hint": "liter = antall × liter_per_sekk",
+                "answer": 12*2.8,
+                "unit": "liter",
+                "tol": 0.2,
+                "rounding": 1,
+                "lk20": LK20
+            },
+            {
+                "title": tt("10) Armeringsnett – antall nett", "10) Mesh sheets count"),
+                "scenario": tt("Armeringsnett leveres i plater.", "Rebar mesh comes in sheets."),
+                "question": tt("Plateareal: 25 m². Ett nett dekker 2,15 m × 5,0 m. Hvor mange nett trengs (avrund opp)?",
+                               "Slab area: 25 m². One mesh covers 2.15 m × 5.0 m. How many sheets (round up)?"),
+                "formula_hint": "antall = total_areal / nett_areal; avrund opp",
+                "answer": math.ceil(25 / (2.15*5.0)),
+                "unit": "stk",
+                "tol": 0.0,
+                "integer": True,
+                "lk20": LK20
+            },
+        ],
+
+        tt("Flislegger", "Tiler"): [
+            {
+                "title": tt("1) Antall fliser på gulv", "1) Number of tiles on floor"),
+                "scenario": tt("Du skal bestille fliser til et gulv.", "You are ordering tiles for a floor."),
+                "question": tt("Rom: 3,6 m × 2,4 m. Flis: 30 cm × 30 cm. Legg til 10% svinn. Hvor mange fliser bestiller du? (avrund opp)",
+                               "Room: 3.6 m × 2.4 m. Tile: 30 cm × 30 cm. Add 10% waste. How many tiles?"),
+                "formula_hint": "A_rom = L×B. A_flis = 0,30×0,30. antall = (A_rom/A_flis)×(1+svinn) avrund opp",
+                "answer": math.ceil(((3.6*2.4)/(0.30*0.30))*1.10),
+                "unit": "stk",
+                "tol": 0.0,
+                "integer": True,
+                "lk20": LK20
+            },
+            {
+                "title": tt("2) Flis på vegg med dør", "2) Wall tiling with door"),
+                "scenario": tt("Du skal flislegge en vegg, men trekker fra dør.", "You tile a wall and subtract a door opening."),
+                "question": tt("Vegg: 4,8 m × 2,4 m. Dør: 0,9 × 2,1 m. Finn netto flisareal (m²).",
+                               "Wall: 4.8 m × 2.4 m. Door: 0.9 × 2.1 m. Net tiling area (m²)?"),
+                "formula_hint": "A_netto = (L×H) − (dør_b×dør_h)",
+                "answer": (4.8*2.4)-(0.9*2.1),
+                "unit": "m²",
+                "tol": 0.05,
+                "rounding": 2,
+                "lk20": LK20
+            },
+            {
+                "title": tt("3) Limforbruk", "3) Adhesive consumption"),
+                "scenario": tt("Lim har forbruk per m².", "Adhesive has a consumption per m²."),
+                "question": tt("Du skal dekke 18 m². Forbruk 3,5 kg/m². Hvor mange kg lim trengs?",
+                               "Cover 18 m². Rate 3.5 kg/m². How many kg adhesive?"),
+                "formula_hint": "kg = areal × kg_per_m²",
+                "answer": 18*3.5,
+                "unit": "kg",
+                "tol": 0.5,
+                "rounding": 1,
+                "lk20": LK20
+            },
+            {
+                "title": tt("4) Fugemasse", "4) Grout"),
+                "scenario": tt("Du legger til svinn på fugemasse.", "Add waste for grout."),
+                "question": tt("Beregnet behov: 12,0 kg. Legg til 8% svinn. Hvor mange kg bestiller du?",
+                               "Calculated: 12.0 kg. Add 8% waste. How many kg to order?"),
+                "formula_hint": "bestill = behov × (1 + svinn/100)",
+                "answer": 12.0*1.08,
+                "unit": "kg",
+                "tol": 0.2,
+                "rounding": 1,
+                "lk20": LK20
+            },
+            {
+                "title": tt("5) Fall mot sluk", "5) Slope to drain"),
+                "scenario": tt("Baderomsgulv skal ha fall mot sluk.", "Bathroom floor needs slope to drain."),
+                "question": tt("Fall: 2,0% over 1,8 m. Hvor mange mm fall?",
+                               "Slope: 2.0% over 1.8 m. How many mm drop?"),
+                "formula_hint": "fall(mm) = (pct/100) × lengde(m) × 1000",
+                "answer": (2.0/100)*1.8*1000,
+                "unit": "mm",
+                "tol": 2.0,
+                "rounding": 0,
+                "lk20": LK20
+            },
+            {
+                "title": tt("6) Sokkel/flislist (løpemeter)", "6) Tile trim (running meters)"),
+                "scenario": tt("Du skal legge flislist langs vegg.", "You install tile trim along walls."),
+                "question": tt("Rom: 2,4 m × 2,0 m. Du har døråpning 0,8 m uten list. Hvor mange meter list?",
+                               "Room: 2.4 m × 2.0 m. Door opening 0.8 m without trim. How many meters?"),
+                "formula_hint": "O = 2(L+B) − dørbredde",
+                "answer": (2*(2.4+2.0)) - 0.8,
+                "unit": "m",
+                "tol": 0.05,
+                "rounding": 2,
+                "lk20": LK20
+            },
+            {
+                "title": tt("7) Fliser per rad", "7) Tiles per row"),
+                "scenario": tt("Du planlegger flislegging uten kapp (forenklet).", "Plan tiling without cuts (simplified)."),
+                "question": tt("Vegglengde: 3,0 m. Flis: 25 cm bred. Hvor mange fliser går det per rad? (avrund opp)",
+                               "Wall length: 3.0 m. Tile width: 25 cm. Tiles per row (round up)?"),
+                "formula_hint": "antall = lengde / flisbredde. 25 cm = 0,25 m",
+                "answer": math.ceil(3.0/0.25),
+                "unit": "stk",
+                "tol": 0.0,
+                "integer": True,
+                "lk20": LK20
+            },
+            {
+                "title": tt("8) Pris – rabatt", "8) Price – discount"),
+                "scenario": tt("Du får rabatt hos leverandør.", "You get a supplier discount."),
+                "question": tt("Fliser koster 19 800 kr. Rabatt 10%. Hva betaler du?",
+                               "Tiles cost 19,800 NOK. 10% discount. What do you pay?"),
+                "formula_hint": "ny pris = gammel × (1 − p/100)",
+                "answer": 19800*(1-0.10),
+                "unit": "kr",
+                "tol": 5.0,
+                "rounding": 0,
+                "lk20": LK20
+            },
+            {
+                "title": tt("9) Membran – areal", "9) Waterproofing membrane area"),
+                "scenario": tt("Du beregner membran på gulv.", "You calculate membrane on floor."),
+                "question": tt("Gulv: 2,6 m × 1,9 m. Legg til 5% svinn. Hvor mange m² membran?",
+                               "Floor: 2.6 m × 1.9 m. Add 5% waste. How many m² membrane?"),
+                "formula_hint": "A_bestill = (L×B) × (1+svinn/100)",
+                "answer": (2.6*1.9)*1.05,
+                "unit": "m²",
+                "tol": 0.05,
+                "rounding": 2,
+                "lk20": LK20
+            },
+            {
+                "title": tt("10) Flis – areal per pakke", "10) Tiles – area per box"),
+                "scenario": tt("Fliser selges i pakker med oppgitt m².", "Tiles are sold by box with m² coverage."),
+                "question": tt("Du trenger 14,6 m². Én pakke dekker 1,44 m². Hvor mange pakker trenger du? (avrund opp)",
+                               "Need 14.6 m². One box covers 1.44 m². How many boxes?"),
+                "formula_hint": "pakker = total / per_pakke; avrund opp",
+                "answer": math.ceil(14.6/1.44),
+                "unit": "pakker",
+                "tol": 0.0,
+                "integer": True,
+                "lk20": LK20
+            },
+        ],
+
+        tt("Anleggsarbeider", "Construction worker (civil works)"): [
+            {
+                "title": tt("1) Masseutskifting – volum", "1) Earthworks – volume"),
+                "scenario": tt("Du skal grave ut og fylle på pukk.", "You excavate and refill with aggregate."),
+                "question": tt("Grøft: 12 m lang, 0,6 m bred, 0,4 m dyp. Finn volum (m³).",
+                               "Trench: 12 m long, 0.6 m wide, 0.4 m deep. Volume (m³)?"),
+                "formula_hint": "V = L×B×D",
+                "answer": 12*0.6*0.4,
+                "unit": "m³",
+                "tol": 0.02,
+                "rounding": 2,
+                "lk20": LK20
+            },
+            {
+                "title": tt("2) Komprimering – ekstra masse", "2) Compaction – extra material"),
+                "scenario": tt("Du legger til 15% for komprimering og svinn.", "Add 15% for compaction/waste."),
+                "question": tt("Du har beregnet 2,88 m³ pukk. Legg til 15%. Hvor mye bestiller du (m³)?",
+                               "You calculated 2.88 m³. Add 15%. How much to order?"),
+                "formula_hint": "V_bestill = V × (1 + p/100)",
+                "answer": 2.88*1.15,
+                "unit": "m³",
+                "tol": 0.03,
+                "rounding": 2,
+                "lk20": LK20
+            },
+            {
+                "title": tt("3) Areal for geotekstil", "3) Geotextile area"),
+                "scenario": tt("Du legger geotekstil i bunnen.", "You lay geotextile."),
+                "question": tt("Areal: 18 m × 3,0 m. Legg til 10% overlapp. Hvor mange m² trengs?",
+                               "Area: 18 m × 3.0 m. Add 10% overlap. How many m² needed?"),
+                "formula_hint": "A = L×B;  A_total = A×(1+overlapp/100)",
+                "answer": (18*3.0)*1.10,
+                "unit": "m²",
+                "tol": 0.2,
+                "rounding": 1,
+                "lk20": LK20
+            },
+            {
+                "title": tt("4) Stigning på rampe", "4) Ramp gradient"),
+                "scenario": tt("Du skal sjekke stigning på en rampe.", "You check ramp gradient."),
+                "question": tt("Høydeforskjell 0,24 m over lengde 6,0 m. Finn stigning i %.",
+                               "Rise 0.24 m over 6.0 m. Find gradient in %."),
+                "formula_hint": "stigning(%) = (høyde / lengde) × 100",
+                "answer": (0.24/6.0)*100,
+                "unit": "%",
+                "tol": 0.2,
+                "rounding": 2,
+                "lk20": LK20
+            },
+            {
+                "title": tt("5) Målestokk – virkelighet fra tegning", "5) Scale – real size from drawing"),
+                "scenario": tt("Du leser arbeidstegning.", "You read a construction drawing."),
+                "question": tt("På tegning (1:50) måler du 72 mm. Hvor mange meter er dette i virkeligheten?",
+                               "On a 1:50 drawing you measure 72 mm. How many meters in reality?"),
+                "formula_hint": "virkelighet = tegning × 50. 72 mm × 50 = 3600 mm = 3,6 m",
+                "answer": 3.6,
+                "unit": "m",
+                "tol": 0.02,
+                "rounding": 2,
+                "lk20": LK20
+            },
+            {
+                "title": tt("6) Kantstein – antall", "6) Curb stones – count"),
+                "scenario": tt("Kantstein leveres i 1,0 m lengder.", "Curbstones come in 1.0 m lengths."),
+                "question": tt("Strekning: 34 m. Legg til 5% svinn/kapp. Hvor mange stein (avrund opp)?",
+                               "Length: 34 m. Add 5% waste. How many stones (round up)?"),
+                "formula_hint": "antall = lengde×(1+svinn) / 1,0; avrund opp",
+                "answer": math.ceil(34*1.05),
+                "unit": "stk",
+                "tol": 0.0,
+                "integer": True,
+                "lk20": LK20
+            },
+            {
+                "title": tt("7) Asfalt – volum", "7) Asphalt volume"),
+                "scenario": tt("Du skal legge asfalt på et område.", "You pave an area with asphalt."),
+                "question": tt("Areal: 120 m². Tykkelse: 45 mm. Finn volum (m³).",
+                               "Area: 120 m². Thickness: 45 mm. Volume (m³)?"),
+                "formula_hint": "V = areal × tykkelse. 45 mm = 0,045 m",
+                "answer": 120*0.045,
+                "unit": "m³",
+                "tol": 0.05,
+                "rounding": 2,
+                "lk20": LK20
+            },
+            {
+                "title": tt("8) Rør i grøft – fall", "8) Pipe in trench – slope"),
+                "scenario": tt("Du legger overvannsrør med fall.", "You lay stormwater pipe with slope."),
+                "question": tt("Fallkrav: 1,0% over 18 m. Hvor mange cm fall?",
+                               "Slope: 1.0% over 18 m. How many cm drop?"),
+                "formula_hint": "fall(m) = (pct/100)×lengde; cm = m×100",
+                "answer": ((1.0/100)*18)*100,
+                "unit": "cm",
+                "tol": 0.5,
+                "rounding": 1,
+                "lk20": LK20
+            },
+            {
+                "title": tt("9) Grusdekke – areal og tonn (forenklet)", "9) Gravel – area and tonnes (simplified)"),
+                "scenario": tt("Du bestiller grus. (Forenklet regning med fast vekt).", "You order gravel (simplified with fixed density)."),
+                "question": tt("Areal 60 m², tykkelse 0,05 m. Tetthet (forenklet): 1,6 tonn per m³. Hvor mange tonn?",
+                               "Area 60 m², thickness 0.05 m. Density: 1.6 tonnes per m³. How many tonnes?"),
+                "formula_hint": "V = A×t; tonn = V × 1,6",
+                "answer": (60*0.05)*1.6,
+                "unit": "tonn",
+                "tol": 0.2,
+                "rounding": 2,
+                "lk20": LK20
+            },
+            {
+                "title": tt("10) Dreneringsrør – antall kveil", "10) Drain pipe – coil count"),
+                "scenario": tt("Dreneringsrør leveres i kveil på 25 m.", "Drain pipes come in 25 m coils."),
+                "question": tt("Du trenger 78 m drensrør. Hvor mange kveiler må du kjøpe? (avrund opp)",
+                               "You need 78 m. How many 25 m coils?"),
+                "formula_hint": "kveiler = ceil(total / 25)",
+                "answer": math.ceil(78/25),
+                "unit": "kveiler",
+                "tol": 0.0,
+                "integer": True,
+                "lk20": LK20
+            },
+        ],
+    }
+
+def show_vty_content():
+    st.markdown("## 🧰 " + tt("Veien til yrkeslivet – innhold", "Path to professional life – content"))
+    st.caption(tt(
+        "Realistiske oppgaver fra byggeplass – knyttet til programfag i BA og grunnleggende matematikk.",
+        "Realistic job-site tasks linked to VET outcomes and practical math."
+    ))
+
+    if not st.session_state.get("vty_access", False):
+        st.markdown("### 🔒 " + tt("Ingen tilgang", "No access"))
+        vty_paywall_card()
+        if st.button("⬅️ " + tt("Tilbake til tilgangssiden", "Back to access page"), use_container_width=True):
+            st.session_state.view = "VeienTilYrkeslivet_Lås"
+            st.rerun()
+        return
+
+    st.success(tt("Tilgang aktiv ✔️", "Access active ✔️"))
+
+    # Hovedfaner inne i yrkeslivssiden
+    main_tabs = st.tabs([
+        "🧩 " + tt("Realistiske øvingsoppgaver", "Realistic practice tasks"),
+        "📝 " + tt("Dokumentasjon og egenkontroll", "Documentation & self-check"),
+        "🦺 " + tt("HMS i praksis", "HSE in practice"),
+    ])
+
+    with main_tabs[0]:
+        st.markdown("### " + tt("Realistiske øvingsoppgaver", "Realistic practice tasks"))
+        st.caption(tt(
+            "Velg et yrke. Hver fane har 10 oppgaver. Lærer kan skru på fasit med lærerkode.",
+            "Pick a trade. Each tab has 10 tasks. Teacher can reveal answers with the teacher code."
+        ))
+
+        data = vty_tasks_data()
+        trade_tabs = st.tabs(list(data.keys()))
+        for i, trade in enumerate(data.keys()):
+            with trade_tabs[i]:
+                tasks = data[trade]
+                for j, task in enumerate(tasks):
+                    _task_check_ui(task, key_prefix=f"vty_{i}_{j}")
+
+    with main_tabs[1]:
+        st.markdown("### " + tt("Dokumentasjon og egenkontroll", "Documentation & self-check"))
+        st.write(tt(
+            "Bruk denne strukturen når du leverer oppgaver i yrkesfag (vurderingsrettet):",
+            "Use this structure when you submit tasks (assessment-oriented):"
+        ))
+        st.markdown(tt(
+            """
+1. **Oppgaveforståelse:** Hva er bestillingen / arbeidsoppdraget?  
+2. **Mål og enheter:** Hvilke mål har du? Er alle i samme enhet?  
+3. **Formelvalg:** Hvilken formel passer – og hvorfor?  
+4. **Mellomregning:** Skriv regnestykker steg for steg.  
+5. **Kontroll:** Grovsjekk + kontrollmåling/kalkulator.  
+6. **Avvik:** Hva kan gi feil? (kapp, svinn, toleranser, målefeil)  
+7. **Refleksjon:** Hva lærte du – og hva ville du gjort annerledes?
+            """,
+            """
+1. Task understanding  
+2. Measurements and units  
+3. Formula choice  
+4. Working  
+5. Verification  
+6. Deviations and sources of error  
+7. Reflection
+            """
+        ))
+
+    with main_tabs[2]:
+        st.markdown("### " + tt("HMS i praksis", "HSE in practice"))
+        st.write(tt(
+            "Koble oppgavene til HMS: måling, ryddighet, risiko ved feilberegning (f.eks. feil fall, feil dimensjon, feil mengder).",
+            "Link tasks to HSE: measurement, housekeeping, risks from miscalculation (e.g., wrong slope, wrong dimension, wrong quantities)."
+        ))
+        st.markdown(tt(
+            """
+**Mini-SJA (3 spørsmål):**
+- Hva kan gå galt?  
+- Hvordan forebygger vi?  
+- Hva gjør vi hvis det skjer?  
+            """,
+            """
+**Mini risk assessment (3 questions):**
+- What can go wrong?  
+- How do we prevent it?  
+- What do we do if it happens?
+            """
+        ))
+
+
 # ============================================================
 # Router
 # ============================================================
@@ -1779,6 +2724,10 @@ elif st.session_state.view == "Pro":
     show_pro_page()
 elif st.session_state.view == "ProInnhold":
     show_pro_content()
+elif st.session_state.view == "VeienTilYrkeslivet_Lås":
+    show_vty_gate()
+elif st.session_state.view == "VeienTilYrkeslivet_Innhold":
+    show_vty_content()
 else:
     show_front_page()
 
