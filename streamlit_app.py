@@ -181,8 +181,8 @@ with b5:
         st.markdown("**" + tt("Oppgradering", "Upgrade") + "**")
         st.caption(tt("Pro gir ekstra øving, dokumentasjon og vurderingsstøtte.",
                       "Pro adds extra practice, documentation and assessment support."))
-        if st.button("⭐ " + tt("Oppgrader til Pro (BETA)", "Upgrade to Pro (BETA)"), use_container_width=True):
-            st.session_state.view = "Pro"
+        if st.button("📜" + tt("Veien til yrkeslivet (BETA)", "The path to professional life (BETA)"), use_container_width=True):
+            st.session_state.view = "Veien til yrkeslivet"
             st.rerun()
 
 st.divider()
