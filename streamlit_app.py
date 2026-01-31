@@ -595,8 +595,8 @@ Du lærer å forstå oppgaven, velge riktig formel, regne selv og kontrollere sv
 Her jobber vi med praktiske oppgaver hentet fra byggfaget.
 Du øver på å tenke som en yrkesutøver, ikke som en kalkulator.
 
-👉 Start i Læringsarenaen
-Der finner du formler, eksempler og oppgaver i ulike nivåer.
+I **Læringsarenaen** finner du:
+Formler, eksempler og oppgaver i ulike nivåer.
 Regn for hånd først – bruk kalkulatoren kun som kontroll.
 
 Målet er at du skal bli trygg på regningene du gjør,
