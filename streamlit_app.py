@@ -611,11 +611,11 @@ Du bruker matematikk for å:
 - Dokumentere eget arbeid og gjøre egenkontroll  
 
 
-### Slik bruker du appen i undervisning
-1. **Les forsiden**  
-2. Bruk **Læringsarena** (formler + oppgaver)  
-3. Vis **mellomregning** før du sjekker svaret  
-4. Bruk kalkulatoren *kun som kontroll* når du er usikker
+### Dette finner du i appen:
+1. Læringsarena - Formelbank, øvingsoppgaver, gjett formelen.
+2. Beregninger - Struktur for mellomregning – slik man forventer i yrkesfag og vurdering.
+3. Kalkulator - Kontrollsjekk at din regning er riktig
+4. Veien til yrkeslivet - Denne betalte versjonen gir deg ekstra øving, dokumentasjon, vurderingsstøtte og forståelse for et VG3 nivå.
 """,
                 """
 **Byggmatte** is designed as a learning sequence and a verification tool.  
