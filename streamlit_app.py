@@ -179,7 +179,7 @@ with b5:
 
         st.divider()
         st.markdown("**" + tt("Oppgradering", "Upgrade") + "**")
-        st.caption(tt("Pro gir ekstra øving, dokumentasjon og vurderingsstøtte.",
+        st.caption(tt("Veien til yrkeslivet gir ekstra øving, dokumentasjon og vurderingsstøtte.",
                       "Pro adds extra practice, documentation and assessment support."))
         if st.button("📜" + tt("Veien til yrkeslivet (BETA)", "The path to professional life (BETA)"), use_container_width=True):
             st.session_state.view = "Veien til yrkeslivet"
