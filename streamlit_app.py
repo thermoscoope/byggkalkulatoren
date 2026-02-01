@@ -124,7 +124,7 @@ with header_right:
           <div class="bk-title-row">
             <div class="bk-title"></div>
             <div class="bk-sub" style="margin-top:10px;">
-              {tt("Fra skole til yrke – matematikk tilpasset yrkeslivet!",
+              {tt("Et digitalt øvings- og refleksjonsverktøy for praktisk matematikk i bygg- og anlegg",
                   "From school to trade – practical math for the workplace!")}
             </div>
           </div>
