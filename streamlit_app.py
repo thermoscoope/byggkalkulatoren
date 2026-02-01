@@ -188,7 +188,7 @@ with b5:
         st.caption(tt("Veien til yrkeslivet gir ekstra øving, dokumentasjon og vurderingsstøtte.",
                       "Pro adds extra practice, documentation and assessment support."))
         if st.button("📜" + tt("Veien til yrkeslivet (BETA)", "The path to professional life (BETA)"), use_container_width=True):
-            st.session_state.view = "VeienTilYrkeslivet_Lås"
+            st.session_state.view = "VeienTilYrkeslivet_Innhold"
             st.rerun()
 
 st.divider()
@@ -205,8 +205,7 @@ with st.sidebar:
         ("Kalkulatorer", tt("Kalkulatorer", "Calculators")),
         ("Pro", tt("Pro (info)", "Pro (info)")),
         ("ProInnhold", tt("Pro-innhold", "Pro content")),
-        ("VeienTilYrkeslivet_Lås", tt("Veien til yrkeslivet (BETA)", "Path to professional life (BETA)")),
-        ("VeienTilYrkeslivet_Innhold", tt("Yrkeslivet: oppgaver", "Workplace: tasks")),
+        ("VeienTilYrkeslivet_Innhold", tt("Veien til yrkeslivet (BETA)", "Path to professional life (BETA)")),
     ]
     view_to_index = {key: i for i, (key, _) in enumerate(nav_options)}
     current_index = view_to_index.get(st.session_state.view, 0)
@@ -2818,21 +2817,564 @@ def vty_tasks_data():
     }
 
 def show_vty_content():
-    st.markdown("## 🧰 " + tt("Veien til yrkeslivet – innhold", "Path to professional life – content"))
+    st.markdown("## 🧰 " + tt("Veien til yrkeslivet", "Path to professional life"))
     st.caption(tt(
-        "Realistiske oppgaver fra byggeplass – knyttet til programfag i BA og grunnleggende matematikk.",
-        "Realistic job-site tasks linked to VET outcomes and practical math."
+        "Her trener elevene på **realistiske situasjoner fra byggeplass**: måling, beregning, materialforbruk, "
+        "toleranser, fall, volum, areal, målestokk og enkel dokumentasjon – med tydelig kobling til LK20 for VG1 BA.",
+        "Here students practice **real job-site situations**: measurement, calculations, material quantities, "
+        "tolerances, slope, volume, area, scale, and simple documentation – linked to LK20 for VET (VG1 BA)."
     ))
 
-    if not st.session_state.get("vty_access", False):
-        st.markdown("### 🔒 " + tt("Ingen tilgang", "No access"))
-        vty_paywall_card()
-        if st.button("⬅️ " + tt("Tilbake til tilgangssiden", "Back to access page"), use_container_width=True):
-            st.session_state.view = "VeienTilYrkeslivet_Lås"
-            st.rerun()
-        return
+    # Betalingsmur er midlertidig deaktivert (kan aktiveres senere)
+    st.session_state.vty_access = True
 
-    st.success(tt("Tilgang aktiv ✔️", "Access active ✔️"))
+    # Lærermodus (viser fasit/ løsningsforslag)
+    with st.expander("🔑 " + tt("Lærermodus (skjul/vis fasit)", "Teacher mode (hide/show solutions)"), expanded=False):
+        st.write(tt(
+            "Skriv inn lærerkode for å vise løsningsforslag. Elevene ser kun oppgavene og hint.",
+            "Enter the teacher code to reveal solutions. Students only see tasks and hints."
+        ))
+        code = st.text_input(tt("Lærerkode", "Teacher code"), type="password", key="vty_teacher_code_input")
+        if code:
+            if code.strip() == TEACHER_CODE:
+                st.session_state.vty_teacher_mode = True
+                st.success(tt("Lærermodus aktivert.", "Teacher mode enabled."))
+            else:
+                st.session_state.vty_teacher_mode = False
+                st.error(tt("Feil kode.", "Wrong code."))
+        st.caption(tt(
+            "Tips: Bruk lærermodus i gjennomgang, eller gi kode når elevene leverer/skal egenvurdere.",
+            "Tip: Use teacher mode for walkthroughs, or share the code when students submit/self-assess."
+        ))
+
+    st.divider()
+
+    st.markdown("### " + tt("Slik er denne delen bygd opp", "How this section works"))
+    st.markdown(tt(
+        """1. **Velg yrke** → 10 oppgaver i realistiske settinger.
+2. **Les oppdraget** (hva skal bygges/monteres?)
+3. **Regn** (areal/volum/lengde/fall/målestokk/materialmengde)
+4. **Dokumenter** (egenkontroll: hva sjekket du, og hvorfor?)
+
+Dette støtter særlig programfag der elevene skal **måle, beregne, planlegge, utføre og dokumentere** arbeid i tråd med HMS og kvalitet.""",
+        """1. **Choose a trade** → 10 tasks in realistic contexts.
+2. **Read the job** (what is being built/installed?)
+3. **Calculate** (area/volume/length/slope/scale/material quantities)
+4. **Document** (self-check: what did you verify, and why?)
+
+This mainly supports VET subjects where students **measure, calculate, plan, execute and document** work aligned with HSE and quality."""
+    ))
+
+    # =========================
+    # Oppgaver (10 per yrke)
+    # =========================
+    tasks = {
+        "Tømrer": [
+            {
+                "title": "Stenderverk – antall stendere",
+                "scenario": "Du skal bygge en vegg på 4,80 m. Stenderavstand c/c 600 mm. Husk stender i hver ende.",
+                "ask": "Hvor mange stendere trenger du?",
+                "hint": "Antall felt = lengde / c/c. Antall stendere = antall felt + 1.",
+                "solution": "4,80 m / 0,60 m = 8 felt → 9 stendere (inkludert endestendere).",
+                "lk20": "Måle/beregne materialforbruk og planlegge arbeid."
+            },
+            {
+                "title": "Gulv – areal og materialforbruk",
+                "scenario": "Et rom er 3,6 m × 4,2 m. Du skal legge gulvspon. Husk 10 % svinn.",
+                "ask": "Hvor stort areal er gulvet, og hvor mye areal må du bestille med svinn?",
+                "hint": "A = l × b. Bestilling = A × 1,10.",
+                "solution": "A = 3,6 × 4,2 = 15,12 m². Med svinn: 15,12 × 1,10 = 16,63 m² (avrund opp).",
+                "lk20": "Beregne areal, svinn og planlegge materialer."
+            },
+            {
+                "title": "Tak – fall og høydeforskjell",
+                "scenario": "Et tak har fall 1:40. Horisontal lengde fra møne til raft er 5,2 m.",
+                "ask": "Hva er høydeforskjellen mellom møne og raft?",
+                "hint": "Fall 1:40 betyr 1 enhet opp per 40 enheter bort. H = L/40.",
+                "solution": "H = 5,2/40 = 0,13 m = 130 mm.",
+                "lk20": "Bruke mål og beregne høyder/fall i konstruksjoner."
+            },
+            {
+                "title": "Kledning – antall bord",
+                "scenario": "En fasade er 6,0 m bred og 2,4 m høy. Du bruker stående kledning 148 mm med 5 mm spalte (effektiv bredde 143 mm).",
+                "ask": "Hvor mange bord trenger du i bredden?",
+                "hint": "Antall = bredde / effektiv bredde.",
+                "solution": "6,0 m / 0,143 m ≈ 41,96 → 42 bord.",
+                "lk20": "Beregne materialbehov og tilpasse til utførelse."
+            },
+            {
+                "title": "Betongforskaling – mengde forskalingsplater",
+                "scenario": "Du forskaler en stripefundament-side: 12 m lengde og 0,5 m høyde. Plateformat 1,2 × 2,4 m.",
+                "ask": "Hvor mange plater trengs (kun én side), uten svinn?",
+                "hint": "Flate = L × H. Plateareal = 1,2 × 2,4.",
+                "solution": "Flate = 12 × 0,5 = 6,0 m². Plateareal = 2,88 m². 6,0/2,88 = 2,08 → 3 plater.",
+                "lk20": "Beregne areal og materialbehov til forskaling."
+            },
+            {
+                "title": "Trapp – stigningsforhold",
+                "scenario": "Etasjeskille: 2,64 m. Du planlegger 15 opptrinn.",
+                "ask": "Hva blir opptrinnshøyden i mm?",
+                "hint": "Opptrinn = total høyde / antall opptrinn.",
+                "solution": "2,64 m / 15 = 0,176 m = 176 mm.",
+                "lk20": "Beregne dimensjoner og tilpasse ergonomi/utførelse."
+            },
+            {
+                "title": "Bjelkelag – volum trevirke",
+                "scenario": "Du skal bestille 48×198 mm bjelker. Det går 14 bjelker á 4,8 m.",
+                "ask": "Hva er totalt volum trevirke i m³?",
+                "hint": "Volum = b×h×L. Husk å omregne mm→m.",
+                "solution": "Én bjelke: 0,048×0,198×4,8=0,0456 m³. Totalt: 14×0,0456=0,638 m³.",
+                "lk20": "Beregne volum og materialmengder."
+            },
+            {
+                "title": "Isolasjon – m² og pakkebehov",
+                "scenario": "Vegger: 2 rom, hver med veggareal 22 m². Isolasjonspakke dekker 5,4 m². 10 % svinn.",
+                "ask": "Hvor mange pakker trenger du?",
+                "hint": "Total A × 1,10 / dekningsgrad.",
+                "solution": "Total A=44 m². Med svinn: 48,4 m². 48,4/5,4=8,96 → 9 pakker.",
+                "lk20": "Beregne materialforbruk og bestilling."
+            },
+            {
+                "title": "Målestokk – lese arbeidstegning",
+                "scenario": "På en tegning i målestokk 1:50 måler du en vegg til 84 mm på papiret.",
+                "ask": "Hva er virkelig lengde i meter?",
+                "hint": "1:50 → multipliser med 50. 84 mm×50 = mm i virkelighet.",
+                "solution": "84×50=4200 mm=4,2 m.",
+                "lk20": "Tolke tegninger og bruke målestokk."
+            },
+            {
+                "title": "Kapp – optimal kutting",
+                "scenario": "Du har 4,8 m lengder. Du trenger 12 stk á 1,55 m. Du kan ikke skjøte.",
+                "ask": "Hvor mange 4,8 m lengder må du kjøpe, og hvor mye svinn får du (i meter)?",
+                "hint": "Fra 4,8 m får du maks ⌊4,8/1,55⌋ biter. Svinn per lengde = 4,8 − (antall biter × 1,55).",
+                "solution": "⌊4,8/1,55⌋=3 biter per lengde. Trenger 12 biter → 4 lengder. Svinn per lengde: 4,8−4,65=0,15 m. Totalt svinn: 0,60 m.",
+                "lk20": "Planlegge materialbruk og redusere svinn."
+            },
+        ],
+        "Rørlegger": [
+            {
+                "title": "Fall på avløp",
+                "scenario": "Avløpsrør skal ha fall 1:50. Strekket er 7,5 m.",
+                "ask": "Hvor mange mm fall skal du ha totalt?",
+                "hint": "H = L/50.",
+                "solution": "7,5/50=0,15 m=150 mm.",
+                "lk20": "Beregne fall og sikre funksjon/utførelse."
+            },
+            {
+                "title": "Rørvolum – hvor mye vann står i røret?",
+                "scenario": "Et PEX-rør har innvendig diameter 16 mm og lengde 12 m.",
+                "ask": "Hvor mange liter vann rommer røret (omtrent)?",
+                "hint": "Volum sylinder: V = π·r²·L. 1 liter = 0,001 m³.",
+                "solution": "r=0,008 m. V=π·(0,008²)·12≈0,00241 m³≈2,41 liter.",
+                "lk20": "Bruke volumformel og enhetsomregning."
+            },
+            {
+                "title": "Blandingsforhold",
+                "scenario": "Glykolblanding: 35 % glykol. Du har 18 liter ferdig blanding.",
+                "ask": "Hvor mange liter glykol trenger du?",
+                "hint": "Mengde = total × prosent.",
+                "solution": "18×0,35=6,3 liter glykol.",
+                "lk20": "Prosentregning i praktisk arbeid."
+            },
+            {
+                "title": "Trykktap (forenklet)",
+                "scenario": "Du bruker en tommelfingerregel: 0,25 bar trykktap per 10 m i et strekk. Strekket er 26 m.",
+                "ask": "Hva blir trykktapet i bar?",
+                "hint": "Proporsjonal skalering.",
+                "solution": "26/10×0,25=0,65 bar.",
+                "lk20": "Forstå proporsjoner og beregne konsekvenser."
+            },
+            {
+                "title": "Rørkapping – vinkel og lengde",
+                "scenario": "Du skal lage en 45°-bend ved å kutte to rørstykker som møtes. Du trenger 300 mm fra bend til bend langs senterlinje.",
+                "ask": "Hva blir lengden på hvert stykke hvis du deler likt (forenklet) og ignorerer fittings-lengde?",
+                "hint": "Del total lengde på 2.",
+                "solution": "300/2 = 150 mm per stykke.",
+                "lk20": "Beregne lengder og planlegge montasje."
+            },
+            {
+                "title": "Varmekabel – effekt",
+                "scenario": "Bad: 6,2 m². Du skal ha 100 W/m². Nettspenning 230 V.",
+                "ask": "Hva blir total effekt (W) og strøm (A) omtrent?",
+                "hint": "P = A×W/m². I = P/V.",
+                "solution": "P=6,2×100=620 W. I=620/230≈2,70 A.",
+                "lk20": "Beregne effekt/strøm i praktiske installasjoner (tverrfaglig)."
+            },
+            {
+                "title": "Tappevann – tid til fylling",
+                "scenario": "En kran fyller 9 liter per minutt. Du skal fylle en bøtte på 25 liter.",
+                "ask": "Hvor lang tid tar det (minutter og sekunder)?",
+                "hint": "Tid = volum / flow.",
+                "solution": "25/9=2,78 min ≈ 2 min 47 sek.",
+                "lk20": "Beregne tid/kapasitet."
+            },
+            {
+                "title": "Isolasjon på rør – omkrets",
+                "scenario": "Et rør har utvendig diameter 28 mm. Du skal beregne omkrets for å velge isolasjon.",
+                "ask": "Hva er omkretsen i mm (omtrent)?",
+                "hint": "O = π·d.",
+                "solution": "O ≈ 3,14×28 ≈ 88 mm.",
+                "lk20": "Bruke omkretsformel og avrunding."
+            },
+            {
+                "title": "Materialbestilling – klammer",
+                "scenario": "Du skal klamre et 10 m rørstrekk. Klammeravstand 0,8 m. Klammer i hver ende.",
+                "ask": "Hvor mange klammer trenger du?",
+                "hint": "Antall felt = L/avstand. Antall klammer = felt + 1.",
+                "solution": "10/0,8=12,5 → 13 felt → 14 klammer.",
+                "lk20": "Beregne festepunkter og planlegge montering."
+            },
+            {
+                "title": "Målestokk – rørstrekk på tegning",
+                "scenario": "Tegning 1:100. Du måler rørstrekk til 62 mm på tegningen.",
+                "ask": "Hva er virkelig lengde i meter?",
+                "hint": "62 mm×100=6200 mm=6,2 m.",
+                "solution": "6,2 m.",
+                "lk20": "Tolke tegninger og bruke målestokk."
+            },
+        ],
+        "Blikkenslager": [
+            {
+                "title": "Takrenne – lengde og skjøter",
+                "scenario": "En langside er 12,6 m. Renner leveres i 3,0 m lengder. Du trenger 10 cm overlapp per skjøt.",
+                "ask": "Hvor mange lengder må du ha, og hvor mange skjøter blir det?",
+                "hint": "Antall lengder = taklengde / 3,0 (avrund opp). Skjøter = lengder − 1.",
+                "solution": "12,6/3,0=4,2 → 5 lengder. Skjøter: 4. (Overlapp håndteres i tilpasning).",
+                "lk20": "Planlegge materialer og tilpasning."
+            },
+            {
+                "title": "Nedløp – kapasitet (forenklet)",
+                "scenario": "Tommelfingerregel: 1 nedløp per 60 m² takflate. Takflate er 138 m².",
+                "ask": "Hvor mange nedløp trengs?",
+                "hint": "Antall = takflate / 60 (avrund opp).",
+                "solution": "138/60=2,3 → 3 nedløp.",
+                "lk20": "Beregne kapasitet og dimensjonering (forenklet)."
+            },
+            {
+                "title": "Beslag – areal og materialforbruk",
+                "scenario": "Du lager et beslag 0,25 m bredt og 8,0 m langt i 0,6 mm plate.",
+                "ask": "Hva er arealet av platen (m²)?",
+                "hint": "A = b×L.",
+                "solution": "0,25×8,0=2,0 m².",
+                "lk20": "Beregne flater og materialforbruk."
+            },
+            {
+                "title": "Knekking – utvikling (forenklet)",
+                "scenario": "Du skal knekkesette et U-profil: bunn 120 mm, sider 2×40 mm, pluss 2×10 mm fals.",
+                "ask": "Hva blir utviklet bredde (mm) før knekking, uten å ta hensyn til knekktillegg?",
+                "hint": "Summer alle delbredder.",
+                "solution": "120 + 40 + 40 + 10 + 10 = 220 mm.",
+                "lk20": "Forstå utvikling og beregne materialbredde."
+            },
+            {
+                "title": "Taktekking – svinn",
+                "scenario": "Du tekker 72 m² med plater. Du legger til 8 % svinn.",
+                "ask": "Hvor mye areal må bestilles?",
+                "hint": "Bestilling = A×1,08.",
+                "solution": "72×1,08=77,76 m².",
+                "lk20": "Prosent og bestilling."
+            },
+            {
+                "title": "Vinkel – grad og stigning",
+                "scenario": "Et tak har 1:3 stigning (1 opp per 3 bort).",
+                "ask": "Hva er vinkelen i grader (omtrent)?",
+                "hint": "tan(v) = 1/3 → v = arctan(1/3).",
+                "solution": "v ≈ 18,4°.",
+                "lk20": "Bruke trigonometri/forhold ved takarbeid (nivåtilpasset)."
+            },
+            {
+                "title": "Sirkulær kanal – omkrets",
+                "scenario": "Ventilasjonskanal Ø160 mm.",
+                "ask": "Hva er omkretsen (mm) omtrent?",
+                "hint": "O = π·d.",
+                "solution": "≈ 3,14×160 = 502 mm.",
+                "lk20": "Omkrets og dimensjonering."
+            },
+            {
+                "title": "Kanal – areal av rektangel",
+                "scenario": "Rektangulær kanal 200×100 mm (innvendig).",
+                "ask": "Hva er tverrsnittsarealet i cm²?",
+                "hint": "A = b×h. 1 cm² = 100 mm².",
+                "solution": "200×100=20000 mm² = 200 cm².",
+                "lk20": "Areal, enhetsomregning."
+            },
+            {
+                "title": "Nedløpsrør – kapp",
+                "scenario": "Du har 3,0 m rør. Du trenger 5 stk á 1,15 m.",
+                "ask": "Hvor mange 3,0 m rør trenger du, og svinn?",
+                "hint": "⌊3,0/1,15⌋ = 2 biter per rør.",
+                "solution": "2 biter per rør → 3 rør gir 6 biter. Svinn per rør: 3,0−2,30=0,70 m. Totalt svinn: 2,10 m (minus tilpasning).",
+                "lk20": "Planlegge kapping og redusere svinn."
+            },
+            {
+                "title": "Målestokk – pipebeslag",
+                "scenario": "Tegning 1:20. Du måler pipebredde til 38 mm på tegningen.",
+                "ask": "Virkelig bredde i mm og cm?",
+                "hint": "38×20=760 mm = 76 cm.",
+                "solution": "760 mm (76 cm).",
+                "lk20": "Tolke tegninger og omregne."
+            },
+        ],
+        "Mur og betong": [
+            {
+                "title": "Betong – volum i fundament",
+                "scenario": "Fundament: 8,0 m × 0,4 m × 0,25 m.",
+                "ask": "Hvor mange m³ betong trenger du?",
+                "hint": "V = l×b×h.",
+                "solution": "8,0×0,4×0,25=0,80 m³.",
+                "lk20": "Volum og materialforbruk."
+            },
+            {
+                "title": "Mørtel – blandingsforhold",
+                "scenario": "Du blander mørtel: 1 del sement til 4 deler sand. Total blanding 50 liter (volum).",
+                "ask": "Hvor mange liter sement og sand trenger du?",
+                "hint": "Total deler = 5. Sement = 1/5, sand = 4/5.",
+                "solution": "Sement: 10 L. Sand: 40 L.",
+                "lk20": "Forhold og blanding i praksis."
+            },
+            {
+                "title": "Armering – kapp og overlapp",
+                "scenario": "Du skal armerere en stripe på 11,2 m med 12 m jern, men krever 0,6 m overlapp ved skjøt.",
+                "ask": "Holder ett 12 m jern, eller må du skjøte? Hvis skjøt: hvor mye effektiv lengde får du ved 2 jern?",
+                "hint": "Ved skjøt mister du overlappen i effektiv lengde.",
+                "solution": "11,2 m < 12 m → ett jern holder (med tilpasning). Ved 2 jern: effektiv lengde = 12 + 12 − 0,6 = 23,4 m.",
+                "lk20": "Planlegge armering og forstå overlapp."
+            },
+            {
+                "title": "Puss – areal og mengde",
+                "scenario": "Du pusser en vegg 3,2×2,5 m. Forbruk 14 kg/m².",
+                "ask": "Hvor mange kg puss trenger du?",
+                "hint": "Mengde = A×forbruk.",
+                "solution": "A=8,0 m². Mengde=8,0×14=112 kg.",
+                "lk20": "Beregne mengde og bestilling."
+            },
+            {
+                "title": "Murstein – antall stein",
+                "scenario": "Veggareal 9,6 m². Tommelfingerregel 60 stein per m².",
+                "ask": "Hvor mange murstein trenger du?",
+                "hint": "Antall = A×60.",
+                "solution": "9,6×60=576 stein.",
+                "lk20": "Beregne materialforbruk."
+            },
+            {
+                "title": "Blanding – prosent vann",
+                "scenario": "Betongtilsetning: vannmengde er 8 % av tørrstoffmengde. Tørrstoff er 420 kg.",
+                "ask": "Hvor mange kg vann?",
+                "hint": "Prosent av mengde.",
+                "solution": "420×0,08=33,6 kg vann (≈33,6 liter).",
+                "lk20": "Prosent og enhetsforståelse."
+            },
+            {
+                "title": "Helning – rampe",
+                "scenario": "En rampe skal ha maks 1:15. Du har 0,72 m høydeforskjell.",
+                "ask": "Hvor lang må rampen være minst?",
+                "hint": "L = H×15.",
+                "solution": "0,72×15=10,8 m.",
+                "lk20": "Beregne helning og universell utforming (tverrfaglig)."
+            },
+            {
+                "title": "Forskaling – omkrets",
+                "scenario": "Du forskaler en søyle med tverrsnitt 0,35×0,35 m.",
+                "ask": "Hva er omkretsen rundt (m)?",
+                "hint": "O = 4×side.",
+                "solution": "O=4×0,35=1,40 m.",
+                "lk20": "Omkrets og materialbehov."
+            },
+            {
+                "title": "Betongplate – armeringsnett",
+                "scenario": "Plate: 5,0×3,0 m. Nett leveres i 2,4×5,0 m. Overlapp 0,2 m i én retning.",
+                "ask": "Hvor mange nett trengs (grovt)?",
+                "hint": "Se på dekning per nett og overlapp. Grov planlegging.",
+                "solution": "Én nett dekker 2,4×5,0. For 3,0 m bredde trengs 2 nett i bredden med overlapp. Totalt 2 nett.",
+                "lk20": "Planlegge materialer og forstå overlapp."
+            },
+            {
+                "title": "Målestokk – forskalingshøyde",
+                "scenario": "Tegning 1:25. Du måler en høyde til 36 mm.",
+                "ask": "Virkelig høyde i mm og meter?",
+                "hint": "36×25=900 mm=0,9 m.",
+                "solution": "900 mm (0,90 m).",
+                "lk20": "Tolke tegninger og omregne."
+            },
+        ],
+        "Flislegger": [
+            {
+                "title": "Baderomsgulv – antall fliser",
+                "scenario": "Gulv: 2,4×3,1 m. Fliser 30×60 cm. 12 % svinn.",
+                "ask": "Hvor mange fliser trenger du (avrundet opp)?",
+                "hint": "A gulv / A flis × (1+svinn).",
+                "solution": "A=7,44 m². A flis=0,18 m². Antall uten svinn=41,33. Med svinn: 46,29 → 47 fliser.",
+                "lk20": "Areal, enhetsomregning og svinn."
+            },
+            {
+                "title": "Fall til sluk",
+                "scenario": "Avstand til sluk 1,6 m. Du skal ha 1:60 fall.",
+                "ask": "Hvor mange mm høydeforskjell trengs?",
+                "hint": "H = L/60.",
+                "solution": "1,6/60=0,0267 m=26,7 mm.",
+                "lk20": "Beregne fall i våtrom."
+            },
+            {
+                "title": "Sokkel – omkrets og lengde",
+                "scenario": "Rom: 3,2×4,6 m. Sokkel skal legges rundt hele rommet.",
+                "ask": "Hvor mange meter sokkel trenger du?",
+                "hint": "O=2(l+b).",
+                "solution": "O=2(3,2+4,6)=15,6 m.",
+                "lk20": "Omkrets og planlegging."
+            },
+            {
+                "title": "Flislim – forbruk",
+                "scenario": "Veggflate 18 m². Flislim forbruk 3,5 kg/m².",
+                "ask": "Hvor mange kg lim?",
+                "hint": "Mengde=A×forbruk.",
+                "solution": "18×3,5=63 kg.",
+                "lk20": "Beregne mengde og bestilling."
+            },
+            {
+                "title": "Fugemasse – volum",
+                "scenario": "Du fuger 10 m² med 5 mm fugebredde og 8 mm dybde. Forenklet: 1 m² gir 0,04 liter fugemasse.",
+                "ask": "Hvor mange liter fugemasse trengs?",
+                "hint": "Liter = areal × 0,04.",
+                "solution": "10×0,04=0,40 liter.",
+                "lk20": "Bruke forbrukstall og beregne mengde."
+            },
+            {
+                "title": "Mønster – diagonallinje",
+                "scenario": "Du skal legge fliser diagonalt i et kvadratisk felt 1,2×1,2 m.",
+                "ask": "Hva er diagonalen (m)?",
+                "hint": "Pythagoras: d = √(1,2²+1,2²).",
+                "solution": "d=√(1,44+1,44)=√2,88=1,70 m.",
+                "lk20": "Pythagoras i praktiske mål."
+            },
+            {
+                "title": "Kapp – antall kutt",
+                "scenario": "En vegg er 2,1 m høy. Fliser er 0,6 m høye. Du starter med hel flis nede.",
+                "ask": "Hvor mange hele rader får du, og hvor høy blir siste kapp (cm)?",
+                "hint": "Antall hele = ⌊2,1/0,6⌋. Rest = 2,1 − antall×0,6.",
+                "solution": "⌊2,1/0,6⌋=3 hele rader. Rest=2,1−1,8=0,3 m=30 cm.",
+                "lk20": "Planlegge kapping og tilpasning."
+            },
+            {
+                "title": "Målestokk – nisje",
+                "scenario": "Tegning 1:10. Nisjebredde måles til 52 mm.",
+                "ask": "Virkelig bredde i cm?",
+                "hint": "52×10=520 mm=52 cm.",
+                "solution": "52 cm.",
+                "lk20": "Tolke tegninger og omregne."
+            },
+            {
+                "title": "Pris – kalkyle",
+                "scenario": "Fliser koster 349 kr/m². Du skal legge 7,8 m². Legg til 12 % svinn i innkjøp.",
+                "ask": "Hva blir ca. materialkostnad (kr) for fliser?",
+                "hint": "Kost = A×1,12×pris.",
+                "solution": "7,8×1,12=8,736 m². 8,736×349 ≈ 3049 kr.",
+                "lk20": "Beregne kostnader og svinn."
+            },
+            {
+                "title": "Fallsoner – deling av gulv",
+                "scenario": "Gulv 2,0×2,0 m med sluk i midten. Du deler i 4 trekanter for fall.",
+                "ask": "Hva er arealet av én trekant (m²)?",
+                "hint": "Total A / 4.",
+                "solution": "Total A=4,0 m². Én trekant=1,0 m².",
+                "lk20": "Areal og oppdeling for planlegging."
+            },
+        ],
+        "Anleggsarbeider": [
+            {
+                "title": "Masseberegning – grus",
+                "scenario": "Du skal legge 12 cm bærelag på et område 6,0×9,5 m.",
+                "ask": "Hvor mange m³ grus trenger du?",
+                "hint": "V = areal × tykkelse.",
+                "solution": "A=57,0 m². Tykkelse=0,12 m. V=6,84 m³.",
+                "lk20": "Volum og masseberegning."
+            },
+            {
+                "title": "Fall – avrenning på vei",
+                "scenario": "En vei skal ha tverrfall 2 %. Veibredde er 4,5 m.",
+                "ask": "Hvor mange cm høydeforskjell fra midt til kant (halv bredde)?",
+                "hint": "2 % = 0,02. Halv bredde=2,25 m. H=0,02×2,25.",
+                "solution": "H=0,045 m=4,5 cm.",
+                "lk20": "Prosent og fall i anlegg."
+            },
+            {
+                "title": "Utskråning – vinkel",
+                "scenario": "Skråning 1:1,5 (1 opp per 1,5 bort).",
+                "ask": "Hva er vinkelen i grader (omtrent)?",
+                "hint": "tan(v) = 1/1,5.",
+                "solution": "v ≈ arctan(0,6667) ≈ 33,7°.",
+                "lk20": "Forhold og vinkler i terreng."
+            },
+            {
+                "title": "Rørgrøft – volum",
+                "scenario": "Grøft: 18 m lang, 0,6 m bred og 0,9 m dyp.",
+                "ask": "Hvor stort volum masse skal graves ut (m³)?",
+                "hint": "V = l×b×h.",
+                "solution": "18×0,6×0,9=9,72 m³.",
+                "lk20": "Volum og planlegging."
+            },
+            {
+                "title": "Kantstein – antall",
+                "scenario": "Du skal legge kantstein langs 24 m. Hver kantstein er 0,5 m.",
+                "ask": "Hvor mange kantstein trenger du?",
+                "hint": "Antall = lengde / 0,5.",
+                "solution": "24/0,5=48 stk.",
+                "lk20": "Lengde og materialbehov."
+            },
+            {
+                "title": "Komprimering – lagtykkelse",
+                "scenario": "Du fyller opp 0,36 m. Du legger maks 12 cm per lag.",
+                "ask": "Hvor mange lag må du komprimere?",
+                "hint": "Antall = total/lagtykkelse.",
+                "solution": "0,36/0,12=3 lag.",
+                "lk20": "Planlegge utførelse og kvalitet."
+            },
+            {
+                "title": "Maskintid – produksjon",
+                "scenario": "Gravemaskin graver 18 m³ per time. Du har 52 m³ masse.",
+                "ask": "Hvor lang tid tar gravingen (timer og minutter)?",
+                "hint": "Tid = volum / kapasitet.",
+                "solution": "52/18=2,89 timer ≈ 2 t 53 min.",
+                "lk20": "Beregne tid og kapasitet."
+            },
+            {
+                "title": "Areal – utlegging av duk",
+                "scenario": "Du legger fiberduk i et område 7,2×11,5 m. Overlapp gir 6 % ekstra.",
+                "ask": "Hvor mange m² duk bør bestilles?",
+                "hint": "A×1,06.",
+                "solution": "A=82,8 m². Med overlapp: 87,77 m².",
+                "lk20": "Areal og tillegg for overlapp."
+            },
+            {
+                "title": "Målestokk – grøfteplan",
+                "scenario": "Tegning 1:200. Du måler grøftelengde til 73 mm.",
+                "ask": "Hva er virkelig lengde i meter?",
+                "hint": "73×200=14600 mm=14,6 m.",
+                "solution": "14,6 m.",
+                "lk20": "Tolke tegninger og omregne."
+            },
+            {
+                "title": "Volum – asfalt (forenklet)",
+                "scenario": "Asfaltering: 120 m² med 4 cm tykkelse.",
+                "ask": "Hva er volum asfalt i m³?",
+                "hint": "V=A×t.",
+                "solution": "t=0,04 m. V=120×0,04=4,8 m³.",
+                "lk20": "Volum og mengdeberegning."
+            },
+        ],
+    }
+
+    def render_task_card(trade_name: str, idx: int, t: dict):
+        header = f"{idx}. {t['title']}"
+        with st.expander(header, expanded=False):
+            st.markdown("**" + tt("Scenario", "Scenario") + ":** " + t["scenario"])
+            st.markdown("**" + tt("Oppgave", "Task") + ":** " + t["ask"])
+            st.markdown("**" + tt("Formel / hint", "Formula / hint") + ":** " + t["hint"])
+            st.caption("LK20: " + t["lk20"])
+
+            if st.session_state.get("vty_teacher_mode", False):
+                st.success(tt("Løsningsforslag", "Proposed solution") + ": " + t["solution"])
+            else:
+                st.info(tt("Fasit er skjult. Spør lærer ved behov.", "Solutions are hidden. Ask your teacher if needed."))
 
     # Hovedfaner inne i yrkeslivssiden
     main_tabs = st.tabs([
@@ -2844,67 +3386,112 @@ def show_vty_content():
     with main_tabs[0]:
         st.markdown("### " + tt("Realistiske øvingsoppgaver", "Realistic practice tasks"))
         st.caption(tt(
-            "Velg et yrke. Hver fane har 10 oppgaver. Lærer kan skru på fasit med lærerkode.",
-            "Pick a trade. Each tab has 10 tasks. Teacher can reveal answers with the teacher code."
+            "Velg et yrke. Oppgavene er skrevet som små, realistiske «cases» med formel/hint. "
+            "Bruk kalkulatorfanene i appen for å kontrollere svar.",
+            "Choose a trade. Tasks are written as short, realistic cases with a formula/hint. "
+            "Use the calculators in the app to verify your results."
         ))
 
-        data = vty_tasks_data()
-        trade_tabs = st.tabs(list(data.keys()))
-        for i, trade in enumerate(data.keys()):
-            with trade_tabs[i]:
-                tasks = data[trade]
-                for j, task in enumerate(tasks):
-                    _task_check_ui(task, key_prefix=f"vty_{i}_{j}")
+        trade_tabs = st.tabs([f"🛠️ {name}" for name in tasks.keys()])
+        for tab, trade_name in zip(trade_tabs, tasks.keys()):
+            with tab:
+                st.markdown("#### " + trade_name)
+                st.caption(tt(
+                    "10 oppgaver – start med de du mestrer, og jobb deg oppover. Skriv alltid **enhet** i svaret.",
+                    "10 tasks – start with what you master and work upwards. Always include **units**."
+                ))
+                for i, task in enumerate(tasks[trade_name], start=1):
+                    render_task_card(trade_name, i, task)
 
     with main_tabs[1]:
         st.markdown("### " + tt("Dokumentasjon og egenkontroll", "Documentation & self-check"))
         st.write(tt(
-            "Bruk denne strukturen når du leverer oppgaver i yrkesfag (vurderingsrettet):",
-            "Use this structure when you submit tasks (assessment-oriented):"
+            "I yrkeslivet er det like viktig å kunne **forklare og dokumentere** som å regne riktig. "
+            "Bruk malen under for å skrive kort og presist.",
+            "In working life it's as important to **explain and document** as it is to calculate correctly. "
+            "Use the template below to write short and precise notes."
         ))
+
+        st.markdown("#### " + tt("Mini-mal (kan kopieres i elevlogg)", "Mini template (copy to student log)"))
+        st.code(
+            tt(
+                """Oppdrag:
+- Hva skulle gjøres?
+
+Målinger:
+- Hvilke mål tok jeg, og med hvilket verktøy?
+
+Beregning:
+- Formel jeg brukte:
+- Utregning (med enhet):
+
+Kontroll:
+- Hvordan sjekket jeg at svaret gir mening?
+
+Kvalitet/HMS:
+- Hva kan gå galt hvis målet/utregningen er feil?
+""",
+                """Job/task:
+- What was to be done?
+
+Measurements:
+- What did I measure, and with which tool?
+
+Calculation:
+- Formula used:
+- Calculation (with unit):
+
+Check:
+- How did I verify the result makes sense?
+
+Quality/HSE:
+- What can go wrong if the measurement/calculation is wrong?
+"""
+            ),
+            language="text"
+        )
+
+        st.markdown("#### " + tt("Kobling til LK20 (typiske vurderingskriterier)", "Link to LK20 (typical assessment criteria)"))
         st.markdown(tt(
-            """
-1. **Oppgaveforståelse:** Hva er bestillingen / arbeidsoppdraget?  
-2. **Mål og enheter:** Hvilke mål har du? Er alle i samme enhet?  
-3. **Formelvalg:** Hvilken formel passer – og hvorfor?  
-4. **Mellomregning:** Skriv regnestykker steg for steg.  
-5. **Kontroll:** Grovsjekk + kontrollmåling/kalkulator.  
-6. **Avvik:** Hva kan gi feil? (kapp, svinn, toleranser, målefeil)  
-7. **Refleksjon:** Hva lærte du – og hva ville du gjort annerledes?
-            """,
-            """
-1. Task understanding  
-2. Measurements and units  
-3. Formula choice  
-4. Working  
-5. Verification  
-6. Deviations and sources of error  
-7. Reflection
-            """
+            """- Bruker relevante måleenheter og gjør korrekte omregninger.
+- Velger riktig formel/metode og viser mellomregning.
+- Forklarer valg og kontrollerer rimelighet (svar-sjekk).
+- Dokumenterer arbeidet og reflekterer over kvalitet og HMS.""",
+            """- Uses relevant units and correct conversions.
+- Chooses the right formula/method and shows working.
+- Explains choices and checks reasonableness.
+- Documents work and reflects on quality and HSE."""
         ))
 
     with main_tabs[2]:
         st.markdown("### " + tt("HMS i praksis", "HSE in practice"))
         st.write(tt(
-            "Koble oppgavene til HMS: måling, ryddighet, risiko ved feilberegning (f.eks. feil fall, feil dimensjon, feil mengder).",
-            "Link tasks to HSE: measurement, housekeeping, risks from miscalculation (e.g., wrong slope, wrong dimension, wrong quantities)."
-        ))
-        st.markdown(tt(
-            """
-**Mini-SJA (3 spørsmål):**
-- Hva kan gå galt?  
-- Hvordan forebygger vi?  
-- Hva gjør vi hvis det skjer?  
-            """,
-            """
-**Mini risk assessment (3 questions):**
-- What can go wrong?  
-- How do we prevent it?  
-- What do we do if it happens?
-            """
+            "Mattefeil på byggeplass blir ofte **HMS-feil**: feil fall, feil dimensjon, feil vekt/mengde eller feil kapasitet. "
+            "Bruk sjekklisten under før du «godkjenner» beregningen.",
+            "Math errors on the job site often become **HSE errors**: wrong slope, dimension, load/quantity or capacity. "
+            "Use the checklist below before you approve a calculation."
         ))
 
-st.session_state['_vc_uid'] = 0  # reset per run
+        st.markdown("#### " + tt("Sjekkliste før utførelse", "Checklist before execution"))
+        st.markdown(tt(
+            """- Har jeg riktig **enhet** (mm/cm/m, m², m³, liter, kg, %)?
+- Har jeg tatt målet riktig (nullpunkt, vinkel, toleranse)?
+- Har jeg lagt inn nødvendige tillegg (svinn, overlapp, kapp, sikkerhetsmargin)?
+- Stemmer svaret med erfaring/tommelfingerregel?
+- Hva er konsekvensen hvis svaret er feil (kvalitet, funksjon, sikkerhet)?""",
+            """- Do I have the correct **unit** (mm/cm/m, m², m³, liters, kg, %)?
+- Did I measure correctly (reference point, angle, tolerance)?
+- Did I add necessary extras (waste, overlap, cut-off, safety margin)?
+- Does the result match experience/rules of thumb?
+- What happens if the result is wrong (quality, function, safety)?"""
+        ))
+
+        st.markdown("#### " + tt("Praktisk øvelse (5 minutter)", "Quick exercise (5 minutes)"))
+        st.info(tt(
+            "Velg én oppgave fra yrket ditt. Skriv ned: (1) formel, (2) svar med enhet, (3) én HMS-konsekvens hvis du bommer.",
+            "Pick one task from your trade. Write: (1) formula, (2) answer with unit, (3) one HSE consequence if you get it wrong."
+        ))
+
 
 # ============================================================
 # Router
@@ -2921,8 +3508,6 @@ elif st.session_state.view == "Pro":
     show_pro_page()
 elif st.session_state.view == "ProInnhold":
     show_pro_content()
-elif st.session_state.view == "VeienTilYrkeslivet_Lås":
-    show_vty_gate()
 elif st.session_state.view == "VeienTilYrkeslivet_Innhold":
     show_vty_content()
 else:
