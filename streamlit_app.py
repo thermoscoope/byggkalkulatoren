@@ -227,6 +227,8 @@ with st.sidebar:
 # Hjelpefunksjoner (enheter)
 # ============================================================
 LENGTH_UNITS = ["mm", "cm", "m"]
+MASS_UNITS = ["g", "kg", "tonn"]
+AREA_UNITS = ["mm²", "cm²", "m²"]
 
 def to_m(value: float, unit: str) -> float:
     if unit == "mm":
@@ -266,6 +268,41 @@ def volume_from_m3(value_m3: float, unit: str) -> float:
     if unit == "cm":
         return value_m3 * (100.0 ** 3)
     return value_m3
+
+
+
+def mass_to_kg(value: float, unit: str) -> float:
+    """Konverter masse til kilogram."""
+    if unit == "g":
+        return value / 1000.0
+    if unit == "tonn":
+        return value * 1000.0
+    return value
+
+def mass_from_kg(value_kg: float, unit: str) -> float:
+    """Konverter kilogram til ønsket enhet."""
+    if unit == "g":
+        return value_kg * 1000.0
+    if unit == "tonn":
+        return value_kg / 1000.0
+    return value_kg
+
+def area_to_m2(value: float, unit: str) -> float:
+    """Konverter areal til m²."""
+    if unit == "mm²":
+        return value / (1000.0 ** 2)
+    if unit == "cm²":
+        return value / (100.0 ** 2)
+    return value  # m²
+
+def area_from_m2_unit(value_m2: float, unit: str) -> float:
+    """Konverter m² til ønsket arealenhet (mm²/cm²/m²)."""
+    if unit == "mm²":
+        return value_m2 * (1000.0 ** 2)
+    if unit == "cm²":
+        return value_m2 * (100.0 ** 2)
+    return value_m2
+
 
 def render_asset_image(filename: str):
     assets_dir = Path(__file__).parent / "assets"
@@ -701,14 +738,35 @@ def verification_calculator(kind: str, key_prefix: str | None = None):
     st.markdown("#### " + tt("Kontrollkalkulator", "Verification calculator"))
 
     if kind == "unit":
-        v = st.number_input(tt("Verdi", "Value"), min_value=0.0, value=1000.0, step=1.0, key=f"{kp}_val")
-        u = st.selectbox(tt("Enhet", "Unit"), ["mm", "cm", "m"], index=0, key=f"{kp}_unit")
-        mm = to_mm(float(v), str(u))
-        out = mm_to_all(mm)
-        c1, c2, c3 = st.columns(3)
-        c1.metric("mm", f"{out['mm']:.2f}")
-        c2.metric("cm", f"{out['cm']:.2f}")
-        c3.metric("m", f"{out['m']:.3f}")
+        t_len, t_mass, t_area = st.tabs([tt("Lengde", "Length"), tt("Vekt", "Mass"), tt("Areal", "Area")])
+
+        with t_len:
+            v = st.number_input(tt("Verdi", "Value"), min_value=0.0, value=1000.0, step=1.0, key=f"{kp}_len_val")
+            u = st.selectbox(tt("Enhet", "Unit"), LENGTH_UNITS, index=0, key=f"{kp}_len_unit")
+            mm = to_mm(float(v), str(u))
+            out = mm_to_all(mm)
+            c1, c2, c3 = st.columns(3)
+            c1.metric("mm", f"{out['mm']:.2f}")
+            c2.metric("cm", f"{out['cm']:.2f}")
+            c3.metric("m", f"{out['m']:.3f}")
+
+        with t_mass:
+            v = st.number_input(tt("Verdi", "Value"), min_value=0.0, value=1.0, step=0.1, key=f"{kp}_mass_val")
+            u = st.selectbox(tt("Enhet", "Unit"), MASS_UNITS, index=1, key=f"{kp}_mass_unit")
+            kg = mass_to_kg(float(v), str(u))
+            c1, c2, c3 = st.columns(3)
+            c1.metric("g", f"{mass_from_kg(kg, 'g'):.2f}")
+            c2.metric("kg", f"{mass_from_kg(kg, 'kg'):.3f}")
+            c3.metric("tonn", f"{mass_from_kg(kg, 'tonn'):.6f}")
+
+        with t_area:
+            v = st.number_input(tt("Verdi", "Value"), min_value=0.0, value=1.0, step=0.1, key=f"{kp}_area_val")
+            u = st.selectbox(tt("Enhet", "Unit"), AREA_UNITS, index=2, key=f"{kp}_area_unit")
+            m2 = area_to_m2(float(v), str(u))
+            c1, c2, c3 = st.columns(3)
+            c1.metric("mm²", f"{area_from_m2_unit(m2, 'mm²'):.2f}")
+            c2.metric("cm²", f"{area_from_m2_unit(m2, 'cm²'):.2f}")
+            c3.metric("m²", f"{area_from_m2_unit(m2, 'm²'):.6f}")
 
     elif kind == "area_rect":
         a = st.number_input(tt("Lengde", "Length"), min_value=0.0, value=6.0, step=0.1, key=f"{kp}_a")
@@ -816,6 +874,138 @@ def angle_calculator():
             else:
                 A_m = to_m(B, unit) / t
                 st.success(f"A = {fmt(from_m(A_m, unit))} {unit}")
+
+
+def cladding_calculator():
+    st.markdown("### " + tt("Inndeling av kledning", "Cladding layout"))
+    st.caption(tt(
+        "Beregningene gir et matematisk utgangspunkt. Kontroller alltid mot produsentens anvisning, "
+        "spiker-/skrueplassering og ønsket uttrykk før montering.",
+        "These calculations are a mathematical starting point. Always verify against the manufacturer's guidance, "
+        "fastener placement, and desired appearance before installation."
+    ))
+
+    tab1, tab2 = st.tabs([
+        "🪵 " + tt("Tømmermannskledning (over/under)", "Double-board cladding (over/under)"),
+        "🧱 " + tt("Tett stående kledning", "Tight vertical cladding"),
+    ])
+
+    with tab1:
+        st.markdown("**" + tt("Input", "Inputs") + "**")
+        c1, c2 = st.columns(2)
+        with c1:
+            unit = st.selectbox(tt("Enhet", "Unit"), LENGTH_UNITS, index=2, key="clad_ou_unit")
+            L = st.number_input(tt("Lengde (fra første til siste bord)", "Length (from first to last board)"),
+                                min_value=0.0, value=4.8, step=0.1, key="clad_ou_L")
+        with c2:
+            b = st.number_input(tt("Bredde på bord (underligger)", "Board width (under board)"),
+                                min_value=0.0, value=0.098, step=0.001, key="clad_ou_b")
+            d = st.number_input(tt("Dekningsmål", "Coverage (reveal)"),
+                                min_value=0.0, value=0.073, step=0.001, key="clad_ou_d")
+
+        L_m = to_m(float(L), str(unit))
+        b_m = to_m(float(b), str(unit))
+        d_m = to_m(float(d), str(unit))
+
+        if L_m <= 0 or b_m <= 0 or d_m <= 0:
+            st.info(tt("Legg inn positive verdier for å få beregning.", "Enter positive values to calculate."))
+        else:
+            gap_m = max(d_m - b_m, 0.0)
+            pitch_m = b_m + gap_m  # skal tilsvare dekningsmål (d_m) dersom d>=b
+            # Antall underliggere som får plass med lik avstand (gap) mellom
+            n_under = int(math.floor((L_m + gap_m) / max(pitch_m, 1e-9)))
+            n_under = max(n_under, 1)
+
+            used_m = n_under * b_m + max(n_under - 1, 0) * gap_m
+            rest_m = L_m - used_m
+
+            # Start-/sluttoffset for symmetri dersom det er rest
+            offset_m = max(rest_m, 0.0) / 2.0
+            n_over = max(n_under - 1, 0)
+
+            st.markdown("**" + tt("Resultat", "Results") + "**")
+            r1, r2, r3 = st.columns(3)
+            r1.metric(tt("Underliggere", "Under boards"), f"{n_under:d}")
+            r2.metric(tt("Overliggere (antatt)", "Over boards (assumed)"), f"{n_over:d}")
+            r3.metric(tt("Avstand mellom underliggere", "Gap between under boards"),
+                      f"{from_m(gap_m, str(unit)):.3f} {unit}")
+
+            st.markdown(
+                tt(
+                    f"- Senter-/modulmål (b+gap) ≈ **{from_m(pitch_m, str(unit)):.3f} {unit}**\n"
+                    f"- Symmetrisk start-/sluttmargin ≈ **{from_m(offset_m, str(unit)):.3f} {unit}**\n"
+                    f"- Kontroll: brukt lengde ≈ **{from_m(used_m, str(unit)):.3f} {unit}** (rest ≈ {from_m(rest_m, str(unit)):.3f} {unit})",
+                    f"- Module (board+gap) ≈ **{from_m(pitch_m, str(unit)):.3f} {unit}**\n"
+                    f"- Symmetric start/end margin ≈ **{from_m(offset_m, str(unit)):.3f} {unit}**\n"
+                    f"- Check: used length ≈ **{from_m(used_m, str(unit)):.3f} {unit}** (remainder ≈ {from_m(rest_m, str(unit)):.3f} {unit})"
+                )
+            )
+
+            st.caption(tt(
+                "Antakelse: Overligger dekker én åpning mellom to underliggere, derfor overliggere = underliggere − 1.",
+                "Assumption: One over board covers one gap between two under boards, hence over boards = under boards − 1."
+            ))
+
+    with tab2:
+        st.markdown("**" + tt("Input", "Inputs") + "**")
+        c1, c2 = st.columns(2)
+        with c1:
+            unit = st.selectbox(tt("Enhet", "Unit"), LENGTH_UNITS, index=2, key="clad_tett_unit")
+            L = st.number_input(tt("Lengde på vegg", "Wall length"),
+                                min_value=0.0, value=4.8, step=0.1, key="clad_tett_L")
+        with c2:
+            d = st.number_input(tt("Dekningsmål per bord", "Coverage per board (reveal)"),
+                                min_value=0.0, value=0.073, step=0.001, key="clad_tett_d")
+
+        L_m = to_m(float(L), str(unit))
+        d_m = to_m(float(d), str(unit))
+
+        if L_m <= 0 or d_m <= 0:
+            st.info(tt("Legg inn positive verdier for å få beregning.", "Enter positive values to calculate."))
+        else:
+            # Finn antall bord N slik at start- og sluttbord kan kappes likt (symmetri)
+            # Modell: (N-2)*d + 2*w_start = L  => w_start = (L - (N-2)*d)/2
+            N0 = max(int(math.floor(L_m / d_m)) + 1, 2)
+            chosen = None
+            for N in range(N0, N0 + 8):
+                w = (L_m - (N - 2) * d_m) / 2.0
+                if 0 < w <= d_m:
+                    # Praktisk: unngå ekstremt smale kantbord
+                    if w >= 0.20 * d_m:
+                        chosen = (N, w)
+                        break
+            if chosen is None:
+                # fallback: bruk nærmeste positive
+                N = N0 + 8
+                w = max((L_m - (N - 2) * d_m) / 2.0, 0.0)
+                chosen = (N, w)
+
+            N, w_start_m = chosen
+            used_m = (N - 2) * d_m + 2 * w_start_m
+            rest_m = L_m - used_m
+
+            st.markdown("**" + tt("Resultat", "Results") + "**")
+            r1, r2, r3 = st.columns(3)
+            r1.metric(tt("Antall bord", "Number of boards"), f"{N:d}")
+            r2.metric(tt("Start-/sluttbord (kappbredde)", "Start/end board width (cut)"),
+                      f"{from_m(w_start_m, str(unit)):.3f} {unit}")
+            r3.metric(tt("Dekningsmål midtbord", "Middle boards reveal"),
+                      f"{from_m(d_m, str(unit)):.3f} {unit}")
+
+            st.markdown(
+                tt(
+                    f"- Midtbord (fullt dekningsmål): **{max(N-2,0):d} stk**\n"
+                    f"- Kontroll: beregnet lengde ≈ **{from_m(used_m, str(unit)):.3f} {unit}** (avvik ≈ {from_m(rest_m, str(unit)):.3f} {unit})",
+                    f"- Middle boards (full reveal): **{max(N-2,0):d} pcs**\n"
+                    f"- Check: calculated length ≈ **{from_m(used_m, str(unit)):.3f} {unit}** (difference ≈ {from_m(rest_m, str(unit)):.3f} {unit})"
+                )
+            )
+
+            st.caption(tt(
+                "Tanken er å unngå at siste bord blir en \"smal slisse\" ved å fordele kapp i begge ender.",
+                "Goal: avoid an extra-thin last board by splitting the cut evenly on both ends."
+            ))
+
 
 # ============================================================
 # ØVINGSOPPGAVER (nivåbasert)
@@ -1549,6 +1739,7 @@ def show_calculators():
             "📐 " + tt("Diagonal", "Diagonal"),
             "📐 " + tt("Vinkler", "Angles"),
             "📉 " + tt("Fall", "Slope"),
+            "🪵 " + tt("Kledning", "Cladding"),
             "🧮 " + tt("Prosent", "Percent"),
         ]
     )
@@ -1575,6 +1766,9 @@ def show_calculators():
         verification_calculator("slope", key_prefix="tab_slope")
 
     with tabs[7]:
+        cladding_calculator()
+
+    with tabs[8]:
         verification_calculator("percent_of", key_prefix="tab_percent_of")
 
 # ============================================================
